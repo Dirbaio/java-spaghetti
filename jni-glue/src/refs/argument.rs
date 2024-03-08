@@ -54,7 +54,7 @@ impl<Class: AsValidJObjectAndEnv> Argument<Class> {
         } else {
             let jnienv = env.as_jni_env();
             let gen_vm = env.get_gen_vm();
-            let global = (**jnienv).NewGlobalRef.unwrap()(jnienv, self.object);
+            let global = ((**jnienv).v1_2.NewGlobalRef)(jnienv, self.object);
             Some(Global {
                 global,
                 gen_vm,

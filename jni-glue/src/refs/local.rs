@@ -74,7 +74,7 @@ impl<'env, Class: AsValidJObjectAndEnv> Drop for Local<'env, Class> {
     fn drop(&mut self) {
         let env = self.oae.env as *mut JNIEnv;
         unsafe {
-            (**env).DeleteLocalRef.unwrap()(env, self.oae.object);
+            ((**env).v1_2.DeleteLocalRef)(env, self.oae.object);
         }
     }
 }

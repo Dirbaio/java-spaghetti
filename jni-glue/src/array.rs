@@ -93,23 +93,6 @@ where
     }
 }
 
-// I assume jboolean as used exclusively by JNI/JVM is compatible with bool.
-// This is *not* a sound/safe assumption in the general case as jboolean can be any u8 bit pattern.
-// However, I believe this *is* a sound/safe assumption when exclusively dealing with JNI/JVM APIs which *should* be
-// returning exclusively JNI_TRUE or JNI_FALSE, which are bitwise compatible with Rust's definitions of true / false.
-#[test]
-fn bool_ffi_assumptions_test() {
-    use std::mem::*;
-
-    // Assert that the sizes are indeed the same.
-    assert_eq!(size_of::<jboolean>(), 1); // Forever
-    assert_eq!(size_of::<bool>(), 1); // As of https://github.com/rust-lang/rust/pull/46156/commits/219ba511c824bc44149d55c570f723dcd0f0217d
-
-    // Assert that the underlying representations are indeed the same.
-    assert_eq!(unsafe { std::mem::transmute::<bool, u8>(true) }, JNI_TRUE);
-    assert_eq!(unsafe { std::mem::transmute::<bool, u8>(false) }, JNI_FALSE);
-}
-
 macro_rules! primitive_array {
     (#[repr(transparent)] pub struct $name:ident = $type_str:expr, $type:ident { $new_array:ident $set_region:ident $get_region:ident } ) => {
         /// A [PrimitiveArray](trait.PrimitiveArray.html) implementation.
@@ -134,8 +117,8 @@ macro_rules! primitive_array {
                 let size = size as jsize;
                 let env = env.as_jni_env();
                 unsafe {
-                    let object = (**env).$new_array.unwrap()(env, size);
-                    let exception = (**env).ExceptionOccurred.unwrap()(env);
+                    let object = ((**env).v1_2.$new_array)(env, size);
+                    let exception = ((**env).v1_2.ExceptionOccurred)(env);
                     assert!(exception.is_null()); // Only sane exception here is an OOM exception
                     Local::from_env_object(env, object)
                 }
@@ -147,13 +130,13 @@ macro_rules! primitive_array {
                 let env = array.0.env as *mut JNIEnv;
                 let object = array.0.object;
                 unsafe {
-                    (**env).$set_region.unwrap()(env, object, 0, size, elements.as_ptr() as *const _);
+                    ((**env).v1_1.$set_region)(env, object, 0, size, elements.as_ptr() as *const _);
                 }
                 array
             }
 
             fn len(&self) -> usize {
-                unsafe { (**self.0.env).GetArrayLength.unwrap()(self.0.env as *mut _, self.0.object) as usize }
+                unsafe { ((**self.0.env).v1_2.GetArrayLength)(self.0.env as *mut _, self.0.object) as usize }
             }
 
             fn get_region(&self, start: usize, elements: &mut [$type]) {
@@ -168,7 +151,7 @@ macro_rules! primitive_array {
                 assert!(end <= self_len);
 
                 unsafe {
-                    (**self.0.env).$get_region.unwrap()(
+                    ((**self.0.env).v1_1.$get_region)(
                         self.0.env as *mut _,
                         self.0.object,
                         start,
@@ -190,7 +173,7 @@ macro_rules! primitive_array {
                 assert!(end <= self_len);
 
                 unsafe {
-                    (**self.0.env).$set_region.unwrap()(
+                    ((**self.0.env).v1_1.$set_region)(
                         self.0.env as *mut _,
                         self.0.object,
                         start,
@@ -243,8 +226,8 @@ impl<T: AsValidJObjectAndEnv, E: ThrowableType> ObjectArray<T, E> {
         let env = env.as_jni_env();
         unsafe {
             let fill = null_mut();
-            let object = (**env).NewObjectArray.unwrap()(env, size, class, fill);
-            let exception = (**env).ExceptionOccurred.unwrap()(env);
+            let object = ((**env).v1_2.NewObjectArray)(env, size, class, fill);
+            let exception = ((**env).v1_2.ExceptionOccurred)(env);
             assert!(exception.is_null()); // Only sane exception here is an OOM exception
             Local::from_env_object(env, object)
         }
@@ -266,7 +249,6 @@ impl<T: AsValidJObjectAndEnv, E: ThrowableType> ObjectArray<T, E> {
         let array = Self::new(env, size);
         let env = array.0.env as *mut JNIEnv;
         let this = array.0.object;
-        let set = unsafe { **env }.SetObjectArrayElement.unwrap();
 
         for (index, element) in elements.enumerate() {
             assert!(index < size); // Should only be violated by an invalid ExactSizeIterator implementation.
@@ -274,13 +256,13 @@ impl<T: AsValidJObjectAndEnv, E: ThrowableType> ObjectArray<T, E> {
                 .into()
                 .map(|v| unsafe { AsJValue::as_jvalue(v.into()).l })
                 .unwrap_or(null_mut());
-            unsafe { set(env, this, index as jsize, value) };
+            unsafe { ((**env).v1_2.SetObjectArrayElement)(env, this, index as jsize, value) };
         }
         array
     }
 
     pub fn len(&self) -> usize {
-        unsafe { (**self.0.env).GetArrayLength.unwrap()(self.0.env as *mut _, self.0.object) as usize }
+        unsafe { ((**self.0.env).v1_2.GetArrayLength)(self.0.env as *mut _, self.0.object) as usize }
     }
 
     /// XXX: Expose this via std::ops::Index
@@ -290,10 +272,10 @@ impl<T: AsValidJObjectAndEnv, E: ThrowableType> ObjectArray<T, E> {
         let env = self.0.env as *mut JNIEnv;
         let this = self.0.object;
         unsafe {
-            let result = (**env).GetObjectArrayElement.unwrap()(env, this, index);
-            let exception = (**env).ExceptionOccurred.unwrap()(env);
+            let result = ((**env).v1_2.GetObjectArrayElement)(env, this, index);
+            let exception = ((**env).v1_2.ExceptionOccurred)(env);
             if !exception.is_null() {
-                (**env).ExceptionClear.unwrap()(env);
+                ((**env).v1_2.ExceptionClear)(env);
                 Err(Local::from_env_object(env, exception))
             } else if result.is_null() {
                 Ok(None)
@@ -314,10 +296,10 @@ impl<T: AsValidJObjectAndEnv, E: ThrowableType> ObjectArray<T, E> {
         let env = self.0.env as *mut JNIEnv;
         let this = self.0.object;
         unsafe {
-            (**env).SetObjectArrayElement.unwrap()(env, this, index, value);
-            let exception = (**env).ExceptionOccurred.unwrap()(env);
+            ((**env).v1_2.SetObjectArrayElement)(env, this, index, value);
+            let exception = ((**env).v1_2.ExceptionOccurred)(env);
             if !exception.is_null() {
-                (**env).ExceptionClear.unwrap()(env);
+                ((**env).v1_2.ExceptionClear)(env);
                 Err(Local::from_env_object(env, exception))
             } else {
                 Ok(())

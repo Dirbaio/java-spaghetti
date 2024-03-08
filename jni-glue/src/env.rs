@@ -71,7 +71,7 @@ impl Env {
     pub(crate) fn get_gen_vm(&self) -> GenVM {
         let jni_env = self.as_jni_env();
         let mut vm = null_mut();
-        let err = unsafe { (**jni_env).GetJavaVM.unwrap()(jni_env, &mut vm) };
+        let err = unsafe { ((**jni_env).v1_2.GetJavaVM)(jni_env, &mut vm) };
         assert_eq!(err, JNI_OK);
         assert_ne!(vm, null_mut());
         VMS.read().unwrap().get_gen_vm(vm)
@@ -81,22 +81,22 @@ impl Env {
 
     pub unsafe fn new_string(&self, chars: *const jchar, len: jsize) -> jstring {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        (**env).NewString.unwrap()(env, chars as *const _, len)
+        ((**env).v1_2.NewString)(env, chars as *const _, len)
     }
 
     pub unsafe fn get_string_length(&self, string: jstring) -> jsize {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        (**env).GetStringLength.unwrap()(env, string)
+        ((**env).v1_2.GetStringLength)(env, string)
     }
 
     pub unsafe fn get_string_chars(&self, string: jstring) -> *const jchar {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        (**env).GetStringChars.unwrap()(env, string, null_mut()) as *const _
+        ((**env).v1_2.GetStringChars)(env, string, null_mut()) as *const _
     }
 
     pub unsafe fn release_string_chars(&self, string: jstring, chars: *const jchar) {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        (**env).ReleaseStringChars.unwrap()(env, string, chars as *const _)
+        ((**env).v1_2.ReleaseStringChars)(env, string, chars as *const _)
     }
 
     // Query Methods
@@ -104,7 +104,7 @@ impl Env {
     pub unsafe fn require_class(&self, class: &str) -> jclass {
         debug_assert!(class.ends_with('\0'));
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let class = (**env).FindClass.unwrap()(env, class.as_ptr() as *const c_char);
+        let class = ((**env).v1_2.FindClass)(env, class.as_ptr() as *const c_char);
         assert!(!class.is_null());
         class
     }
@@ -114,7 +114,7 @@ impl Env {
         debug_assert!(descriptor.ends_with('\0'));
 
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let method = (**env).GetMethodID.unwrap()(
+        let method = ((**env).v1_2.GetMethodID)(
             env,
             class,
             method.as_ptr() as *const c_char,
@@ -129,7 +129,7 @@ impl Env {
         debug_assert!(descriptor.ends_with('\0'));
 
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let method = (**env).GetStaticMethodID.unwrap()(
+        let method = ((**env).v1_2.GetStaticMethodID)(
             env,
             class,
             method.as_ptr() as *const c_char,
@@ -144,7 +144,7 @@ impl Env {
         debug_assert!(field.ends_with('\0'));
 
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let field = (**env).GetFieldID.unwrap()(
+        let field = ((**env).v1_2.GetFieldID)(
             env,
             class,
             field.as_ptr() as *const c_char,
@@ -159,7 +159,7 @@ impl Env {
         debug_assert!(field.ends_with('\0'));
 
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let field = (**env).GetStaticFieldID.unwrap()(
+        let field = ((**env).v1_2.GetStaticFieldID)(
             env,
             class,
             field.as_ptr() as *const c_char,
@@ -205,10 +205,10 @@ impl Env {
         args: *const jvalue,
     ) -> Result<Local<'env, R>, Local<'env, E>> {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).NewObjectA.unwrap()(env, class, method, args);
-        let exception = (**env).ExceptionOccurred.unwrap()(env);
+        let result = ((**env).v1_2.NewObjectA)(env, class, method, args);
+        let exception = ((**env).v1_2.ExceptionOccurred)(env);
         if !exception.is_null() {
-            (**env).ExceptionClear.unwrap()(env);
+            ((**env).v1_2.ExceptionClear)(env);
             Err(Local::from_env_object(env, exception))
         } else {
             assert!(!result.is_null());
@@ -225,10 +225,10 @@ impl Env {
         args: *const jvalue,
     ) -> Result<Option<Local<'env, R>>, Local<'env, E>> {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).CallObjectMethodA.unwrap()(env, this, method, args);
-        let exception = (**env).ExceptionOccurred.unwrap()(env);
+        let result = ((**env).v1_2.CallObjectMethodA)(env, this, method, args);
+        let exception = ((**env).v1_2.ExceptionOccurred)(env);
         if !exception.is_null() {
-            (**env).ExceptionClear.unwrap()(env);
+            ((**env).v1_2.ExceptionClear)(env);
             Err(Local::from_env_object(env, exception))
         } else if result.is_null() {
             Ok(None)
@@ -244,10 +244,10 @@ impl Env {
         args: *const jvalue,
     ) -> Result<bool, Local<'env, E>> {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).CallBooleanMethodA.unwrap()(env, this, method, args);
-        let exception = (**env).ExceptionOccurred.unwrap()(env);
+        let result = ((**env).v1_2.CallBooleanMethodA)(env, this, method, args);
+        let exception = ((**env).v1_2.ExceptionOccurred)(env);
         if !exception.is_null() {
-            (**env).ExceptionClear.unwrap()(env);
+            ((**env).v1_2.ExceptionClear)(env);
             Err(Local::from_env_object(env, exception))
         } else {
             Ok(result != JNI_FALSE)
@@ -261,10 +261,10 @@ impl Env {
         args: *const jvalue,
     ) -> Result<jbyte, Local<'env, E>> {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).CallByteMethodA.unwrap()(env, this, method, args);
-        let exception = (**env).ExceptionOccurred.unwrap()(env);
+        let result = ((**env).v1_2.CallByteMethodA)(env, this, method, args);
+        let exception = ((**env).v1_2.ExceptionOccurred)(env);
         if !exception.is_null() {
-            (**env).ExceptionClear.unwrap()(env);
+            ((**env).v1_2.ExceptionClear)(env);
             Err(Local::from_env_object(env, exception))
         } else {
             Ok(result)
@@ -278,10 +278,10 @@ impl Env {
         args: *const jvalue,
     ) -> Result<jchar, Local<'env, E>> {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).CallCharMethodA.unwrap()(env, this, method, args);
-        let exception = (**env).ExceptionOccurred.unwrap()(env);
+        let result = ((**env).v1_2.CallCharMethodA)(env, this, method, args);
+        let exception = ((**env).v1_2.ExceptionOccurred)(env);
         if !exception.is_null() {
-            (**env).ExceptionClear.unwrap()(env);
+            ((**env).v1_2.ExceptionClear)(env);
             Err(Local::from_env_object(env, exception))
         } else {
             Ok(jchar(result))
@@ -295,10 +295,10 @@ impl Env {
         args: *const jvalue,
     ) -> Result<jshort, Local<'env, E>> {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).CallShortMethodA.unwrap()(env, this, method, args);
-        let exception = (**env).ExceptionOccurred.unwrap()(env);
+        let result = ((**env).v1_2.CallShortMethodA)(env, this, method, args);
+        let exception = ((**env).v1_2.ExceptionOccurred)(env);
         if !exception.is_null() {
-            (**env).ExceptionClear.unwrap()(env);
+            ((**env).v1_2.ExceptionClear)(env);
             Err(Local::from_env_object(env, exception))
         } else {
             Ok(result)
@@ -312,10 +312,10 @@ impl Env {
         args: *const jvalue,
     ) -> Result<jint, Local<'env, E>> {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).CallIntMethodA.unwrap()(env, this, method, args);
-        let exception = (**env).ExceptionOccurred.unwrap()(env);
+        let result = ((**env).v1_2.CallIntMethodA)(env, this, method, args);
+        let exception = ((**env).v1_2.ExceptionOccurred)(env);
         if !exception.is_null() {
-            (**env).ExceptionClear.unwrap()(env);
+            ((**env).v1_2.ExceptionClear)(env);
             Err(Local::from_env_object(env, exception))
         } else {
             Ok(result)
@@ -329,10 +329,10 @@ impl Env {
         args: *const jvalue,
     ) -> Result<jlong, Local<'env, E>> {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).CallLongMethodA.unwrap()(env, this, method, args);
-        let exception = (**env).ExceptionOccurred.unwrap()(env);
+        let result = ((**env).v1_2.CallLongMethodA)(env, this, method, args);
+        let exception = ((**env).v1_2.ExceptionOccurred)(env);
         if !exception.is_null() {
-            (**env).ExceptionClear.unwrap()(env);
+            ((**env).v1_2.ExceptionClear)(env);
             Err(Local::from_env_object(env, exception))
         } else {
             Ok(result)
@@ -346,10 +346,10 @@ impl Env {
         args: *const jvalue,
     ) -> Result<jfloat, Local<'env, E>> {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).CallFloatMethodA.unwrap()(env, this, method, args);
-        let exception = (**env).ExceptionOccurred.unwrap()(env);
+        let result = ((**env).v1_2.CallFloatMethodA)(env, this, method, args);
+        let exception = ((**env).v1_2.ExceptionOccurred)(env);
         if !exception.is_null() {
-            (**env).ExceptionClear.unwrap()(env);
+            ((**env).v1_2.ExceptionClear)(env);
             Err(Local::from_env_object(env, exception))
         } else {
             Ok(result)
@@ -363,10 +363,10 @@ impl Env {
         args: *const jvalue,
     ) -> Result<jdouble, Local<'env, E>> {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).CallDoubleMethodA.unwrap()(env, this, method, args);
-        let exception = (**env).ExceptionOccurred.unwrap()(env);
+        let result = ((**env).v1_2.CallDoubleMethodA)(env, this, method, args);
+        let exception = ((**env).v1_2.ExceptionOccurred)(env);
         if !exception.is_null() {
-            (**env).ExceptionClear.unwrap()(env);
+            ((**env).v1_2.ExceptionClear)(env);
             Err(Local::from_env_object(env, exception))
         } else {
             Ok(result)
@@ -380,10 +380,10 @@ impl Env {
         args: *const jvalue,
     ) -> Result<(), Local<'env, E>> {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).CallVoidMethodA.unwrap()(env, this, method, args);
-        let exception = (**env).ExceptionOccurred.unwrap()(env);
+        let result = ((**env).v1_2.CallVoidMethodA)(env, this, method, args);
+        let exception = ((**env).v1_2.ExceptionOccurred)(env);
         if !exception.is_null() {
-            (**env).ExceptionClear.unwrap()(env);
+            ((**env).v1_2.ExceptionClear)(env);
             Err(Local::from_env_object(env, exception))
         } else {
             Ok(result)
@@ -399,10 +399,10 @@ impl Env {
         args: *const jvalue,
     ) -> Result<Option<Local<'env, R>>, Local<'env, E>> {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).CallStaticObjectMethodA.unwrap()(env, class, method, args);
-        let exception = (**env).ExceptionOccurred.unwrap()(env);
+        let result = ((**env).v1_2.CallStaticObjectMethodA)(env, class, method, args);
+        let exception = ((**env).v1_2.ExceptionOccurred)(env);
         if !exception.is_null() {
-            (**env).ExceptionClear.unwrap()(env);
+            ((**env).v1_2.ExceptionClear)(env);
             Err(Local::from_env_object(env, exception))
         } else if result.is_null() {
             Ok(None)
@@ -418,10 +418,10 @@ impl Env {
         args: *const jvalue,
     ) -> Result<bool, Local<'env, E>> {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).CallStaticBooleanMethodA.unwrap()(env, class, method, args);
-        let exception = (**env).ExceptionOccurred.unwrap()(env);
+        let result = ((**env).v1_2.CallStaticBooleanMethodA)(env, class, method, args);
+        let exception = ((**env).v1_2.ExceptionOccurred)(env);
         if !exception.is_null() {
-            (**env).ExceptionClear.unwrap()(env);
+            ((**env).v1_2.ExceptionClear)(env);
             Err(Local::from_env_object(env, exception))
         } else {
             Ok(result != JNI_FALSE)
@@ -435,10 +435,10 @@ impl Env {
         args: *const jvalue,
     ) -> Result<jbyte, Local<'env, E>> {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).CallStaticByteMethodA.unwrap()(env, class, method, args);
-        let exception = (**env).ExceptionOccurred.unwrap()(env);
+        let result = ((**env).v1_2.CallStaticByteMethodA)(env, class, method, args);
+        let exception = ((**env).v1_2.ExceptionOccurred)(env);
         if !exception.is_null() {
-            (**env).ExceptionClear.unwrap()(env);
+            ((**env).v1_2.ExceptionClear)(env);
             Err(Local::from_env_object(env, exception))
         } else {
             Ok(result)
@@ -452,10 +452,10 @@ impl Env {
         args: *const jvalue,
     ) -> Result<jchar, Local<'env, E>> {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).CallStaticCharMethodA.unwrap()(env, class, method, args);
-        let exception = (**env).ExceptionOccurred.unwrap()(env);
+        let result = ((**env).v1_2.CallStaticCharMethodA)(env, class, method, args);
+        let exception = ((**env).v1_2.ExceptionOccurred)(env);
         if !exception.is_null() {
-            (**env).ExceptionClear.unwrap()(env);
+            ((**env).v1_2.ExceptionClear)(env);
             Err(Local::from_env_object(env, exception))
         } else {
             Ok(jchar(result))
@@ -469,10 +469,10 @@ impl Env {
         args: *const jvalue,
     ) -> Result<jshort, Local<'env, E>> {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).CallStaticShortMethodA.unwrap()(env, class, method, args);
-        let exception = (**env).ExceptionOccurred.unwrap()(env);
+        let result = ((**env).v1_2.CallStaticShortMethodA)(env, class, method, args);
+        let exception = ((**env).v1_2.ExceptionOccurred)(env);
         if !exception.is_null() {
-            (**env).ExceptionClear.unwrap()(env);
+            ((**env).v1_2.ExceptionClear)(env);
             Err(Local::from_env_object(env, exception))
         } else {
             Ok(result)
@@ -486,10 +486,10 @@ impl Env {
         args: *const jvalue,
     ) -> Result<jint, Local<'env, E>> {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).CallStaticIntMethodA.unwrap()(env, class, method, args);
-        let exception = (**env).ExceptionOccurred.unwrap()(env);
+        let result = ((**env).v1_2.CallStaticIntMethodA)(env, class, method, args);
+        let exception = ((**env).v1_2.ExceptionOccurred)(env);
         if !exception.is_null() {
-            (**env).ExceptionClear.unwrap()(env);
+            ((**env).v1_2.ExceptionClear)(env);
             Err(Local::from_env_object(env, exception))
         } else {
             Ok(result)
@@ -503,10 +503,10 @@ impl Env {
         args: *const jvalue,
     ) -> Result<jlong, Local<'env, E>> {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).CallStaticLongMethodA.unwrap()(env, class, method, args);
-        let exception = (**env).ExceptionOccurred.unwrap()(env);
+        let result = ((**env).v1_2.CallStaticLongMethodA)(env, class, method, args);
+        let exception = ((**env).v1_2.ExceptionOccurred)(env);
         if !exception.is_null() {
-            (**env).ExceptionClear.unwrap()(env);
+            ((**env).v1_2.ExceptionClear)(env);
             Err(Local::from_env_object(env, exception))
         } else {
             Ok(result)
@@ -520,10 +520,10 @@ impl Env {
         args: *const jvalue,
     ) -> Result<jfloat, Local<'env, E>> {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).CallStaticFloatMethodA.unwrap()(env, class, method, args);
-        let exception = (**env).ExceptionOccurred.unwrap()(env);
+        let result = ((**env).v1_2.CallStaticFloatMethodA)(env, class, method, args);
+        let exception = ((**env).v1_2.ExceptionOccurred)(env);
         if !exception.is_null() {
-            (**env).ExceptionClear.unwrap()(env);
+            ((**env).v1_2.ExceptionClear)(env);
             Err(Local::from_env_object(env, exception))
         } else {
             Ok(result)
@@ -537,10 +537,10 @@ impl Env {
         args: *const jvalue,
     ) -> Result<jdouble, Local<'env, E>> {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).CallStaticDoubleMethodA.unwrap()(env, class, method, args);
-        let exception = (**env).ExceptionOccurred.unwrap()(env);
+        let result = ((**env).v1_2.CallStaticDoubleMethodA)(env, class, method, args);
+        let exception = ((**env).v1_2.ExceptionOccurred)(env);
         if !exception.is_null() {
-            (**env).ExceptionClear.unwrap()(env);
+            ((**env).v1_2.ExceptionClear)(env);
             Err(Local::from_env_object(env, exception))
         } else {
             Ok(result)
@@ -554,10 +554,10 @@ impl Env {
         args: *const jvalue,
     ) -> Result<(), Local<'env, E>> {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).CallStaticVoidMethodA.unwrap()(env, class, method, args);
-        let exception = (**env).ExceptionOccurred.unwrap()(env);
+        let result = ((**env).v1_2.CallStaticVoidMethodA)(env, class, method, args);
+        let exception = ((**env).v1_2.ExceptionOccurred)(env);
         if !exception.is_null() {
-            (**env).ExceptionClear.unwrap()(env);
+            ((**env).v1_2.ExceptionClear)(env);
             Err(Local::from_env_object(env, exception))
         } else {
             Ok(result)
@@ -572,7 +572,7 @@ impl Env {
         field: jfieldID,
     ) -> Option<Local<'env, R>> {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).GetObjectField.unwrap()(env, this, field);
+        let result = ((**env).v1_2.GetObjectField)(env, this, field);
         if result.is_null() {
             None
         } else {
@@ -582,49 +582,49 @@ impl Env {
 
     pub unsafe fn get_boolean_field(&self, this: jobject, field: jfieldID) -> bool {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).GetBooleanField.unwrap()(env, this, field);
+        let result = ((**env).v1_2.GetBooleanField)(env, this, field);
         result != JNI_FALSE
     }
 
     pub unsafe fn get_byte_field(&self, this: jobject, field: jfieldID) -> jbyte {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).GetByteField.unwrap()(env, this, field);
+        let result = ((**env).v1_2.GetByteField)(env, this, field);
         result
     }
 
     pub unsafe fn get_char_field(&self, this: jobject, field: jfieldID) -> jchar {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).GetCharField.unwrap()(env, this, field);
+        let result = ((**env).v1_2.GetCharField)(env, this, field);
         jchar(result)
     }
 
     pub unsafe fn get_short_field(&self, this: jobject, field: jfieldID) -> jshort {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).GetShortField.unwrap()(env, this, field);
+        let result = ((**env).v1_2.GetShortField)(env, this, field);
         result
     }
 
     pub unsafe fn get_int_field(&self, this: jobject, field: jfieldID) -> jint {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).GetIntField.unwrap()(env, this, field);
+        let result = ((**env).v1_2.GetIntField)(env, this, field);
         result
     }
 
     pub unsafe fn get_long_field(&self, this: jobject, field: jfieldID) -> jlong {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).GetLongField.unwrap()(env, this, field);
+        let result = ((**env).v1_2.GetLongField)(env, this, field);
         result
     }
 
     pub unsafe fn get_float_field(&self, this: jobject, field: jfieldID) -> jfloat {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).GetFloatField.unwrap()(env, this, field);
+        let result = ((**env).v1_2.GetFloatField)(env, this, field);
         result
     }
 
     pub unsafe fn get_double_field(&self, this: jobject, field: jfieldID) -> jdouble {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).GetDoubleField.unwrap()(env, this, field);
+        let result = ((**env).v1_2.GetDoubleField)(env, this, field);
         result
     }
 
@@ -639,47 +639,47 @@ impl Env {
             .map(|v| AsJValue::as_jvalue(v.into()).l)
             .unwrap_or(null_mut());
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        (**env).SetObjectField.unwrap()(env, this, field, value);
+        ((**env).v1_2.SetObjectField)(env, this, field, value);
     }
 
     pub unsafe fn set_boolean_field(&self, this: jobject, field: jfieldID, value: bool) {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        (**env).SetBooleanField.unwrap()(env, this, field, if value { JNI_TRUE } else { JNI_FALSE });
+        ((**env).v1_2.SetBooleanField)(env, this, field, if value { JNI_TRUE } else { JNI_FALSE });
     }
 
     pub unsafe fn set_byte_field(&self, this: jobject, field: jfieldID, value: jbyte) {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        (**env).SetByteField.unwrap()(env, this, field, value);
+        ((**env).v1_2.SetByteField)(env, this, field, value);
     }
 
     pub unsafe fn set_char_field(&self, this: jobject, field: jfieldID, value: jchar) {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        (**env).SetCharField.unwrap()(env, this, field, value.0);
+        ((**env).v1_2.SetCharField)(env, this, field, value.0);
     }
 
     pub unsafe fn set_short_field(&self, this: jobject, field: jfieldID, value: jshort) {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        (**env).SetShortField.unwrap()(env, this, field, value);
+        ((**env).v1_2.SetShortField)(env, this, field, value);
     }
 
     pub unsafe fn set_int_field(&self, this: jobject, field: jfieldID, value: jint) {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        (**env).SetIntField.unwrap()(env, this, field, value);
+        ((**env).v1_2.SetIntField)(env, this, field, value);
     }
 
     pub unsafe fn set_long_field(&self, this: jobject, field: jfieldID, value: jlong) {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        (**env).SetLongField.unwrap()(env, this, field, value);
+        ((**env).v1_2.SetLongField)(env, this, field, value);
     }
 
     pub unsafe fn set_float_field(&self, this: jobject, field: jfieldID, value: jfloat) {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        (**env).SetFloatField.unwrap()(env, this, field, value);
+        ((**env).v1_2.SetFloatField)(env, this, field, value);
     }
 
     pub unsafe fn set_double_field(&self, this: jobject, field: jfieldID, value: jdouble) {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        (**env).SetDoubleField.unwrap()(env, this, field, value);
+        ((**env).v1_2.SetDoubleField)(env, this, field, value);
     }
 
     // Static Fields
@@ -690,7 +690,7 @@ impl Env {
         field: jfieldID,
     ) -> Option<Local<'env, R>> {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).GetStaticObjectField.unwrap()(env, class, field);
+        let result = ((**env).v1_2.GetStaticObjectField)(env, class, field);
         if result.is_null() {
             None
         } else {
@@ -700,49 +700,49 @@ impl Env {
 
     pub unsafe fn get_static_boolean_field(&self, class: jclass, field: jfieldID) -> bool {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).GetStaticBooleanField.unwrap()(env, class, field);
+        let result = ((**env).v1_2.GetStaticBooleanField)(env, class, field);
         result != JNI_FALSE
     }
 
     pub unsafe fn get_static_byte_field(&self, class: jclass, field: jfieldID) -> jbyte {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).GetStaticByteField.unwrap()(env, class, field);
+        let result = ((**env).v1_2.GetStaticByteField)(env, class, field);
         result
     }
 
     pub unsafe fn get_static_char_field(&self, class: jclass, field: jfieldID) -> jchar {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).GetStaticCharField.unwrap()(env, class, field);
+        let result = ((**env).v1_2.GetStaticCharField)(env, class, field);
         jchar(result)
     }
 
     pub unsafe fn get_static_short_field(&self, class: jclass, field: jfieldID) -> jshort {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).GetStaticShortField.unwrap()(env, class, field);
+        let result = ((**env).v1_2.GetStaticShortField)(env, class, field);
         result
     }
 
     pub unsafe fn get_static_int_field(&self, class: jclass, field: jfieldID) -> jint {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).GetStaticIntField.unwrap()(env, class, field);
+        let result = ((**env).v1_2.GetStaticIntField)(env, class, field);
         result
     }
 
     pub unsafe fn get_static_long_field(&self, class: jclass, field: jfieldID) -> jlong {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).GetStaticLongField.unwrap()(env, class, field);
+        let result = ((**env).v1_2.GetStaticLongField)(env, class, field);
         result
     }
 
     pub unsafe fn get_static_float_field(&self, class: jclass, field: jfieldID) -> jfloat {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).GetStaticFloatField.unwrap()(env, class, field);
+        let result = ((**env).v1_2.GetStaticFloatField)(env, class, field);
         result
     }
 
     pub unsafe fn get_static_double_field(&self, class: jclass, field: jfieldID) -> jdouble {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = (**env).GetStaticDoubleField.unwrap()(env, class, field);
+        let result = ((**env).v1_2.GetStaticDoubleField)(env, class, field);
         result
     }
 
@@ -757,46 +757,46 @@ impl Env {
             .map(|v| AsJValue::as_jvalue(v.into()).l)
             .unwrap_or(null_mut());
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        (**env).SetStaticObjectField.unwrap()(env, class, field, value);
+        ((**env).v1_2.SetStaticObjectField)(env, class, field, value);
     }
 
     pub unsafe fn set_static_boolean_field(&self, class: jclass, field: jfieldID, value: bool) {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        (**env).SetStaticBooleanField.unwrap()(env, class, field, if value { JNI_TRUE } else { JNI_FALSE });
+        ((**env).v1_2.SetStaticBooleanField)(env, class, field, if value { JNI_TRUE } else { JNI_FALSE });
     }
 
     pub unsafe fn set_static_byte_field(&self, class: jclass, field: jfieldID, value: jbyte) {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        (**env).SetStaticByteField.unwrap()(env, class, field, value);
+        ((**env).v1_2.SetStaticByteField)(env, class, field, value);
     }
 
     pub unsafe fn set_static_char_field(&self, class: jclass, field: jfieldID, value: jchar) {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        (**env).SetStaticCharField.unwrap()(env, class, field, value.0);
+        ((**env).v1_2.SetStaticCharField)(env, class, field, value.0);
     }
 
     pub unsafe fn set_static_short_field(&self, class: jclass, field: jfieldID, value: jshort) {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        (**env).SetStaticShortField.unwrap()(env, class, field, value);
+        ((**env).v1_2.SetStaticShortField)(env, class, field, value);
     }
 
     pub unsafe fn set_static_int_field(&self, class: jclass, field: jfieldID, value: jint) {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        (**env).SetStaticIntField.unwrap()(env, class, field, value);
+        ((**env).v1_2.SetStaticIntField)(env, class, field, value);
     }
 
     pub unsafe fn set_static_long_field(&self, class: jclass, field: jfieldID, value: jlong) {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        (**env).SetStaticLongField.unwrap()(env, class, field, value);
+        ((**env).v1_2.SetStaticLongField)(env, class, field, value);
     }
 
     pub unsafe fn set_static_float_field(&self, class: jclass, field: jfieldID, value: jfloat) {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        (**env).SetStaticFloatField.unwrap()(env, class, field, value);
+        ((**env).v1_2.SetStaticFloatField)(env, class, field, value);
     }
 
     pub unsafe fn set_static_double_field(&self, class: jclass, field: jfieldID, value: jdouble) {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        (**env).SetStaticDoubleField.unwrap()(env, class, field, value);
+        ((**env).v1_2.SetStaticDoubleField)(env, class, field, value);
     }
 }

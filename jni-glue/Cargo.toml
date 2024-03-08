@@ -13,7 +13,7 @@ include = ["/**/*.rs", "/Cargo.toml", "/LICENSE-MIT", "/LICENSE-APACHE"]
 
 
 [dependencies]
-jni-sys = "0.3.0"
+jni-sys = "0.4.0"
 lazy_static = "1"
 
 [features]

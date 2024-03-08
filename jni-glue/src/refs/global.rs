@@ -52,7 +52,7 @@ impl<'env, Class: AsValidJObjectAndEnv> From<Local<'env, Class>> for Global<Clas
         let env = unsafe { Env::from_ptr(local.oae.env) };
         let jnienv = env.as_jni_env();
         let gen_vm = env.get_gen_vm();
-        let global = unsafe { (**jnienv).NewGlobalRef.unwrap()(jnienv, local.oae.object) };
+        let global = unsafe { ((**jnienv).v1_2.NewGlobalRef)(jnienv, local.oae.object) };
         Global {
             global,
             gen_vm,
@@ -67,7 +67,7 @@ impl<Class: AsValidJObjectAndEnv> Drop for Global<Class> {
             vm.with_env(|env| {
                 let env = env.as_jni_env();
                 unsafe {
-                    (**env).DeleteGlobalRef.unwrap()(env, self.global);
+                    ((**env).v1_2.DeleteGlobalRef)(env, self.global);
                 }
             });
         });
