@@ -2,4 +2,4 @@
 
 mod run;
 
-pub use run::{run, RunResult};
+pub use run::run;
