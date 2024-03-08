@@ -33,8 +33,37 @@ impl<'a> Context<'a> {
         Ok(format!("{}::{}", m, s))
     }
 
+    fn struct_included(&self, path: &str) -> bool {
+        if self.config.include_classes.contains(path) {
+            return true;
+        }
+        if self.config.include_classes.contains("*") {
+            return true;
+        }
+
+        let mut pat = String::new();
+        for p in path.split('/') {
+            pat.push_str(p);
+            if pat.len() == path.len() {
+                break;
+            }
+
+            pat.push('/');
+            pat.push('*');
+            if self.config.include_classes.contains(&pat) {
+                return true;
+            }
+            pat.pop();
+        }
+
+        return false;
+    }
+
     pub fn add_struct(&mut self, class: jreflection::Class) -> Result<(), Box<dyn Error>> {
         if self.config.ignore_classes.contains(class.path.as_str()) {
+            return Ok(());
+        }
+        if !self.struct_included(class.path.as_str()) {
             return Ok(());
         }
 

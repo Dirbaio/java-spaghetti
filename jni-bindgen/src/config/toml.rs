@@ -328,6 +328,11 @@ pub struct File {
     /// Output(s) from the jni-bindgen process.
     pub output: Output,
 
+    /// Classes and class methods to include.
+    #[serde(rename = "include")]
+    #[serde(default = "Vec::new")]
+    pub includes: Vec<String>,
+
     /// Classes and class methods to ignore.
     #[serde(rename = "ignore")]
     #[serde(default = "Vec::new")]
