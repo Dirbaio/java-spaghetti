@@ -3,7 +3,6 @@ use std::io;
 use jreflection::{class, field};
 
 use super::known_docs_url::KnownDocsUrl;
-use super::structs::Struct;
 use crate::emit_rust::Context;
 use crate::identifiers::{FieldMangling, IdentifierManglingError};
 
@@ -33,7 +32,7 @@ impl<'a> Field<'a> {
         result
     }
 
-    pub fn emit(&self, context: &Context, indent: &str, out: &mut impl io::Write) -> io::Result<()> {
+    pub fn emit(&self, context: &Context, indent: &str, mod_: &str, out: &mut impl io::Write) -> io::Result<()> {
         let mut emit_reject_reasons = Vec::new();
 
         if !self.java.is_public() {
@@ -68,7 +67,7 @@ impl<'a> Field<'a> {
                 if !context.all_classes.contains(class.as_str()) {
                     emit_reject_reasons.push("ERROR:  missing class for field type");
                 }
-                if let Ok(fqn) = Struct::fqn_for(context, class) {
+                if let Ok(fqn) = context.java_to_rust_path(class, mod_) {
                     rust_set_type_buffer = format!(
                         "impl __jni_bindgen::std::convert::Into<__jni_bindgen::std::option::Option<&'obj {}>>",
                         &fqn
@@ -103,7 +102,7 @@ impl<'a> Field<'a> {
                         }
 
                         buffer.push_str("__jni_bindgen::ObjectArray<");
-                        match context.java_to_rust_path(class) {
+                        match context.java_to_rust_path(class, mod_) {
                             Ok(path) => buffer.push_str(path.as_str()),
                             Err(_) => {
                                 emit_reject_reasons
@@ -112,7 +111,7 @@ impl<'a> Field<'a> {
                             }
                         }
                         buffer.push_str(", ");
-                        buffer.push_str(&context.throwable_rust_path());
+                        buffer.push_str(&context.throwable_rust_path(mod_));
                         buffer.push('>');
                     }
                     field::BasicType::Void => {
@@ -123,7 +122,7 @@ impl<'a> Field<'a> {
                 for _ in 0..(levels - 1) {
                     // ObjectArray s
                     buffer.push_str(", ");
-                    buffer.push_str(&context.throwable_rust_path());
+                    buffer.push_str(&context.throwable_rust_path(mod_));
                     buffer.push('>');
                 }
 

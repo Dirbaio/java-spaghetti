@@ -42,7 +42,7 @@ impl<'a> Method<'a> {
         };
     }
 
-    pub fn emit(&self, context: &Context, indent: &str, out: &mut impl io::Write) -> io::Result<()> {
+    pub fn emit(&self, context: &Context, indent: &str, mod_: &str, out: &mut impl io::Write) -> io::Result<()> {
         let mut emit_reject_reasons = Vec::new();
 
         let java_class_method = format!("{}\x1f{}", self.class.path.as_str(), &self.java.name);
@@ -128,7 +128,7 @@ impl<'a> Method<'a> {
                         emit_reject_reasons.push("ERROR:  missing class for argument type");
                     }
                     param_is_object = true;
-                    match context.java_to_rust_path(class) {
+                    match context.java_to_rust_path(class, mod_) {
                         Ok(path) => format!(
                             "impl __jni_bindgen::std::convert::Into<__jni_bindgen::std::option::Option<&'env {}>>",
                             path
@@ -160,7 +160,7 @@ impl<'a> Method<'a> {
                                 emit_reject_reasons.push("ERROR:  missing class for argument type");
                             }
                             buffer.push_str("__jni_bindgen::ObjectArray<");
-                            match context.java_to_rust_path(class) {
+                            match context.java_to_rust_path(class, mod_) {
                                 Ok(path) => buffer.push_str(path.as_str()),
                                 Err(_) => {
                                     emit_reject_reasons
@@ -169,7 +169,7 @@ impl<'a> Method<'a> {
                                 }
                             }
                             buffer.push_str(", ");
-                            buffer.push_str(&context.throwable_rust_path());
+                            buffer.push_str(&context.throwable_rust_path(mod_));
                             buffer.push('>');
                         }
                         method::BasicType::Void => {
@@ -180,7 +180,7 @@ impl<'a> Method<'a> {
                     for _ in 0..(levels - 1) {
                         // ObjectArray s
                         buffer.push_str(", ");
-                        buffer.push_str(&context.throwable_rust_path());
+                        buffer.push_str(&context.throwable_rust_path(mod_));
                         buffer.push('>');
                     }
                     buffer.push_str(">>"); // Option, Into
@@ -226,7 +226,7 @@ impl<'a> Method<'a> {
                 if !context.all_classes.contains(class.as_str()) {
                     emit_reject_reasons.push("ERROR:  missing class for return type");
                 }
-                match context.java_to_rust_path(class) {
+                match context.java_to_rust_path(class, mod_) {
                     Ok(path) => format!(
                         "__jni_bindgen::std::option::Option<__jni_bindgen::Local<'env, {}>>",
                         path
@@ -263,7 +263,7 @@ impl<'a> Method<'a> {
                             emit_reject_reasons.push("ERROR:  missing class for return type");
                         }
                         buffer.push_str("__jni_bindgen::ObjectArray<");
-                        match context.java_to_rust_path(class) {
+                        match context.java_to_rust_path(class, mod_) {
                             Ok(path) => buffer.push_str(path.as_str()),
                             Err(_) => {
                                 emit_reject_reasons
@@ -272,7 +272,7 @@ impl<'a> Method<'a> {
                             }
                         }
                         buffer.push_str(", ");
-                        buffer.push_str(&context.throwable_rust_path());
+                        buffer.push_str(&context.throwable_rust_path(mod_));
                         buffer.push('>');
                     }
                     method::BasicType::Void => {
@@ -283,7 +283,7 @@ impl<'a> Method<'a> {
                 for _ in 0..(levels - 1) {
                     // ObjectArray s
                     buffer.push_str(", ");
-                    buffer.push_str(&context.throwable_rust_path());
+                    buffer.push_str(&context.throwable_rust_path(mod_));
                     buffer.push('>');
                 }
                 buffer.push_str(">>"); // Local, Option
@@ -309,13 +309,7 @@ impl<'a> Method<'a> {
         if self.java.is_constructor() {
             if descriptor.return_type() == method::Type::Single(method::BasicType::Void) {
                 ret_method_fragment = "object";
-                ret_decl = match context.java_to_rust_path(self.class.path.as_id()) {
-                    Ok(path) => format!("__jni_bindgen::Local<'env, {}>", path),
-                    Err(_) => {
-                        emit_reject_reasons.push("ERROR:  Failed to resolve JNI path to Rust path for this type");
-                        format!("{:?}", self.class.path.as_str())
-                    }
-                };
+                ret_decl = "__jni_bindgen::Local<'env, Self>".to_string();
             } else {
                 emit_reject_reasons.push("ERROR:  Constructor should've returned void");
             }
@@ -351,7 +345,7 @@ impl<'a> Method<'a> {
             method_name,
             params_decl,
             ret_decl,
-            context.throwable_rust_path()
+            context.throwable_rust_path(mod_)
         )?;
         writeln!(
             out,

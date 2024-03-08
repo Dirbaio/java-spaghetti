@@ -13,25 +13,16 @@ use crate::identifiers::{FieldMangling, RustIdentifier};
 
 #[derive(Debug, Default)]
 pub(crate) struct StructPaths {
-    pub mod_prefix: String,
+    pub mod_: String,
     pub struct_name: String,
 }
 
 impl StructPaths {
     pub(crate) fn new(context: &Context, class: class::Id) -> Result<Self, Box<dyn Error>> {
         Ok(Self {
-            mod_prefix: Struct::mod_for(context, class)? + "::",
+            mod_: Struct::mod_for(context, class)?,
             struct_name: Struct::name_for(context, class)?,
         })
-    }
-
-    pub(crate) fn local_scope(&self) -> Option<impl Iterator<Item = &str>> {
-        let mut iter = self.mod_prefix.split("::");
-        if iter.next() == Some("crate") {
-            Some(iter.filter(|s| !s.is_empty()))
-        } else {
-            None
-        }
     }
 }
 
@@ -55,10 +46,15 @@ fn rust_id(id: &str) -> Result<&str, Box<dyn Error>> {
 
 impl Struct {
     pub(crate) fn mod_for(_context: &Context, class: class::Id) -> Result<String, Box<dyn Error>> {
-        let mut buf = String::from("crate");
+        let mut buf = String::new();
         for component in class.iter() {
             match component {
-                class::IdPart::Namespace(id) => write!(&mut buf, "::{}", rust_id(id)?)?,
+                class::IdPart::Namespace(id) => {
+                    if !buf.is_empty() {
+                        buf.push_str("::");
+                    }
+                    buf.push_str(rust_id(id)?);
+                }
                 class::IdPart::ContainingClass(_) => {}
                 class::IdPart::LeafClass(_) => {}
             }
@@ -77,24 +73,6 @@ impl Struct {
         for component in class.iter() {
             match component {
                 class::IdPart::Namespace(_) => {}
-                class::IdPart::ContainingClass(id) => write!(&mut buf, "{}_", rust_id(id)?)?,
-                class::IdPart::LeafClass(id) => write!(&mut buf, "{}", rename_to.or_else(|_| rust_id(id))?)?,
-            }
-        }
-        Ok(buf)
-    }
-
-    pub(crate) fn fqn_for(context: &Context, class: class::Id) -> Result<String, Box<dyn Error>> {
-        let rename_to = context
-            .config
-            .rename_classes
-            .get(class.as_str())
-            .map(|name| name.as_str())
-            .ok_or(());
-        let mut buf = String::from("crate::");
-        for component in class.iter() {
-            match component {
-                class::IdPart::Namespace(id) => write!(&mut buf, "{}::", rust_id(id)?)?,
                 class::IdPart::ContainingClass(id) => write!(&mut buf, "{}_", rust_id(id)?)?,
                 class::IdPart::LeafClass(id) => write!(&mut buf, "{}", rename_to.or_else(|_| rust_id(id))?)?,
             }
@@ -130,7 +108,7 @@ impl Struct {
         let attributes = (if self.java.deprecated { "#[deprecated] " } else { "" }).to_string();
 
         let super_path = if let Some(super_path) = self.java.super_path.as_ref() {
-            context.java_to_rust_path(super_path.as_id()).unwrap()
+            context.java_to_rust_path(super_path.as_id(), &self.rust.mod_).unwrap()
         } else {
             "()".to_owned() // This might only happen for java.lang.Object
         };
@@ -169,7 +147,11 @@ impl Struct {
                 write!(out, "implements ")?;
                 implements = true;
             }
-            write!(out, "{}", &context.java_to_rust_path(interface.as_id()).unwrap())?;
+            write!(
+                out,
+                "{}",
+                &context.java_to_rust_path(interface.as_id(), &self.rust.mod_).unwrap()
+            )?;
         }
         writeln!(out, " {{")?;
 
@@ -222,11 +204,11 @@ impl Struct {
                 }
             }
 
-            method.emit(context, indent, out)?;
+            method.emit(context, indent, &self.rust.mod_, out)?;
         }
 
         for field in &mut fields {
-            field.emit(context, indent, out)?;
+            field.emit(context, indent, &self.rust.mod_, out)?;
         }
 
         writeln!(out, "{}    }}", indent)?;

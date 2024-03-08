@@ -30,14 +30,42 @@ impl<'a> Context<'a> {
         }
     }
 
-    pub(crate) fn throwable_rust_path(&self) -> String {
-        self.java_to_rust_path(class::Id("java/lang/Throwable")).unwrap()
+    pub(crate) fn throwable_rust_path(&self, mod_: &str) -> String {
+        self.java_to_rust_path(class::Id("java/lang/Throwable"), mod_).unwrap()
     }
 
-    pub fn java_to_rust_path(&self, java_class: class::Id) -> Result<String, Box<dyn Error>> {
+    pub fn java_to_rust_path(&self, java_class: class::Id, mod_: &str) -> Result<String, Box<dyn Error>> {
         let m = Struct::mod_for(self, java_class)?;
         let s = Struct::name_for(self, java_class)?;
-        Ok(format!("{}::{}", m, s))
+        let fqn = format!("{}::{}", m, s);
+
+        // Calculate relative path from B to A.
+        let b: Vec<&str> = mod_.split("::").collect();
+        let a: Vec<&str> = fqn.split("::").collect();
+
+        let mut ma = &a[..a.len() - 1];
+        let mut mb = &b[..];
+        while !ma.is_empty() && !mb.is_empty() && ma[0] == mb[0] {
+            ma = &ma[1..];
+            mb = &mb[1..];
+        }
+
+        let mut res = String::new();
+
+        // for each item left in b, append a `super`
+        for _ in mb {
+            res.push_str("super::");
+        }
+
+        // for each item in a, append it
+        for ident in ma {
+            res.push_str(ident);
+            res.push_str("::");
+        }
+
+        res.push_str(a[a.len() - 1]);
+
+        Ok(res)
     }
 
     fn struct_included(&self, path: &str) -> bool {
@@ -77,15 +105,9 @@ impl<'a> Context<'a> {
         self.all_classes.insert(class.path.as_str().to_string());
 
         let s = Struct::new(self, class)?;
-        let scope = if let Some(s) = s.rust.local_scope() {
-            s
-        } else {
-            /* !local_scope = not part of this module, skip! */
-            return Ok(());
-        };
 
         let mut rust_mod = &mut self.module;
-        for fragment in scope {
+        for fragment in s.rust.mod_.split("::") {
             rust_mod = rust_mod.modules.entry(fragment.to_owned()).or_default();
         }
         if rust_mod.structs.contains_key(&s.rust.struct_name) {
