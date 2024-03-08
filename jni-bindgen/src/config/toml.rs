@@ -88,10 +88,6 @@ pub struct CodeGen {
     #[serde(default = "default_true")]
     pub shard_structs: bool,
 
-    /// Should each struct get it's own #[cfg(feature = "...")] value?
-    #[serde(default = "default_true")]
-    pub feature_per_struct: bool,
-
     /// Should not-emitted methods/fields still generate their code commented out?
     #[serde(default = "default_true")]
     pub keep_rejected_emits: bool,
@@ -106,7 +102,6 @@ impl Default for CodeGen {
             field_naming_style: Default::default(),
             throwable_type: default_throwable_type(),
             shard_structs: true,
-            feature_per_struct: true,
             keep_rejected_emits: true,
         }
     }

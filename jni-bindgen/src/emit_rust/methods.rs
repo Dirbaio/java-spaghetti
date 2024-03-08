@@ -1,10 +1,8 @@
-use std::collections::BTreeSet;
 use std::io;
 
 use jreflection::method;
 
 use super::known_docs_url::KnownDocsUrl;
-use super::structs::Struct;
 use crate::config;
 use crate::emit_rust::Context;
 use crate::identifiers::MethodManglingStyle;
@@ -46,7 +44,6 @@ impl<'a> Method<'a> {
 
     pub fn emit(&self, context: &Context, indent: &str, out: &mut impl io::Write) -> io::Result<()> {
         let mut emit_reject_reasons = Vec::new();
-        let mut required_features = BTreeSet::new();
 
         let java_class_method = format!("{}\x1f{}", self.class.path.as_str(), &self.java.name);
         let java_class_method_sig = format!(
@@ -127,11 +124,6 @@ impl<'a> Method<'a> {
                 method::Type::Single(method::BasicType::Float) => "f32".to_owned(),
                 method::Type::Single(method::BasicType::Double) => "f64".to_owned(),
                 method::Type::Single(method::BasicType::Class(class)) => {
-                    if let Ok(feature) = Struct::feature_for(context, class) {
-                        required_features.insert(feature);
-                    } else {
-                        emit_reject_reasons.push("ERROR:  Unable to resolve class feature");
-                    }
                     param_is_object = true;
                     match context.java_to_rust_path(class) {
                         Ok(path) => format!(
@@ -161,11 +153,6 @@ impl<'a> Method<'a> {
                         method::BasicType::Float => buffer.push_str("__jni_bindgen::FloatArray"),
                         method::BasicType::Double => buffer.push_str("__jni_bindgen::DoubleArray"),
                         method::BasicType::Class(class) => {
-                            if let Ok(feature) = Struct::feature_for(context, class) {
-                                required_features.insert(feature);
-                            } else {
-                                emit_reject_reasons.push("ERROR:  Unable to resolve class feature");
-                            }
                             buffer.push_str("__jni_bindgen::ObjectArray<");
                             match context.java_to_rust_path(class) {
                                 Ok(path) => buffer.push_str(path.as_str()),
@@ -229,23 +216,16 @@ impl<'a> Method<'a> {
             method::Type::Single(method::BasicType::Long) => "i64".to_owned(),
             method::Type::Single(method::BasicType::Float) => "f32".to_owned(),
             method::Type::Single(method::BasicType::Double) => "f64".to_owned(),
-            method::Type::Single(method::BasicType::Class(class)) => {
-                if let Ok(feature) = Struct::feature_for(context, class) {
-                    required_features.insert(feature);
-                } else {
-                    emit_reject_reasons.push("ERROR:  Unable to resolve class feature");
+            method::Type::Single(method::BasicType::Class(class)) => match context.java_to_rust_path(class) {
+                Ok(path) => format!(
+                    "__jni_bindgen::std::option::Option<__jni_bindgen::Local<'env, {}>>",
+                    path
+                ),
+                Err(_) => {
+                    emit_reject_reasons.push("ERROR:  Failed to resolve JNI path to Rust path for return type");
+                    format!("{:?}", class)
                 }
-                match context.java_to_rust_path(class) {
-                    Ok(path) => format!(
-                        "__jni_bindgen::std::option::Option<__jni_bindgen::Local<'env, {}>>",
-                        path
-                    ),
-                    Err(_) => {
-                        emit_reject_reasons.push("ERROR:  Failed to resolve JNI path to Rust path for return type");
-                        format!("{:?}", class)
-                    }
-                }
-            }
+            },
             method::Type::Array {
                 levels: 1,
                 inner: method::BasicType::Void,
@@ -268,11 +248,6 @@ impl<'a> Method<'a> {
                     method::BasicType::Float => buffer.push_str("__jni_bindgen::FloatArray"),
                     method::BasicType::Double => buffer.push_str("__jni_bindgen::DoubleArray"),
                     method::BasicType::Class(class) => {
-                        if let Ok(feature) = Struct::feature_for(context, class) {
-                            required_features.insert(feature);
-                        } else {
-                            emit_reject_reasons.push("ERROR:  Unable to resolve class feature");
-                        }
                         buffer.push_str("__jni_bindgen::ObjectArray<");
                         match context.java_to_rust_path(class) {
                             Ok(path) => buffer.push_str(path.as_str()),
@@ -352,28 +327,6 @@ impl<'a> Method<'a> {
             writeln!(out, "{}/// {}", indent, url)?;
         } else {
             writeln!(out, "{}/// {}", indent, self.java.name.as_str())?;
-        }
-        if required_features.len() > 0 {
-            // Feature doc comments
-            writeln!(out, "{}///", indent)?;
-            write!(out, "{}/// Required features: ", indent)?;
-            for (idx, feature) in required_features.iter().enumerate() {
-                if idx != 0 {
-                    write!(out, ", ")?;
-                }
-                write!(out, "{:?}", feature)?;
-            }
-            writeln!(out, "")?;
-
-            // Feature cfgs
-            write!(out, "{}#[cfg(any(feature = \"all\", all(", indent)?;
-            for (idx, feature) in required_features.iter().enumerate() {
-                if idx != 0 {
-                    write!(out, ", ")?;
-                }
-                write!(out, "feature = {:?}", feature)?;
-            }
-            writeln!(out, ")))]")?;
         }
         writeln!(
             out,

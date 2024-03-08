@@ -43,8 +43,6 @@ impl<'a> Field<'a> {
             emit_reject_reasons.push("[[ignore]]d");
         }
 
-        let mut required_feature = None;
-
         let descriptor = self.java.descriptor();
         let rust_set_type_buffer;
         let rust_get_type_buffer;
@@ -67,12 +65,6 @@ impl<'a> Field<'a> {
                 ("()", "()")
             }
             field::Descriptor::Single(field::BasicType::Class(class)) => {
-                if let Ok(feature) = Struct::feature_for(context, class) {
-                    required_feature = Some(feature);
-                } else {
-                    emit_reject_reasons.push("ERROR:  Unable to resolve class feature");
-                }
-
                 if let Ok(fqn) = Struct::fqn_for(context, class) {
                     rust_set_type_buffer = format!(
                         "impl __jni_bindgen::std::convert::Into<__jni_bindgen::std::option::Option<&'obj {}>>",
@@ -103,11 +95,6 @@ impl<'a> Field<'a> {
                     field::BasicType::Float => buffer.push_str("__jni_bindgen::FloatArray"),
                     field::BasicType::Double => buffer.push_str("__jni_bindgen::DoubleArray"),
                     field::BasicType::Class(class) => {
-                        if let Ok(feature) = Struct::feature_for(context, class) {
-                            required_feature = Some(feature);
-                        } else {
-                            emit_reject_reasons.push("ERROR:  Unable to resolve class feature");
-                        }
                         buffer.push_str("__jni_bindgen::ObjectArray<");
                         match context.java_to_rust_path(class) {
                             Ok(path) => buffer.push_str(path.as_str()),
@@ -213,15 +200,6 @@ impl<'a> Field<'a> {
                 if let Some(url) = url {
                     writeln!(out, "{}/// {} {}", indent, &keywords, url)?;
                 }
-                if let Some(required_feature) = required_feature.as_ref() {
-                    writeln!(out, "{}///", indent)?;
-                    writeln!(out, "{}/// Required feature: {:?}", indent, required_feature)?;
-                    writeln!(
-                        out,
-                        "{}#[cfg(any(feature = \"all\", feature = {:?}))]",
-                        indent, required_feature
-                    )?;
-                }
                 match descriptor {
                     field::Descriptor::Single(field::BasicType::Char) => writeln!(
                         out,
@@ -254,15 +232,6 @@ impl<'a> Field<'a> {
                     writeln!(out, "{}/// **get** {} {}", indent, &keywords, url)?;
                 } else {
                     writeln!(out, "{}/// **get** {} {}", indent, &keywords, self.java.name.as_str())?;
-                }
-                if let Some(required_feature) = required_feature.as_ref() {
-                    writeln!(out, "{}///", indent)?;
-                    writeln!(out, "{}/// Required feature: {:?}", indent, required_feature)?;
-                    writeln!(
-                        out,
-                        "{}#[cfg(any(feature = \"all\", feature = {:?}))]",
-                        indent, required_feature
-                    )?;
                 }
                 writeln!(
                     out,
@@ -315,15 +284,6 @@ impl<'a> Field<'a> {
                         writeln!(out, "{}/// **set** {} {}", indent, &keywords, url)?;
                     } else {
                         writeln!(out, "{}/// **set** {} {}", indent, &keywords, self.java.name.as_str())?;
-                    }
-                    if let Some(required_feature) = required_feature.as_ref() {
-                        writeln!(out, "{}///", indent)?;
-                        writeln!(out, "{}/// Required feature: {:?}", indent, required_feature)?;
-                        writeln!(
-                            out,
-                            "{}#[cfg(any(feature = \"all\", feature = {:?}))]",
-                            indent, required_feature
-                        )?;
                     }
                     writeln!(
                         out,

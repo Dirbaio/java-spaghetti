@@ -54,37 +54,7 @@ fn rust_id<'a>(id: &str) -> Result<&str, Box<dyn Error>> {
     })
 }
 
-fn feature_id<'a>(id: &str) -> Result<&str, Box<dyn Error>> {
-    Ok(match RustIdentifier::from_str(id) {
-        RustIdentifier::Identifier(id) => id,
-        RustIdentifier::KeywordRawSafe(_) => id,
-        RustIdentifier::KeywordUnderscorePostfix(_) => id,
-        RustIdentifier::NonIdentifier(id) => io_data_err!(
-            "Unable to add_struct(): java identifier {:?} has no rust equivalent (yet?)",
-            id
-        )?,
-    })
-}
-
 impl Struct {
-    pub(crate) fn feature_for(context: &Context, class: class::Id) -> Result<String, Box<dyn Error>> {
-        let rename_to = context
-            .config
-            .rename_classes
-            .get(class.as_str())
-            .map(|name| name.as_str())
-            .ok_or(());
-        let mut buf = String::new();
-        for component in class.iter() {
-            match component {
-                class::IdPart::Namespace(id) => write!(&mut buf, "{}-", feature_id(id)?)?,
-                class::IdPart::ContainingClass(id) => write!(&mut buf, "{}_", feature_id(id)?)?,
-                class::IdPart::LeafClass(id) => write!(&mut buf, "{}", rename_to.or_else(|_| feature_id(id))?)?,
-            }
-        }
-        Ok(buf)
-    }
-
     pub(crate) fn mod_for(_context: &Context, class: class::Id) -> Result<String, Box<dyn Error>> {
         let mut buf = String::from("crate");
         for component in class.iter() {
@@ -191,13 +161,6 @@ impl Struct {
             "()".to_owned() // This might only happen for java.lang.Object
         };
 
-        if let Ok(required_feature) = Struct::feature_for(context, self.java.path.as_id()) {
-            writeln!(
-                out,
-                "{}#[cfg(any(feature = \"all\", feature = {:?}))]",
-                indent, required_feature
-            )?;
-        }
         writeln!(out, "{}__jni_bindgen! {{", indent)?;
         if let Some(url) = KnownDocsUrl::from_class(context, self.java.path.as_id()) {
             writeln!(out, "{}    /// {} {} {}", indent, visibility, keyword, url)?;
@@ -210,10 +173,6 @@ impl Struct {
                 keyword,
                 self.java.path.as_str()
             )?;
-        }
-        if let Ok(required_feature) = Struct::feature_for(context, self.java.path.as_id()) {
-            writeln!(out, "{}    ///", indent)?;
-            writeln!(out, "{}    /// Required feature: {:?}", indent, required_feature)?;
         }
         write!(
             out,

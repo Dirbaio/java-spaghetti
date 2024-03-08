@@ -1,4 +1,3 @@
-use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::io;
 use std::sync::Mutex;
@@ -14,7 +13,6 @@ use crate::{config, util};
 pub struct Context<'a> {
     pub(crate) config: &'a config::runtime::Config,
     pub(crate) module: Module,
-    pub(crate) features: BTreeMap<String, BTreeSet<String>>,
     pub(crate) progress: Mutex<util::Progress>,
     pub(crate) files: &'a util::ConcurrentDedupeFileSet,
 }
@@ -24,7 +22,6 @@ impl<'a> Context<'a> {
         Self {
             config,
             module: Default::default(),
-            features: BTreeMap::new(),
             progress: Mutex::new(util::Progress::with_duration(Duration::from_millis(
                 if config.logging_verbose { 0 } else { 300 },
             ))),
@@ -50,28 +47,6 @@ impl<'a> Context<'a> {
             /* !local_scope = not part of this module, skip! */
             return Ok(());
         };
-
-        if self.config.codegen.feature_per_struct {
-            if let Ok(feature) = Struct::feature_for(self, s.java.path.as_id()) {
-                let mut subfeatures = Vec::new();
-                if let Some(parent) = s.java.super_path.as_ref() {
-                    if let Ok(sf) = Struct::feature_for(self, parent.as_id()) {
-                        subfeatures.push(sf);
-                    }
-                }
-
-                for interface in s.java.interfaces.iter() {
-                    if let Ok(subfeature) = Struct::feature_for(self, interface.as_id()) {
-                        subfeatures.push(subfeature);
-                    }
-                }
-
-                let global_subfeatures = self.features.entry(feature).or_insert(BTreeSet::new());
-                for sf in subfeatures {
-                    global_subfeatures.insert(sf);
-                }
-            }
-        }
 
         let mut rust_mod = &mut self.module;
         for fragment in scope {

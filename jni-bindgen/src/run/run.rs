@@ -1,4 +1,3 @@
-use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::fs::File;
 use std::io;
@@ -10,18 +9,9 @@ use lazy_static::lazy_static;
 use crate::config::runtime::Config;
 use crate::{emit_rust, util};
 
-/// The result of calling [run].
-///
-/// [run]:      fn.run.html
-pub struct RunResult {
-    /// What features this crate assumes exist, and the features that feature is expected to depend on.
-    pub features: BTreeMap<String, BTreeSet<String>>,
-}
-
 /// The core function of this library: Generate Rust code to access Java APIs.
-pub fn run(config: impl Into<Config>) -> Result<RunResult, Box<dyn Error>> {
+pub fn run(config: impl Into<Config>) -> Result<(), Box<dyn Error>> {
     let config: Config = config.into();
-    if config.logging_verbose {}
     println!("output: {}", config.output_path.display());
 
     lazy_static! {
@@ -39,9 +29,7 @@ pub fn run(config: impl Into<Config>) -> Result<RunResult, Box<dyn Error>> {
         util::write_generated(&context, &config.output_path, &out[..])?;
     }
 
-    Ok(RunResult {
-        features: context.features.clone(),
-    })
+    Ok(())
 }
 
 fn gather_file(context: &mut emit_rust::Context, path: &Path) -> Result<(), Box<dyn Error>> {
