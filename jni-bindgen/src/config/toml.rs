@@ -84,10 +84,6 @@ pub struct CodeGen {
     #[serde(default = "default_throwable_type")]
     pub throwable_type: String,
 
-    /// Should each struct be written to its own file?
-    #[serde(default = "default_true")]
-    pub shard_structs: bool,
-
     /// Should not-emitted methods/fields still generate their code commented out?
     #[serde(default = "default_true")]
     pub keep_rejected_emits: bool,
@@ -101,7 +97,6 @@ impl Default for CodeGen {
             method_naming_style_collision: default_method_naming_style_collision(),
             field_naming_style: Default::default(),
             throwable_type: default_throwable_type(),
-            shard_structs: true,
             keep_rejected_emits: true,
         }
     }

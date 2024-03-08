@@ -14,18 +14,16 @@ pub struct Context<'a> {
     pub(crate) config: &'a config::runtime::Config,
     pub(crate) module: Module,
     pub(crate) progress: Mutex<util::Progress>,
-    pub(crate) files: &'a util::ConcurrentDedupeFileSet,
 }
 
 impl<'a> Context<'a> {
-    pub fn new(files: &'a util::ConcurrentDedupeFileSet, config: &'a config::runtime::Config) -> Self {
+    pub fn new(config: &'a config::runtime::Config) -> Self {
         Self {
             config,
             module: Default::default(),
             progress: Mutex::new(util::Progress::with_duration(Duration::from_millis(
                 if config.logging_verbose { 0 } else { 300 },
             ))),
-            files,
         }
     }
 

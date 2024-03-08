@@ -42,7 +42,6 @@ pub struct Config {
     pub(crate) doc_patterns: Vec<DocPattern>,
     pub(crate) input_files: Vec<PathBuf>,
     pub(crate) output_path: PathBuf,
-    pub(crate) output_dir: PathBuf,
     pub(crate) logging_verbose: bool,
 
     pub(crate) ignore_classes: HashSet<String>,
@@ -106,11 +105,6 @@ impl From<toml::FileWithContext> for Config {
         }
 
         let output_path = resolve_file(file.output.path, &dir);
-        let output_dir = if let Some(p) = output_path.parent() {
-            p.to_owned()
-        } else {
-            PathBuf::new()
-        };
 
         Self {
             codegen: file.codegen.clone(),
@@ -122,7 +116,6 @@ impl From<toml::FileWithContext> for Config {
                 .map(|file| resolve_file(file, &dir))
                 .collect(),
             output_path,
-            output_dir,
             logging_verbose: logging.verbose,
             ignore_classes,
             ignore_class_fields,

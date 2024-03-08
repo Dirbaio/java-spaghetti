@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::Write;
 use std::io;
-use std::path::PathBuf;
 
 use jreflection::class;
 
@@ -101,31 +100,6 @@ impl Struct {
             }
         }
         Ok(buf)
-    }
-
-    pub(crate) fn sharded_path_for(context: &Context, class: class::Id) -> Result<PathBuf, Box<dyn Error>> {
-        let rename_to = context
-            .config
-            .rename_classes
-            .get(class.as_str())
-            .map(|name| name.as_str())
-            .ok_or(());
-
-        let mut buf = String::new();
-
-        if let Some(name) = context.config.output_path.file_stem() {
-            write!(&mut buf, "{}/", name.to_string_lossy())?;
-        }
-
-        for component in class.iter() {
-            match component {
-                class::IdPart::Namespace(id) => write!(&mut buf, "{}/", rust_id(id)?)?,
-                class::IdPart::ContainingClass(id) => write!(&mut buf, "{}_", rust_id(id)?)?,
-                class::IdPart::LeafClass(id) => write!(&mut buf, "{}.rs", rename_to.or_else(|_| rust_id(id))?)?,
-            }
-        }
-
-        Ok(PathBuf::from(buf))
     }
 
     pub(crate) fn new<'ctx>(context: &'ctx mut Context, java: jreflection::Class) -> Result<Self, Box<dyn Error>> {

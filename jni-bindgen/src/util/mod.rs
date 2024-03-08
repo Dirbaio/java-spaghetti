@@ -11,12 +11,10 @@ macro_rules! io_data_err {
     ($($arg:tt)*) => { Err(io_data_error!($($arg)*)) };
 }
 
-mod dedupe_file_set;
 mod difference;
 mod generated_file;
 mod progress;
 
-pub use dedupe_file_set::ConcurrentDedupeFileSet;
 pub use difference::Difference;
 pub use generated_file::write_generated;
 pub use progress::Progress;

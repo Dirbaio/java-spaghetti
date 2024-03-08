@@ -4,7 +4,6 @@ use std::io;
 use std::path::Path;
 
 use jreflection::Class;
-use lazy_static::lazy_static;
 
 use crate::config::runtime::Config;
 use crate::{emit_rust, util};
@@ -14,10 +13,7 @@ pub fn run(config: impl Into<Config>) -> Result<(), Box<dyn Error>> {
     let config: Config = config.into();
     println!("output: {}", config.output_path.display());
 
-    lazy_static! {
-        static ref FILE_SET: util::ConcurrentDedupeFileSet = util::ConcurrentDedupeFileSet::new();
-    }
-    let mut context = emit_rust::Context::new(&*FILE_SET, &config);
+    let mut context = emit_rust::Context::new(&config);
     for file in config.input_files.iter() {
         gather_file(&mut context, file)?;
     }
