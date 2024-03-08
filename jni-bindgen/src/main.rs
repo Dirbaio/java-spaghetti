@@ -17,40 +17,64 @@ mod entry {
     use std::path::{Path, PathBuf};
     use std::process::exit;
 
-    use clap::load_yaml;
+    use clap::{Parser, Subcommand};
 
     use crate::run::{run, RunResult};
     use crate::{android, config};
 
+    /// Autogenerate jni-android-sys, glue code for access Android JVM APIs from Rust
+    #[derive(Parser, Debug)]
+    #[command(version, about)]
+    struct Cli {
+        #[command(subcommand)]
+        cmd: Cmd,
+    }
+
+    /// Doc comment
+    #[derive(Subcommand, Debug)]
+    enum Cmd {
+        Generate(GenerateCmd),
+    }
+
+    #[derive(Parser, Debug)]
+    struct GenerateCmd {
+        /// Log in more detail
+        #[arg(short, long)]
+        verbose: bool,
+
+        /// Sets a custom directory
+        #[arg(short, long, default_value = ".")]
+        directory: PathBuf,
+
+        /// The Android API level(s) to generate/verify
+        #[arg(long)]
+        android_api_levels: Option<String>,
+    }
+
     pub fn main() {
-        let yaml = load_yaml!("../cli.yml");
-        let matches = clap::App::from_yaml(yaml).get_matches();
+        let cli = Cli::parse();
 
-        let _help = matches.is_present("help");
-        let directory: &Path = Path::new(matches.value_of("directory").unwrap_or("."));
-        let _verbose = matches.is_present("verbose");
-        let android_api_levels = matches.value_of("android-api-levels").map(|api| {
-            api.parse::<android::ApiLevelRange>()
-                .expect("--android-api-levels must take the form of a single version like '8', or a range like '8-27'")
-        });
+        match cli.cmd {
+            Cmd::Generate(cmd) => {
+                let android_api_levels = cmd.android_api_levels.map(|api| {
+                    api.parse::<android::ApiLevelRange>().expect(
+                        "--android-api-levels must take the form of a single version like '8', or a range like '8-27'",
+                    )
+                });
 
-        if let Some(api_levels) = android_api_levels.as_ref() {
-            if api_levels.start() < 7 {
-                eprintln!(
-                    "\
-                    WARNING:  Untested api level {} (<7).\n\
-                    If you've found where I can grab such an early version of the Android SDK/APIs,\n\
-                    please comment on / reopen https://github.com/MaulingMonkey/jni-bindgen/issues/10 !",
-                    api_levels.start()
-                );
-            }
-        }
+                if let Some(api_levels) = android_api_levels.as_ref() {
+                    if api_levels.start() < 7 {
+                        eprintln!(
+                            "\
+                            WARNING:  Untested api level {} (<7).\n\
+                            If you've found where I can grab such an early version of the Android SDK/APIs,\n\
+                            please comment on / reopen https://github.com/MaulingMonkey/jni-bindgen/issues/10 !",
+                            api_levels.start()
+                        );
+                    }
+                }
 
-        let subcommand = matches.subcommand_name().unwrap_or("generate");
-
-        match subcommand {
-            "generate" => {
-                let mut config_file = config::toml::File::from_directory(directory).unwrap();
+                let mut config_file = config::toml::File::from_directory(&cmd.directory).unwrap();
 
                 let result = if let Some(api_levels) = android_api_levels.as_ref() {
                     let mut result = None;
@@ -74,14 +98,10 @@ mod entry {
                     run(config_file).unwrap()
                 };
 
-                if let Err(e) = generate_toml(directory, android_api_levels.as_ref(), &result) {
+                if let Err(e) = generate_toml(&cmd.directory, android_api_levels.as_ref(), &result) {
                     eprintln!("ERROR:  Failed to regenerate Cargo.toml:\n    {:?}", e);
                     exit(1);
                 }
-            }
-            unknown => {
-                eprintln!("Unexpected subcommand: {}", unknown);
-                exit(1);
             }
         }
     }
