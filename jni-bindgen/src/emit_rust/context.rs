@@ -30,6 +30,10 @@ impl<'a> Context<'a> {
         }
     }
 
+    pub(crate) fn throwable_rust_path(&self) -> String {
+        self.java_to_rust_path(class::Id("java/lang/Throwable")).unwrap()
+    }
+
     pub fn java_to_rust_path(&self, java_class: class::Id) -> Result<String, Box<dyn Error>> {
         let m = Struct::mod_for(self, java_class)?;
         let s = Struct::name_for(self, java_class)?;

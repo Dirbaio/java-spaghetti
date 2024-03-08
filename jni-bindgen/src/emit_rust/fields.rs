@@ -112,7 +112,7 @@ impl<'a> Field<'a> {
                             }
                         }
                         buffer.push_str(", ");
-                        buffer.push_str(context.config.codegen.throwable_type.as_str());
+                        buffer.push_str(&context.throwable_rust_path());
                         buffer.push('>');
                     }
                     field::BasicType::Void => {
@@ -123,7 +123,7 @@ impl<'a> Field<'a> {
                 for _ in 0..(levels - 1) {
                     // ObjectArray s
                     buffer.push_str(", ");
-                    buffer.push_str(context.config.codegen.throwable_type.as_str());
+                    buffer.push_str(&context.throwable_rust_path());
                     buffer.push('>');
                 }
 

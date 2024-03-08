@@ -169,7 +169,7 @@ impl<'a> Method<'a> {
                                 }
                             }
                             buffer.push_str(", ");
-                            buffer.push_str(context.config.codegen.throwable_type.as_str());
+                            buffer.push_str(&context.throwable_rust_path());
                             buffer.push('>');
                         }
                         method::BasicType::Void => {
@@ -180,7 +180,7 @@ impl<'a> Method<'a> {
                     for _ in 0..(levels - 1) {
                         // ObjectArray s
                         buffer.push_str(", ");
-                        buffer.push_str(context.config.codegen.throwable_type.as_str());
+                        buffer.push_str(&context.throwable_rust_path());
                         buffer.push('>');
                     }
                     buffer.push_str(">>"); // Option, Into
@@ -272,7 +272,7 @@ impl<'a> Method<'a> {
                             }
                         }
                         buffer.push_str(", ");
-                        buffer.push_str(context.config.codegen.throwable_type.as_str());
+                        buffer.push_str(&context.throwable_rust_path());
                         buffer.push('>');
                     }
                     method::BasicType::Void => {
@@ -283,7 +283,7 @@ impl<'a> Method<'a> {
                 for _ in 0..(levels - 1) {
                     // ObjectArray s
                     buffer.push_str(", ");
-                    buffer.push_str(context.config.codegen.throwable_type.as_str());
+                    buffer.push_str(&context.throwable_rust_path());
                     buffer.push('>');
                 }
                 buffer.push_str(">>"); // Local, Option
@@ -351,7 +351,7 @@ impl<'a> Method<'a> {
             method_name,
             params_decl,
             ret_decl,
-            context.config.codegen.throwable_type.as_str()
+            context.throwable_rust_path()
         )?;
         writeln!(
             out,

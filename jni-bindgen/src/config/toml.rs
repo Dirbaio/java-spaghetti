@@ -40,9 +40,6 @@ pub enum CodeShardingStyle {
     __NonExhaustive,
 }
 
-fn default_throwable_type() -> String {
-    "jni_android_sys::java::lang::Throwable".to_owned()
-}
 fn default_true() -> bool {
     true
 }
@@ -72,10 +69,6 @@ pub struct CodeGen {
     #[serde(default = "Default::default")]
     pub field_naming_style: FieldManglingStyle,
 
-    /// The rust path to "Throwable" - typically something like "jni_android_sys::java::lang::Throwable"
-    #[serde(default = "default_throwable_type")]
-    pub throwable_type: String,
-
     /// Should not-emitted methods/fields still generate their code commented out?
     #[serde(default = "default_true")]
     pub keep_rejected_emits: bool,
@@ -88,7 +81,6 @@ impl Default for CodeGen {
             method_naming_style: default_method_naming_style(),
             method_naming_style_collision: default_method_naming_style_collision(),
             field_naming_style: Default::default(),
-            throwable_type: default_throwable_type(),
             keep_rejected_emits: true,
         }
     }
