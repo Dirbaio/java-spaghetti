@@ -1,16 +1,10 @@
 // must go first because macros.
-#[path = "util/_util.rs"]
 mod util;
 
-#[path = "android/_android.rs"]
 mod android;
-#[path = "config/_config.rs"]
 mod config;
-#[path = "emit_rust/_emit_rust.rs"]
 mod emit_rust;
-#[path = "identifiers/_identifiers.rs"]
 mod identifiers;
-#[path = "run/_run.rs"]
 mod run;
 
 fn main() {
