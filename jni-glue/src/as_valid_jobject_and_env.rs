@@ -1,4 +1,4 @@
-use super::*;
+use crate::{AsJValue, JniType};
 
 #[doc(hidden)] // You should generally not be interacting with this type directly, but it must be public for codegen.
 /// This is hideously unsafe to implement:

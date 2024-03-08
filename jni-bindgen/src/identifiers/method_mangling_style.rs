@@ -1,8 +1,8 @@
 use jreflection::class::IdPart;
 use jreflection::method;
-use serde_derive::*;
+use serde_derive::Deserialize;
 
-use crate::identifiers::*;
+use super::rust_identifier::{javaify_identifier, rustify_identifier, IdentifierManglingError};
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
@@ -194,7 +194,7 @@ impl MethodManglingStyle {
 }
 
 fn short_sig(descriptor: method::Descriptor) -> String {
-    use method::*;
+    use method::{BasicType, Type};
 
     let mut buffer = String::new();
 
@@ -289,7 +289,7 @@ fn short_sig(descriptor: method::Descriptor) -> String {
 }
 
 fn long_sig(descriptor: method::Descriptor) -> String {
-    use method::*;
+    use method::{BasicType, Type};
 
     let mut buffer = String::new();
 

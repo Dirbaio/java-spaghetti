@@ -1,14 +1,13 @@
-use std::collections::*;
+use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
-use std::fs::*;
+use std::fs::File;
 use std::io;
-use std::path::*;
-use std::result::Result;
+use std::path::Path;
 
-use jreflection::*;
-use lazy_static::*;
+use jreflection::Class;
+use lazy_static::lazy_static;
 
-use crate::config::runtime::*;
+use crate::config::runtime::Config;
 use crate::{emit_rust, util};
 
 /// The result of calling [run].

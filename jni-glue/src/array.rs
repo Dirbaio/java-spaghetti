@@ -1,7 +1,10 @@
-use std::marker::*;
-use std::ops::*;
+use std::marker::PhantomData;
+use std::ops::{Bound, RangeBounds};
+use std::ptr::null_mut;
 
-use super::*;
+use jni_sys::*;
+
+use crate::{AsJValue, AsValidJObjectAndEnv, Env, JniType, Local, ObjectAndEnv, ThrowableType};
 
 /// A Java Array of some POD-like type such as bool, jbyte, jchar, jshort, jint, jlong, jfloat, or jdouble.
 ///

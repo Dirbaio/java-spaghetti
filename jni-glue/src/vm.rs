@@ -1,4 +1,8 @@
-use super::*;
+use std::ptr::null_mut;
+
+use jni_sys::*;
+
+use crate::Env;
 
 /// FFI: Use **&VM** instead of *const JavaVM.  This represents a global, process-wide Java exection environment.
 ///

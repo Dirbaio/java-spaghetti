@@ -1,10 +1,10 @@
 //! Runtime configuration formats.  By design, this is mostly opaque - create these from tomls instead.
 
-use std::collections::*;
-use std::ffi::*;
-use std::path::*;
+use std::collections::{HashMap, HashSet};
+use std::ffi::OsString;
+use std::path::PathBuf;
 
-use crate::config::*;
+use crate::config::toml;
 
 pub(crate) struct DocPattern {
     pub(crate) class_url_pattern: String,

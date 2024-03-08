@@ -1,10 +1,5 @@
 //! JNI and Rust identifier parsing and categorizing utilities
 
-use std::iter::*;
-
-#[allow(unused_imports)]
-use super::*;
-
 mod field_mangling_style;
 mod method_mangling_style;
 mod rust_identifier;

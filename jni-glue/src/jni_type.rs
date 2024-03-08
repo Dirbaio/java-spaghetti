@@ -1,4 +1,4 @@
-use super::*;
+use jni_sys::*;
 
 /// JNI bindings rely on this type being accurate.
 ///

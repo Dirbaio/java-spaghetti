@@ -14,13 +14,13 @@ fn main() {
 mod entry {
     use std::fs::File;
     use std::io::{self, BufRead, BufReader, BufWriter, Write};
-    use std::path::*;
+    use std::path::{Path, PathBuf};
     use std::process::exit;
 
     use clap::load_yaml;
 
     use crate::run::{run, RunResult};
-    use crate::*;
+    use crate::{android, config};
 
     pub fn main() {
         let yaml = load_yaml!("../cli.yml");

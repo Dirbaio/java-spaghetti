@@ -1,12 +1,15 @@
-use std::collections::*;
+use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::io;
 use std::sync::Mutex;
-use std::time::*;
+use std::time::Duration;
 
 use jreflection::class;
 
-use crate::emit_rust::*;
+use super::modules::Module;
+use super::preamble::write_preamble;
+use super::structs::Struct;
+use crate::{config, util};
 
 pub struct Context<'a> {
     pub(crate) config: &'a config::runtime::Config,

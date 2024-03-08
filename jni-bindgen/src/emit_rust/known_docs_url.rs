@@ -2,7 +2,8 @@ use std::fmt::{self, Display, Formatter};
 
 use jreflection::{field, method};
 
-use crate::emit_rust::*;
+use super::methods::Method;
+use crate::emit_rust::Context;
 
 pub(crate) struct KnownDocsUrl {
     pub(crate) label: String,
@@ -55,7 +56,7 @@ impl KnownDocsUrl {
     }
 
     pub(crate) fn from_method(context: &Context, method: &Method) -> Option<KnownDocsUrl> {
-        use method::*;
+        use method::{BasicType, Type};
 
         let is_constructor = method.java.is_constructor();
 

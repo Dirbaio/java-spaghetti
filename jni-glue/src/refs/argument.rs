@@ -1,4 +1,8 @@
-use super::*;
+use std::marker::PhantomData;
+
+use jni_sys::*;
+
+use crate::{AsValidJObjectAndEnv, Env, Global, ObjectAndEnv, Ref};
 
 /// FFI: Use **Argument\<java::lang::Object\>** instead of jobject.  This represents a (null?) function argument.
 ///

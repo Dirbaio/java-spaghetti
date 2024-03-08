@@ -1,6 +1,10 @@
+use std::ffi::c_void;
 use std::os::raw::c_char;
+use std::ptr::null_mut;
 
-use super::*;
+use jni_sys::*;
+
+use crate::{jchar, AsJValue, AsValidJObjectAndEnv, GenVM, Local, ThrowableType, VMS};
 
 /// FFI:  Use **&Env** instead of \*const JNIEnv.  This represents a per-thread Java exection environment.
 ///

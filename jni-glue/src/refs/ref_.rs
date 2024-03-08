@@ -1,4 +1,7 @@
-use super::*;
+use std::marker::PhantomData;
+use std::ops::Deref;
+
+use crate::{AsValidJObjectAndEnv, Env, ObjectAndEnv};
 
 /// A non-null, [reference](https://www.ibm.com/support/knowledgecenter/en/SSYKE2_8.0.0/com.ibm.java.vm.80.doc/docs/jni_refs.html)
 /// to a Java object (+ &[Env]).  This may refer to a [Local], [Global], local [Argument], etc.

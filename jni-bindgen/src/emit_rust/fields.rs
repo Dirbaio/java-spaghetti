@@ -2,8 +2,10 @@ use std::io;
 
 use jreflection::{class, field};
 
-use crate::emit_rust::*;
-use crate::identifiers::*;
+use super::known_docs_url::KnownDocsUrl;
+use super::structs::Struct;
+use crate::emit_rust::Context;
+use crate::identifiers::{FieldMangling, IdentifierManglingError};
 
 pub struct Field<'a> {
     pub class: &'a jreflection::Class,

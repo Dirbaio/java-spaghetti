@@ -1,4 +1,8 @@
-use super::*;
+use std::ptr::null_mut;
+
+use jni_sys::*;
+
+use crate::{jchar, AsValidJObjectAndEnv};
 
 #[doc(hidden)] // You should generally not be interacting with this type directly, but it must be public for codegen.
 /// By implementing this you assert that you're constructing a valid jvalue for the given argument type (e.g. valid

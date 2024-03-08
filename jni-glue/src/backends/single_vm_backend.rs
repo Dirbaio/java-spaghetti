@@ -1,4 +1,8 @@
-use super::*;
+use std::ptr::null;
+
+use jni_sys::JavaVM;
+
+use crate::{GenVM, VM};
 
 pub(crate) struct SingleVmBackend {
     current: GenVM,

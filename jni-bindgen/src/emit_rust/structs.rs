@@ -1,4 +1,4 @@
-use std::collections::*;
+use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::Write;
 use std::io;
@@ -6,8 +6,11 @@ use std::path::PathBuf;
 
 use jreflection::class;
 
-use crate::emit_rust::*;
-use crate::identifiers::*;
+use super::fields::Field;
+use super::known_docs_url::KnownDocsUrl;
+use super::methods::Method;
+use crate::emit_rust::Context;
+use crate::identifiers::{FieldMangling, RustIdentifier};
 
 #[derive(Debug, Default)]
 pub(crate) struct StructPaths {

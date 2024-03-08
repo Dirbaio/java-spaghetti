@@ -1,5 +1,3 @@
-use crate::identifiers::*;
-
 /// Categorizes a rust [identifier](https://doc.rust-lang.org/reference/identifiers.html) for use in rust codegen.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum RustIdentifier<'a> {

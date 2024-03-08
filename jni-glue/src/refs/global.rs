@@ -1,4 +1,8 @@
-use super::*;
+use std::marker::PhantomData;
+
+use jni_sys::*;
+
+use crate::{AsValidJObjectAndEnv, Env, GenVM, Local, ObjectAndEnv, Ref, VMS};
 
 /// A [Global](https://www.ibm.com/support/knowledgecenter/en/SSYKE2_8.0.0/com.ibm.java.vm.80.doc/docs/jni_refs.html),
 /// non-null, reference to a Java object (+ &[VM]).

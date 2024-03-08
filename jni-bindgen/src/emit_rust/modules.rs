@@ -1,7 +1,8 @@
-use std::collections::*;
+use std::collections::BTreeMap;
 use std::io::{self, Write};
 
-use crate::emit_rust::*;
+use super::structs::Struct;
+use crate::emit_rust::Context;
 
 #[derive(Debug, Default)]
 pub(crate) struct Module {

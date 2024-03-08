@@ -1,9 +1,9 @@
 //! jni-bindgen.toml configuration file structures and parsing APIs.
 
-use std::path::*;
+use std::path::{Path, PathBuf};
 use std::{fs, io};
 
-use serde_derive::*;
+use serde_derive::Deserialize;
 
 use crate::identifiers::{FieldManglingStyle, MethodManglingStyle};
 

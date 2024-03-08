@@ -1,7 +1,9 @@
 use std::mem::transmute;
 use std::{char, iter, slice};
 
-use super::{jchar, *};
+use jni_sys::*;
+
+use crate::{jchar, Env};
 
 /// Represents an env.GetStringChars + env.GetStringLength query.
 /// Will automatically env.ReleaseStringChars when dropped.

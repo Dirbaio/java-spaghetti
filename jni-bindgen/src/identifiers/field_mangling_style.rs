@@ -1,7 +1,7 @@
-use jreflection::*;
-use serde_derive::*;
+use jreflection::{field, Field};
+use serde_derive::Deserialize;
 
-use crate::identifiers::*;
+use crate::identifiers::{constify_identifier, javaify_identifier, rustify_identifier, IdentifierManglingError};
 
 pub enum FieldMangling<'a> {
     ConstValue(String, &'a field::Constant),

@@ -3,8 +3,11 @@ use std::io;
 
 use jreflection::method;
 
-use crate::emit_rust::*;
-use crate::identifiers::*;
+use super::known_docs_url::KnownDocsUrl;
+use super::structs::Struct;
+use crate::config;
+use crate::emit_rust::Context;
+use crate::identifiers::MethodManglingStyle;
 
 pub struct Method<'a> {
     pub class: &'a jreflection::Class,
