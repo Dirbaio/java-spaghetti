@@ -161,6 +161,9 @@ impl Struct {
         )?;
         let mut implements = false;
         for interface in &self.java.interfaces {
+            if !context.all_classes.contains(interface.as_str()) {
+                continue;
+            }
             write!(out, ", ")?;
             if !implements {
                 write!(out, "implements ")?;

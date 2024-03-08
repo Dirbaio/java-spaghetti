@@ -65,6 +65,9 @@ impl<'a> Field<'a> {
                 ("()", "()")
             }
             field::Descriptor::Single(field::BasicType::Class(class)) => {
+                if !context.all_classes.contains(class.as_str()) {
+                    emit_reject_reasons.push("ERROR:  missing class for field type");
+                }
                 if let Ok(fqn) = Struct::fqn_for(context, class) {
                     rust_set_type_buffer = format!(
                         "impl __jni_bindgen::std::convert::Into<__jni_bindgen::std::option::Option<&'obj {}>>",
@@ -95,6 +98,10 @@ impl<'a> Field<'a> {
                     field::BasicType::Float => buffer.push_str("__jni_bindgen::FloatArray"),
                     field::BasicType::Double => buffer.push_str("__jni_bindgen::DoubleArray"),
                     field::BasicType::Class(class) => {
+                        if !context.all_classes.contains(class.as_str()) {
+                            emit_reject_reasons.push("ERROR:  missing class for field type");
+                        }
+
                         buffer.push_str("__jni_bindgen::ObjectArray<");
                         match context.java_to_rust_path(class) {
                             Ok(path) => buffer.push_str(path.as_str()),

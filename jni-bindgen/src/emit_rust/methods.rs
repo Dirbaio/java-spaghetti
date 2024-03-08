@@ -124,6 +124,9 @@ impl<'a> Method<'a> {
                 method::Type::Single(method::BasicType::Float) => "f32".to_owned(),
                 method::Type::Single(method::BasicType::Double) => "f64".to_owned(),
                 method::Type::Single(method::BasicType::Class(class)) => {
+                    if !context.all_classes.contains(class.as_str()) {
+                        emit_reject_reasons.push("ERROR:  missing class for argument type");
+                    }
                     param_is_object = true;
                     match context.java_to_rust_path(class) {
                         Ok(path) => format!(
@@ -153,6 +156,9 @@ impl<'a> Method<'a> {
                         method::BasicType::Float => buffer.push_str("__jni_bindgen::FloatArray"),
                         method::BasicType::Double => buffer.push_str("__jni_bindgen::DoubleArray"),
                         method::BasicType::Class(class) => {
+                            if !context.all_classes.contains(class.as_str()) {
+                                emit_reject_reasons.push("ERROR:  missing class for argument type");
+                            }
                             buffer.push_str("__jni_bindgen::ObjectArray<");
                             match context.java_to_rust_path(class) {
                                 Ok(path) => buffer.push_str(path.as_str()),
@@ -216,16 +222,21 @@ impl<'a> Method<'a> {
             method::Type::Single(method::BasicType::Long) => "i64".to_owned(),
             method::Type::Single(method::BasicType::Float) => "f32".to_owned(),
             method::Type::Single(method::BasicType::Double) => "f64".to_owned(),
-            method::Type::Single(method::BasicType::Class(class)) => match context.java_to_rust_path(class) {
-                Ok(path) => format!(
-                    "__jni_bindgen::std::option::Option<__jni_bindgen::Local<'env, {}>>",
-                    path
-                ),
-                Err(_) => {
-                    emit_reject_reasons.push("ERROR:  Failed to resolve JNI path to Rust path for return type");
-                    format!("{:?}", class)
+            method::Type::Single(method::BasicType::Class(class)) => {
+                if !context.all_classes.contains(class.as_str()) {
+                    emit_reject_reasons.push("ERROR:  missing class for return type");
                 }
-            },
+                match context.java_to_rust_path(class) {
+                    Ok(path) => format!(
+                        "__jni_bindgen::std::option::Option<__jni_bindgen::Local<'env, {}>>",
+                        path
+                    ),
+                    Err(_) => {
+                        emit_reject_reasons.push("ERROR:  Failed to resolve JNI path to Rust path for return type");
+                        format!("{:?}", class)
+                    }
+                }
+            }
             method::Type::Array {
                 levels: 1,
                 inner: method::BasicType::Void,
@@ -248,12 +259,15 @@ impl<'a> Method<'a> {
                     method::BasicType::Float => buffer.push_str("__jni_bindgen::FloatArray"),
                     method::BasicType::Double => buffer.push_str("__jni_bindgen::DoubleArray"),
                     method::BasicType::Class(class) => {
+                        if !context.all_classes.contains(class.as_str()) {
+                            emit_reject_reasons.push("ERROR:  missing class for return type");
+                        }
                         buffer.push_str("__jni_bindgen::ObjectArray<");
                         match context.java_to_rust_path(class) {
                             Ok(path) => buffer.push_str(path.as_str()),
                             Err(_) => {
                                 emit_reject_reasons
-                                    .push("ERROR:  Failed to resolve JNI path to Rust path for argument type");
+                                    .push("ERROR:  Failed to resolve JNI path to Rust path for return type");
                                 buffer.push_str("???");
                             }
                         }

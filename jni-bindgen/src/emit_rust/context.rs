@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::error::Error;
 use std::io;
 use std::sync::Mutex;
@@ -13,6 +14,7 @@ use crate::{config, util};
 pub struct Context<'a> {
     pub(crate) config: &'a config::runtime::Config,
     pub(crate) module: Module,
+    pub(crate) all_classes: HashSet<String>,
     pub(crate) progress: Mutex<util::Progress>,
 }
 
@@ -21,6 +23,7 @@ impl<'a> Context<'a> {
         Self {
             config,
             module: Default::default(),
+            all_classes: HashSet::new(),
             progress: Mutex::new(util::Progress::with_duration(Duration::from_millis(
                 if config.logging_verbose { 0 } else { 300 },
             ))),
@@ -66,6 +69,8 @@ impl<'a> Context<'a> {
         if !self.struct_included(class.path.as_str()) {
             return Ok(());
         }
+
+        self.all_classes.insert(class.path.as_str().to_string());
 
         let s = Struct::new(self, class)?;
         let scope = if let Some(s) = s.rust.local_scope() {
