@@ -1,4 +1,6 @@
-use jreflection::{io_data_err, io_data_error};
+// must go first because macros.
+#[path = "util/_util.rs"]
+mod util;
 
 #[path = "android/_android.rs"]
 mod android;
@@ -10,8 +12,6 @@ mod emit_rust;
 mod identifiers;
 #[path = "run/_run.rs"]
 mod run;
-#[path = "util/_util.rs"]
-mod util;
 
 fn main() {
     entry::main();
@@ -23,17 +23,12 @@ mod entry {
     use std::path::*;
     use std::process::exit;
 
-    use bugsalot::debugger;
     use clap::load_yaml;
 
     use crate::run::{run, RunResult};
     use crate::*;
 
     pub fn main() {
-        std::panic::set_hook(Box::new(|panic| {
-            bugsalot::bug!("{:?}", panic);
-        }));
-
         let yaml = load_yaml!("../cli.yml");
         let matches = clap::App::from_yaml(yaml).get_matches();
 
@@ -90,14 +85,8 @@ mod entry {
                     exit(1);
                 }
             }
-            "verify" => {
-                eprintln!("verify not yet implemented");
-                debugger::break_if_attached();
-                exit(1);
-            }
             unknown => {
                 eprintln!("Unexpected subcommand: {}", unknown);
-                debugger::break_if_attached();
                 exit(1);
             }
         }
