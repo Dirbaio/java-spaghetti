@@ -1,19 +1,19 @@
-use crate::emit_rust::*;
-
-use jreflection::class;
-
 use std::collections::*;
 use std::error::Error;
 use std::io;
-use std::time::*;
 use std::sync::Mutex;
+use std::time::*;
+
+use jreflection::class;
+
+use crate::emit_rust::*;
 
 pub struct Context<'a> {
-    pub(crate) config:      &'a config::runtime::Config,
-    pub(crate) module:      Module,
-    pub(crate) features:    BTreeMap<String, BTreeSet<String>>,
-    pub(crate) progress:    Mutex<util::Progress>,
-    pub(crate) files:       &'a util::ConcurrentDedupeFileSet,
+    pub(crate) config: &'a config::runtime::Config,
+    pub(crate) module: Module,
+    pub(crate) features: BTreeMap<String, BTreeSet<String>>,
+    pub(crate) progress: Mutex<util::Progress>,
+    pub(crate) files: &'a util::ConcurrentDedupeFileSet,
 }
 
 impl<'a> Context<'a> {
@@ -22,7 +22,9 @@ impl<'a> Context<'a> {
             config,
             module: Default::default(),
             features: BTreeMap::new(),
-            progress: Mutex::new(util::Progress::with_duration(Duration::from_millis(if config.logging_verbose { 0 } else { 300 }))),
+            progress: Mutex::new(util::Progress::with_duration(Duration::from_millis(
+                if config.logging_verbose { 0 } else { 300 },
+            ))),
             files,
         }
     }
@@ -35,11 +37,16 @@ impl<'a> Context<'a> {
 
     pub fn add_struct(&mut self, class: jreflection::Class) -> Result<(), Box<dyn Error>> {
         if self.config.ignore_classes.contains(class.path.as_str()) {
-            return Ok(())
+            return Ok(());
         }
 
         let s = Struct::new(self, class)?;
-        let scope = if let Some(s) = s.rust.local_scope() { s } else { /* !local_scope = not part of this module, skip! */ return Ok(()); };
+        let scope = if let Some(s) = s.rust.local_scope() {
+            s
+        } else {
+            /* !local_scope = not part of this module, skip! */
+            return Ok(());
+        };
 
         if self.config.codegen.feature_per_struct {
             if let Ok(feature) = Struct::feature_for(self, s.java.path.as_id()) {
@@ -57,16 +64,24 @@ impl<'a> Context<'a> {
                 }
 
                 let global_subfeatures = self.features.entry(feature).or_insert(BTreeSet::new());
-                for sf in subfeatures { global_subfeatures.insert(sf); }
+                for sf in subfeatures {
+                    global_subfeatures.insert(sf);
+                }
             }
         }
 
         let mut rust_mod = &mut self.module;
         for fragment in scope {
-            rust_mod = rust_mod.modules.entry(fragment.to_owned()).or_insert(Default::default());
+            rust_mod = rust_mod
+                .modules
+                .entry(fragment.to_owned())
+                .or_insert(Default::default());
         }
         if rust_mod.structs.contains_key(&s.rust.struct_name) {
-            return io_data_err!("Unable to add_struct(): java class name {:?} was already added", &s.rust.struct_name)?
+            return io_data_err!(
+                "Unable to add_struct(): java class name {:?} was already added",
+                &s.rust.struct_name
+            )?;
         }
         rust_mod.structs.insert(s.rust.struct_name.clone(), s);
 

@@ -1,7 +1,7 @@
-use super::*;
-
 use std::marker::*;
 use std::ops::*;
+
+use super::*;
 
 /// A Java Array of some POD-like type such as bool, jbyte, jchar, jshort, jint, jlong, jfloat, or jdouble.
 ///
@@ -34,7 +34,11 @@ use std::ops::*;
 /// [DoubleArray]:  struct.DoubleArray.html
 /// [ObjectArray]:  struct.ObjectArray.html
 ///
-pub trait PrimitiveArray<T> where Self : Sized + AsValidJObjectAndEnv, T : Clone + Default {
+pub trait PrimitiveArray<T>
+where
+    Self: Sized + AsValidJObjectAndEnv,
+    T: Clone + Default,
+{
     /// Uses env.New{Type}Array to create a new java array containing "size" elements.
     fn new<'env>(env: &'env Env, size: usize) -> Local<'env, Self>;
 
@@ -61,17 +65,17 @@ pub trait PrimitiveArray<T> where Self : Sized + AsValidJObjectAndEnv, T : Clone
         let start = match range.start_bound() {
             Bound::Unbounded => 0,
             Bound::Included(n) => *n,
-            Bound::Excluded(n) => *n+1,
+            Bound::Excluded(n) => *n + 1,
         };
 
         let end = match range.end_bound() {
             Bound::Unbounded => len,
-            Bound::Included(n) => *n+1,
+            Bound::Included(n) => *n + 1,
             Bound::Excluded(n) => *n,
         };
 
         assert!(start <= end);
-        assert!(end   <= len);
+        assert!(end <= len);
         let vec_len = end - start;
 
         let mut vec = Vec::new();
@@ -90,26 +94,36 @@ pub trait PrimitiveArray<T> where Self : Sized + AsValidJObjectAndEnv, T : Clone
 // This is *not* a sound/safe assumption in the general case as jboolean can be any u8 bit pattern.
 // However, I believe this *is* a sound/safe assumption when exclusively dealing with JNI/JVM APIs which *should* be
 // returning exclusively JNI_TRUE or JNI_FALSE, which are bitwise compatible with Rust's definitions of true / false.
-#[test] fn bool_ffi_assumptions_test() {
+#[test]
+fn bool_ffi_assumptions_test() {
     use std::mem::*;
 
     // Assert that the sizes are indeed the same.
     assert_eq!(size_of::<jboolean>(), 1); // Forever
-    assert_eq!(size_of::<bool>(),     1); // As of https://github.com/rust-lang/rust/pull/46156/commits/219ba511c824bc44149d55c570f723dcd0f0217d
+    assert_eq!(size_of::<bool>(), 1); // As of https://github.com/rust-lang/rust/pull/46156/commits/219ba511c824bc44149d55c570f723dcd0f0217d
 
     // Assert that the underlying representations are indeed the same.
-    assert_eq!(unsafe { std::mem::transmute::<bool, u8>(true ) }, JNI_TRUE );
+    assert_eq!(unsafe { std::mem::transmute::<bool, u8>(true) }, JNI_TRUE);
     assert_eq!(unsafe { std::mem::transmute::<bool, u8>(false) }, JNI_FALSE);
 }
 
 macro_rules! primitive_array {
     (#[repr(transparent)] pub struct $name:ident = $type_str:expr, $type:ident { $new_array:ident $set_region:ident $get_region:ident } ) => {
         /// A [PrimitiveArray](trait.PrimitiveArray.html) implementation.
-        #[repr(transparent)] pub struct $name(ObjectAndEnv);
+        #[repr(transparent)]
+        pub struct $name(ObjectAndEnv);
 
         unsafe impl AsValidJObjectAndEnv for $name {}
-        unsafe impl AsJValue for $name { fn as_jvalue(&self) -> jni_sys::jvalue { jni_sys::jvalue { l: self.0.object } } }
-        unsafe impl JniType for $name { fn static_with_jni_type<R>(callback: impl FnOnce(&str) -> R) -> R { callback($type_str) } }
+        unsafe impl AsJValue for $name {
+            fn as_jvalue(&self) -> jni_sys::jvalue {
+                jni_sys::jvalue { l: self.0.object }
+            }
+        }
+        unsafe impl JniType for $name {
+            fn static_with_jni_type<R>(callback: impl FnOnce(&str) -> R) -> R {
+                callback($type_str)
+            }
+        }
 
         impl PrimitiveArray<$type> for $name {
             fn new<'env>(env: &'env Env, size: usize) -> Local<'env, Self> {
@@ -125,9 +139,9 @@ macro_rules! primitive_array {
             }
 
             fn from<'env>(env: &'env Env, elements: &[$type]) -> Local<'env, Self> {
-                let array  = Self::new(env, elements.len());
-                let size   = elements.len() as jsize;
-                let env    = array.0.env as *mut JNIEnv;
+                let array = Self::new(env, elements.len());
+                let size = elements.len() as jsize;
+                let env = array.0.env as *mut JNIEnv;
                 let object = array.0.object;
                 unsafe {
                     (**env).$set_region.unwrap()(env, object, 0, size, elements.as_ptr() as *const _);
@@ -140,31 +154,47 @@ macro_rules! primitive_array {
             }
 
             fn get_region(&self, start: usize, elements: &mut [$type]) {
-                assert!(start          <= std::i32::MAX as usize); // jsize == jint == i32
+                assert!(start <= std::i32::MAX as usize); // jsize == jint == i32
                 assert!(elements.len() <= std::i32::MAX as usize); // jsize == jint == i32
-                let self_len     = self.len() as jsize;
+                let self_len = self.len() as jsize;
                 let elements_len = elements.len() as jsize;
 
                 let start = start as jsize;
-                let end   = start + elements_len;
+                let end = start + elements_len;
                 assert!(start <= end);
-                assert!(end   <= self_len);
+                assert!(end <= self_len);
 
-                unsafe { (**self.0.env).$get_region.unwrap()(self.0.env as *mut _, self.0.object, start, elements_len, elements.as_mut_ptr() as *mut _) };
+                unsafe {
+                    (**self.0.env).$get_region.unwrap()(
+                        self.0.env as *mut _,
+                        self.0.object,
+                        start,
+                        elements_len,
+                        elements.as_mut_ptr() as *mut _,
+                    )
+                };
             }
 
             fn set_region(&self, start: usize, elements: &[$type]) {
-                assert!(start          <= std::i32::MAX as usize); // jsize == jint == i32
+                assert!(start <= std::i32::MAX as usize); // jsize == jint == i32
                 assert!(elements.len() <= std::i32::MAX as usize); // jsize == jint == i32
-                let self_len     = self.len() as jsize;
+                let self_len = self.len() as jsize;
                 let elements_len = elements.len() as jsize;
 
                 let start = start as jsize;
-                let end   = start + elements_len;
+                let end = start + elements_len;
                 assert!(start <= end);
-                assert!(end   <= self_len);
+                assert!(end <= self_len);
 
-                unsafe { (**self.0.env).$set_region.unwrap()(self.0.env as *mut _, self.0.object, start, elements_len, elements.as_ptr() as *const _) };
+                unsafe {
+                    (**self.0.env).$set_region.unwrap()(
+                        self.0.env as *mut _,
+                        self.0.object,
+                        start,
+                        elements_len,
+                        elements.as_ptr() as *const _,
+                    )
+                };
             }
         }
     };
@@ -186,7 +216,7 @@ primitive_array! { #[repr(transparent)] pub struct DoubleArray  = "[D\0", jdoubl
 /// [PrimitiveArray]:   struct.PrimitiveArray.html
 ///
 #[repr(transparent)]
-pub struct ObjectArray<T: AsValidJObjectAndEnv, E: ThrowableType>(ObjectAndEnv, PhantomData<(T,E)>);
+pub struct ObjectArray<T: AsValidJObjectAndEnv, E: ThrowableType>(ObjectAndEnv, PhantomData<(T, E)>);
 
 unsafe impl<T: AsValidJObjectAndEnv, E: ThrowableType> AsValidJObjectAndEnv for ObjectArray<T, E> {}
 
@@ -219,22 +249,28 @@ impl<T: AsValidJObjectAndEnv, E: ThrowableType> ObjectArray<T, E> {
 
     pub fn iter<'env>(&'env self) -> ObjectArrayIter<'env, T, E> {
         ObjectArrayIter {
-            array:  self,
-            index:  0,
+            array: self,
+            index: 0,
             length: self.len(),
         }
     }
 
-    pub fn from<'env>(env: &'env Env, elements: impl 'env + ExactSizeIterator + Iterator<Item = impl Into<Option<&'env T>>>) -> Local<'env, Self> {
-        let size    = elements.len();
-        let array   = Self::new(env, size);
-        let env     = array.0.env as *mut JNIEnv;
-        let this    = array.0.object;
-        let set     = unsafe { **env }.SetObjectArrayElement.unwrap();
+    pub fn from<'env>(
+        env: &'env Env,
+        elements: impl 'env + ExactSizeIterator + Iterator<Item = impl Into<Option<&'env T>>>,
+    ) -> Local<'env, Self> {
+        let size = elements.len();
+        let array = Self::new(env, size);
+        let env = array.0.env as *mut JNIEnv;
+        let this = array.0.object;
+        let set = unsafe { **env }.SetObjectArrayElement.unwrap();
 
         for (index, element) in elements.enumerate() {
             assert!(index < size); // Should only be violated by an invalid ExactSizeIterator implementation.
-            let value = element.into().map(|v| unsafe { AsJValue::as_jvalue(v.into()).l }).unwrap_or(null_mut());
+            let value = element
+                .into()
+                .map(|v| unsafe { AsJValue::as_jvalue(v.into()).l })
+                .unwrap_or(null_mut());
             unsafe { set(env, this, index as jsize, value) };
         }
         array
@@ -247,9 +283,9 @@ impl<T: AsValidJObjectAndEnv, E: ThrowableType> ObjectArray<T, E> {
     /// XXX: Expose this via std::ops::Index
     pub fn get<'env>(&'env self, index: usize) -> Result<Option<Local<'env, T>>, Local<'env, E>> {
         assert!(index <= std::i32::MAX as usize); // jsize == jint == i32 XXX: Should maybe be treated as an exception?
-        let index   = index as jsize;
-        let env     = self.0.env as *mut JNIEnv;
-        let this    = self.0.object;
+        let index = index as jsize;
+        let env = self.0.env as *mut JNIEnv;
+        let this = self.0.object;
         unsafe {
             let result = (**env).GetObjectArrayElement.unwrap()(env, this, index);
             let exception = (**env).ExceptionOccurred.unwrap()(env);
@@ -267,10 +303,13 @@ impl<T: AsValidJObjectAndEnv, E: ThrowableType> ObjectArray<T, E> {
     /// XXX: I don't think there's a way to expose this via std::ops::IndexMut sadly?
     pub fn set<'env>(&'env self, index: usize, value: impl Into<Option<&'env T>>) -> Result<(), Local<'env, E>> {
         assert!(index <= std::i32::MAX as usize); // jsize == jint == i32 XXX: Should maybe be treated as an exception?
-        let value   = value.into().map(|v| unsafe { AsJValue::as_jvalue(v.into()).l }).unwrap_or(null_mut());
-        let index   = index as jsize;
-        let env     = self.0.env as *mut JNIEnv;
-        let this    = self.0.object;
+        let value = value
+            .into()
+            .map(|v| unsafe { AsJValue::as_jvalue(v.into()).l })
+            .unwrap_or(null_mut());
+        let index = index as jsize;
+        let env = self.0.env as *mut JNIEnv;
+        let this = self.0.object;
         unsafe {
             (**env).SetObjectArrayElement.unwrap()(env, this, index, value);
             let exception = (**env).ExceptionOccurred.unwrap()(env);
@@ -284,11 +323,9 @@ impl<T: AsValidJObjectAndEnv, E: ThrowableType> ObjectArray<T, E> {
     }
 }
 
-
-
 pub struct ObjectArrayIter<'env, T: AsValidJObjectAndEnv, E: ThrowableType> {
-    array:  &'env ObjectArray<T, E>,
-    index:  usize,
+    array: &'env ObjectArray<T, E>,
+    index: usize,
     length: usize,
 }
 

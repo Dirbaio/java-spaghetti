@@ -5,7 +5,8 @@ use super::*;
 /// converting to Rust character/string types, etc.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[allow(non_camel_case_types)]
-#[repr(transparent)] pub struct jchar(pub jni_sys::jchar);
+#[repr(transparent)]
+pub struct jchar(pub jni_sys::jchar);
 
 // TODO: Extend with encoding/decoding options.
 // Can Java create improper UTF16?  Should encodings be to/from WTF8?  What about on Unix, where OsStr(ing) isn't WTF8?

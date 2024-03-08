@@ -1,16 +1,13 @@
 use super::*;
 
 pub(crate) struct SingleVmBackend {
-    current: GenVM
+    current: GenVM,
 }
 
 impl SingleVmBackend {
     pub const fn new() -> Self {
-        Self { 
-            current: GenVM {
-                gen: 0,
-                vm:  null(),
-            }
+        Self {
+            current: GenVM { gen: 0, vm: null() },
         }
     }
 

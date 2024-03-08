@@ -5,7 +5,7 @@ use super::*;
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct GenVM {
     pub(crate) gen: usize,
-    pub(crate) vm:  *const JavaVM,
+    pub(crate) vm: *const JavaVM,
 }
 
 unsafe impl Send for GenVM {}

@@ -1,14 +1,14 @@
 use std::time::*;
 
 pub struct Progress {
-    can_next_log:   Instant,
-    debounce:       Duration,
+    can_next_log: Instant,
+    debounce: Duration,
 }
 
 impl Progress {
     pub fn with_duration(debounce: Duration) -> Self {
         Self {
-            can_next_log:   Instant::now(),
+            can_next_log: Instant::now(),
             debounce,
         }
     }
@@ -23,7 +23,9 @@ impl Progress {
     }
 
     pub fn update(&mut self, msg: &str) {
-        if !self.can_update() { return; }
+        if !self.can_update() {
+            return;
+        }
         self.force_update(msg);
     }
 }

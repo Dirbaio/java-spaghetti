@@ -4,5 +4,5 @@ use jni_sys::*;
 #[doc(hidden)] // You should generally not be interacting with this type directly, but it must be public for codegen.
 pub struct ObjectAndEnv {
     pub object: jobject,
-    pub env:    *const JNIEnv,
+    pub env: *const JNIEnv,
 }

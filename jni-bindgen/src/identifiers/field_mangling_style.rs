@@ -1,8 +1,7 @@
-use crate::identifiers::*;
 use jreflection::*;
 use serde_derive::*;
 
-
+use crate::identifiers::*;
 
 pub enum FieldMangling<'a> {
     ConstValue(String, &'a field::Constant),
@@ -11,8 +10,8 @@ pub enum FieldMangling<'a> {
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Hash)]
 pub struct FieldManglingStyle {
-    pub const_finals:   bool,   // Default: true
-    pub rustify_names:  bool,   // Default: true
+    pub const_finals: bool,     // Default: true
+    pub rustify_names: bool,    // Default: true
     pub getter_pattern: String, // Default: "{NAME}", might consider "get_{NAME}"
     pub setter_pattern: String, // Default: "set_{NAME}"
 }
@@ -29,7 +28,11 @@ impl Default for FieldManglingStyle {
 }
 
 impl FieldManglingStyle {
-    pub fn mangle<'a>(&self, field: &'a Field, renamed_to: Option<&str>) -> Result<FieldMangling<'a>, IdentifierManglingError> {
+    pub fn mangle<'a>(
+        &self,
+        field: &'a Field,
+        renamed_to: Option<&str>,
+    ) -> Result<FieldMangling<'a>, IdentifierManglingError> {
         let field_name = renamed_to.unwrap_or(field.name.as_str());
         if let (Some(value), true, true) = (field.constant.as_ref(), field.is_constant(), self.const_finals) {
             let name = if renamed_to.is_some() {
@@ -44,7 +47,7 @@ impl FieldManglingStyle {
         } else {
             Ok(FieldMangling::GetSet(
                 self.mangle_identifier(self.getter_pattern.replace("{NAME}", field_name).as_str())?,
-                self.mangle_identifier(self.setter_pattern.replace("{NAME}", field_name).as_str())?
+                self.mangle_identifier(self.setter_pattern.replace("{NAME}", field_name).as_str())?,
             ))
         }
     }
