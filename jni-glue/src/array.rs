@@ -43,7 +43,7 @@ where
     T: Clone + Default,
 {
     /// Uses env.New{Type}Array to create a new java array containing "size" elements.
-    fn new<'env>(env: &'env Env, size: usize) -> Local<'env, Self>;
+    fn new(env: &Env, size: usize) -> Local<'_, Self>;
 
     /// Uses env.GetArrayLength to get the length of the java array.
     fn len(&self) -> usize;
@@ -112,7 +112,7 @@ macro_rules! primitive_array {
         }
 
         impl PrimitiveArray<$type> for $name {
-            fn new<'env>(env: &'env Env, size: usize) -> Local<'env, Self> {
+            fn new(env: &Env, size: usize) -> Local<'_, Self> {
                 assert!(size <= std::i32::MAX as usize); // jsize == jint == i32
                 let size = size as jsize;
                 let env = env.as_jni_env();
@@ -219,7 +219,7 @@ unsafe impl<T: AsValidJObjectAndEnv, E: ThrowableType> AsJValue for ObjectArray<
 }
 
 impl<T: AsValidJObjectAndEnv, E: ThrowableType> ObjectArray<T, E> {
-    pub fn new<'env>(env: &'env Env, size: usize) -> Local<'env, Self> {
+    pub fn new(env: &Env, size: usize) -> Local<'_, Self> {
         assert!(size <= std::i32::MAX as usize); // jsize == jint == i32
         let class = Self::static_with_jni_type(|t| unsafe { env.require_class(t) });
         let size = size as jsize;
@@ -233,7 +233,7 @@ impl<T: AsValidJObjectAndEnv, E: ThrowableType> ObjectArray<T, E> {
         }
     }
 
-    pub fn iter<'env>(&'env self) -> ObjectArrayIter<'env, T, E> {
+    pub fn iter(&self) -> ObjectArrayIter<'_, T, E> {
         ObjectArrayIter {
             array: self,
             index: 0,
@@ -254,7 +254,7 @@ impl<T: AsValidJObjectAndEnv, E: ThrowableType> ObjectArray<T, E> {
             assert!(index < size); // Should only be violated by an invalid ExactSizeIterator implementation.
             let value = element
                 .into()
-                .map(|v| unsafe { AsJValue::as_jvalue(v.into()).l })
+                .map(|v| unsafe { AsJValue::as_jvalue(v).l })
                 .unwrap_or(null_mut());
             unsafe { ((**env).v1_2.SetObjectArrayElement)(env, this, index as jsize, value) };
         }
@@ -266,7 +266,7 @@ impl<T: AsValidJObjectAndEnv, E: ThrowableType> ObjectArray<T, E> {
     }
 
     /// XXX: Expose this via std::ops::Index
-    pub fn get<'env>(&'env self, index: usize) -> Result<Option<Local<'env, T>>, Local<'env, E>> {
+    pub fn get(&self, index: usize) -> Result<Option<Local<'_, T>>, Local<'_, E>> {
         assert!(index <= std::i32::MAX as usize); // jsize == jint == i32 XXX: Should maybe be treated as an exception?
         let index = index as jsize;
         let env = self.0.env as *mut JNIEnv;
@@ -290,7 +290,7 @@ impl<T: AsValidJObjectAndEnv, E: ThrowableType> ObjectArray<T, E> {
         assert!(index <= std::i32::MAX as usize); // jsize == jint == i32 XXX: Should maybe be treated as an exception?
         let value = value
             .into()
-            .map(|v| unsafe { AsJValue::as_jvalue(v.into()).l })
+            .map(|v| unsafe { AsJValue::as_jvalue(v).l })
             .unwrap_or(null_mut());
         let index = index as jsize;
         let env = self.0.env as *mut JNIEnv;

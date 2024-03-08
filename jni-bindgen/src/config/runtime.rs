@@ -2,7 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::ffi::OsString;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::config::toml;
 
@@ -129,19 +129,18 @@ impl From<toml::FileWithContext> for Config {
     }
 }
 
-fn resolve_file(path: PathBuf, dir: &PathBuf) -> PathBuf {
+fn resolve_file(path: PathBuf, dir: &Path) -> PathBuf {
     let path: PathBuf = match path.into_os_string().into_string() {
         Ok(string) => OsString::from(expand_vars(string)),
         Err(os_string) => os_string,
     }
     .into();
 
-    let path = if path.is_relative() {
-        dir.clone().join(path)
+    if path.is_relative() {
+        dir.join(path)
     } else {
         path
-    };
-    path
+    }
 }
 
 fn expand_vars(string: String) -> String {

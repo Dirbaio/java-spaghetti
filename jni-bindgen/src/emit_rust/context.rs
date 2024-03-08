@@ -48,10 +48,7 @@ impl<'a> Context<'a> {
 
         let mut rust_mod = &mut self.module;
         for fragment in scope {
-            rust_mod = rust_mod
-                .modules
-                .entry(fragment.to_owned())
-                .or_insert(Default::default());
+            rust_mod = rust_mod.modules.entry(fragment.to_owned()).or_default();
         }
         if rust_mod.structs.contains_key(&s.rust.struct_name) {
             return io_data_err!(

@@ -27,7 +27,7 @@ impl<'a> Method<'a> {
     }
 
     pub fn rust_name(&self) -> Option<&str> {
-        self.rust_name.as_ref().map(|s| s.as_str())
+        self.rust_name.as_deref()
     }
 
     pub fn set_mangling_style(&mut self, style: MethodManglingStyle) {
@@ -164,7 +164,7 @@ impl<'a> Method<'a> {
                             }
                             buffer.push_str(", ");
                             buffer.push_str(context.config.codegen.throwable_type.as_str());
-                            buffer.push_str(">");
+                            buffer.push('>');
                         }
                         method::BasicType::Void => {
                             emit_reject_reasons.push("ERROR:  Arrays of void isn't a thing");
@@ -175,7 +175,7 @@ impl<'a> Method<'a> {
                         // ObjectArray s
                         buffer.push_str(", ");
                         buffer.push_str(context.config.codegen.throwable_type.as_str());
-                        buffer.push_str(">");
+                        buffer.push('>');
                     }
                     buffer.push_str(">>"); // Option, Into
 
@@ -189,12 +189,12 @@ impl<'a> Method<'a> {
             }
 
             params_array.push_str("__jni_bindgen::AsJValue::as_jvalue(");
-            params_array.push_str("&");
+            params_array.push('&');
             params_array.push_str(arg_name.as_str());
             if param_is_object {
                 params_array.push_str(".into()");
             }
-            params_array.push_str(")");
+            params_array.push(')');
 
             if !params_decl.is_empty() {
                 params_decl.push_str(", ");
@@ -259,7 +259,7 @@ impl<'a> Method<'a> {
                         }
                         buffer.push_str(", ");
                         buffer.push_str(context.config.codegen.throwable_type.as_str());
-                        buffer.push_str(">");
+                        buffer.push('>');
                     }
                     method::BasicType::Void => {
                         emit_reject_reasons.push("ERROR:  Arrays of void isn't a thing");
@@ -270,7 +270,7 @@ impl<'a> Method<'a> {
                     // ObjectArray s
                     buffer.push_str(", ");
                     buffer.push_str(context.config.codegen.throwable_type.as_str());
-                    buffer.push_str(">");
+                    buffer.push('>');
                 }
                 buffer.push_str(">>"); // Local, Option
                 buffer
@@ -317,9 +317,9 @@ impl<'a> Method<'a> {
             format!("{}        // ", indent)
         };
         let access = if self.java.is_public() { "pub " } else { "" };
-        let attributes = format!("{}", if self.java.deprecated { "#[deprecated] " } else { "" });
+        let attributes = (if self.java.deprecated { "#[deprecated] " } else { "" }).to_string();
 
-        writeln!(out, "")?;
+        writeln!(out)?;
         for reason in &emit_reject_reasons {
             writeln!(out, "{}// Not emitting: {}", indent, reason)?;
         }

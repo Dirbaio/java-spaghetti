@@ -106,7 +106,7 @@ impl<'a> Field<'a> {
                         }
                         buffer.push_str(", ");
                         buffer.push_str(context.config.codegen.throwable_type.as_str());
-                        buffer.push_str(">");
+                        buffer.push('>');
                     }
                     field::BasicType::Void => {
                         emit_reject_reasons.push("ERROR:  Arrays of void isn't a thing");
@@ -117,7 +117,7 @@ impl<'a> Field<'a> {
                     // ObjectArray s
                     buffer.push_str(", ");
                     buffer.push_str(context.config.codegen.throwable_type.as_str());
-                    buffer.push_str(">");
+                    buffer.push('>');
                 }
 
                 rust_set_type_buffer = format!(
@@ -173,9 +173,9 @@ impl<'a> Field<'a> {
             if self.java.is_volatile() { " volatile" } else { "" }
         );
 
-        let attributes = format!("{}", if self.java.deprecated { "#[deprecated] " } else { "" },);
+        let attributes = (if self.java.deprecated { "#[deprecated] " } else { "" }).to_string();
 
-        writeln!(out, "")?;
+        writeln!(out)?;
         for reason in &emit_reject_reasons {
             writeln!(out, "{}// Not emitting: {}", indent, reason)?;
         }
@@ -279,7 +279,7 @@ impl<'a> Field<'a> {
                         "'env"
                     };
 
-                    writeln!(out, "")?;
+                    writeln!(out)?;
                     if let Some(url) = url {
                         writeln!(out, "{}/// **set** {} {}", indent, &keywords, url)?;
                     } else {

@@ -19,8 +19,7 @@ pub fn run(config: impl Into<Config>) -> Result<(), Box<dyn Error>> {
     }
 
     {
-        let mut out = Vec::new();
-        out.reserve(4096);
+        let mut out = Vec::with_capacity(4096);
         context.write(&mut out)?;
         util::write_generated(&context, &config.output_path, &out[..])?;
     }
@@ -69,7 +68,7 @@ fn gather_file(context: &mut emit_rust::Context, path: &Path) -> Result<(), Box<
             }
         }
         unknown => {
-            return Err(io::Error::new(
+            Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 format!(
                     "Input files must have a '.class' or '.jar' extension, not a '.{}' extension",

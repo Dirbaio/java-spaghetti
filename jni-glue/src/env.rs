@@ -198,12 +198,12 @@ impl Env {
 
     // Constructor Methods
 
-    pub unsafe fn new_object_a<'env, R: AsValidJObjectAndEnv, E: ThrowableType>(
-        &'env self,
+    pub unsafe fn new_object_a<R: AsValidJObjectAndEnv, E: ThrowableType>(
+        &self,
         class: jclass,
         method: jmethodID,
         args: *const jvalue,
-    ) -> Result<Local<'env, R>, Local<'env, E>> {
+    ) -> Result<Local<'_, R>, Local<'_, E>> {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
         let result = ((**env).v1_2.NewObjectA)(env, class, method, args);
         let exception = ((**env).v1_2.ExceptionOccurred)(env);
@@ -218,12 +218,12 @@ impl Env {
 
     // Instance Methods
 
-    pub unsafe fn call_object_method_a<'env, R: AsValidJObjectAndEnv, E: ThrowableType>(
-        &'env self,
+    pub unsafe fn call_object_method_a<R: AsValidJObjectAndEnv, E: ThrowableType>(
+        &self,
         this: jobject,
         method: jmethodID,
         args: *const jvalue,
-    ) -> Result<Option<Local<'env, R>>, Local<'env, E>> {
+    ) -> Result<Option<Local<'_, R>>, Local<'_, E>> {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
         let result = ((**env).v1_2.CallObjectMethodA)(env, this, method, args);
         let exception = ((**env).v1_2.ExceptionOccurred)(env);
@@ -380,24 +380,24 @@ impl Env {
         args: *const jvalue,
     ) -> Result<(), Local<'env, E>> {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = ((**env).v1_2.CallVoidMethodA)(env, this, method, args);
+        ((**env).v1_2.CallVoidMethodA)(env, this, method, args);
         let exception = ((**env).v1_2.ExceptionOccurred)(env);
         if !exception.is_null() {
             ((**env).v1_2.ExceptionClear)(env);
             Err(Local::from_env_object(env, exception))
         } else {
-            Ok(result)
+            Ok(())
         }
     }
 
     // Static Methods
 
-    pub unsafe fn call_static_object_method_a<'env, R: AsValidJObjectAndEnv, E: ThrowableType>(
-        &'env self,
+    pub unsafe fn call_static_object_method_a<R: AsValidJObjectAndEnv, E: ThrowableType>(
+        &self,
         class: jclass,
         method: jmethodID,
         args: *const jvalue,
-    ) -> Result<Option<Local<'env, R>>, Local<'env, E>> {
+    ) -> Result<Option<Local<'_, R>>, Local<'_, E>> {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
         let result = ((**env).v1_2.CallStaticObjectMethodA)(env, class, method, args);
         let exception = ((**env).v1_2.ExceptionOccurred)(env);
@@ -554,23 +554,23 @@ impl Env {
         args: *const jvalue,
     ) -> Result<(), Local<'env, E>> {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = ((**env).v1_2.CallStaticVoidMethodA)(env, class, method, args);
+        ((**env).v1_2.CallStaticVoidMethodA)(env, class, method, args);
         let exception = ((**env).v1_2.ExceptionOccurred)(env);
         if !exception.is_null() {
             ((**env).v1_2.ExceptionClear)(env);
             Err(Local::from_env_object(env, exception))
         } else {
-            Ok(result)
+            Ok(())
         }
     }
 
     // Instance Fields
 
-    pub unsafe fn get_object_field<'env, R: AsValidJObjectAndEnv>(
-        &'env self,
+    pub unsafe fn get_object_field<R: AsValidJObjectAndEnv>(
+        &self,
         this: jobject,
         field: jfieldID,
-    ) -> Option<Local<'env, R>> {
+    ) -> Option<Local<'_, R>> {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
         let result = ((**env).v1_2.GetObjectField)(env, this, field);
         if result.is_null() {
@@ -588,8 +588,7 @@ impl Env {
 
     pub unsafe fn get_byte_field(&self, this: jobject, field: jfieldID) -> jbyte {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = ((**env).v1_2.GetByteField)(env, this, field);
-        result
+        ((**env).v1_2.GetByteField)(env, this, field)
     }
 
     pub unsafe fn get_char_field(&self, this: jobject, field: jfieldID) -> jchar {
@@ -600,32 +599,27 @@ impl Env {
 
     pub unsafe fn get_short_field(&self, this: jobject, field: jfieldID) -> jshort {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = ((**env).v1_2.GetShortField)(env, this, field);
-        result
+        ((**env).v1_2.GetShortField)(env, this, field)
     }
 
     pub unsafe fn get_int_field(&self, this: jobject, field: jfieldID) -> jint {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = ((**env).v1_2.GetIntField)(env, this, field);
-        result
+        ((**env).v1_2.GetIntField)(env, this, field)
     }
 
     pub unsafe fn get_long_field(&self, this: jobject, field: jfieldID) -> jlong {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = ((**env).v1_2.GetLongField)(env, this, field);
-        result
+        ((**env).v1_2.GetLongField)(env, this, field)
     }
 
     pub unsafe fn get_float_field(&self, this: jobject, field: jfieldID) -> jfloat {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = ((**env).v1_2.GetFloatField)(env, this, field);
-        result
+        ((**env).v1_2.GetFloatField)(env, this, field)
     }
 
     pub unsafe fn get_double_field(&self, this: jobject, field: jfieldID) -> jdouble {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = ((**env).v1_2.GetDoubleField)(env, this, field);
-        result
+        ((**env).v1_2.GetDoubleField)(env, this, field)
     }
 
     pub unsafe fn set_object_field<'env, 'obj, R: 'obj + AsValidJObjectAndEnv>(
@@ -634,10 +628,7 @@ impl Env {
         field: jfieldID,
         value: impl Into<Option<&'obj R>>,
     ) {
-        let value = value
-            .into()
-            .map(|v| AsJValue::as_jvalue(v.into()).l)
-            .unwrap_or(null_mut());
+        let value = value.into().map(|v| AsJValue::as_jvalue(v).l).unwrap_or(null_mut());
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
         ((**env).v1_2.SetObjectField)(env, this, field, value);
     }
@@ -684,11 +675,11 @@ impl Env {
 
     // Static Fields
 
-    pub unsafe fn get_static_object_field<'env, R: AsValidJObjectAndEnv>(
-        &'env self,
+    pub unsafe fn get_static_object_field<R: AsValidJObjectAndEnv>(
+        &self,
         class: jclass,
         field: jfieldID,
-    ) -> Option<Local<'env, R>> {
+    ) -> Option<Local<'_, R>> {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
         let result = ((**env).v1_2.GetStaticObjectField)(env, class, field);
         if result.is_null() {
@@ -706,8 +697,7 @@ impl Env {
 
     pub unsafe fn get_static_byte_field(&self, class: jclass, field: jfieldID) -> jbyte {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = ((**env).v1_2.GetStaticByteField)(env, class, field);
-        result
+        ((**env).v1_2.GetStaticByteField)(env, class, field)
     }
 
     pub unsafe fn get_static_char_field(&self, class: jclass, field: jfieldID) -> jchar {
@@ -718,32 +708,27 @@ impl Env {
 
     pub unsafe fn get_static_short_field(&self, class: jclass, field: jfieldID) -> jshort {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = ((**env).v1_2.GetStaticShortField)(env, class, field);
-        result
+        ((**env).v1_2.GetStaticShortField)(env, class, field)
     }
 
     pub unsafe fn get_static_int_field(&self, class: jclass, field: jfieldID) -> jint {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = ((**env).v1_2.GetStaticIntField)(env, class, field);
-        result
+        ((**env).v1_2.GetStaticIntField)(env, class, field)
     }
 
     pub unsafe fn get_static_long_field(&self, class: jclass, field: jfieldID) -> jlong {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = ((**env).v1_2.GetStaticLongField)(env, class, field);
-        result
+        ((**env).v1_2.GetStaticLongField)(env, class, field)
     }
 
     pub unsafe fn get_static_float_field(&self, class: jclass, field: jfieldID) -> jfloat {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = ((**env).v1_2.GetStaticFloatField)(env, class, field);
-        result
+        ((**env).v1_2.GetStaticFloatField)(env, class, field)
     }
 
     pub unsafe fn get_static_double_field(&self, class: jclass, field: jfieldID) -> jdouble {
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
-        let result = ((**env).v1_2.GetStaticDoubleField)(env, class, field);
-        result
+        ((**env).v1_2.GetStaticDoubleField)(env, class, field)
     }
 
     pub unsafe fn set_static_object_field<'env, 'obj, R: 'obj + AsValidJObjectAndEnv>(
@@ -752,10 +737,7 @@ impl Env {
         field: jfieldID,
         value: impl Into<Option<&'obj R>>,
     ) {
-        let value = value
-            .into()
-            .map(|v| AsJValue::as_jvalue(v.into()).l)
-            .unwrap_or(null_mut());
+        let value = value.into().map(|v| AsJValue::as_jvalue(v).l).unwrap_or(null_mut());
         let env = &self.0 as *const JNIEnv as *mut JNIEnv;
         ((**env).v1_2.SetStaticObjectField)(env, class, field, value);
     }

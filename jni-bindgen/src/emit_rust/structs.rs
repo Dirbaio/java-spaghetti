@@ -18,7 +18,7 @@ pub(crate) struct StructPaths {
 }
 
 impl StructPaths {
-    pub(crate) fn new<'ctx>(context: &'ctx Context, class: class::Id) -> Result<Self, Box<dyn Error>> {
+    pub(crate) fn new(context: &Context, class: class::Id) -> Result<Self, Box<dyn Error>> {
         Ok(Self {
             mod_prefix: Struct::mod_for(context, class)? + "::",
             struct_name: Struct::name_for(context, class)?,
@@ -41,7 +41,7 @@ pub(crate) struct Struct {
     pub java: jreflection::Class,
 }
 
-fn rust_id<'a>(id: &str) -> Result<&str, Box<dyn Error>> {
+fn rust_id(id: &str) -> Result<&str, Box<dyn Error>> {
     Ok(match RustIdentifier::from_str(id) {
         RustIdentifier::Identifier(id) => id,
         RustIdentifier::KeywordRawSafe(id) => id,
@@ -102,14 +102,14 @@ impl Struct {
         Ok(buf)
     }
 
-    pub(crate) fn new<'ctx>(context: &'ctx mut Context, java: jreflection::Class) -> Result<Self, Box<dyn Error>> {
+    pub(crate) fn new(context: &mut Context, java: jreflection::Class) -> Result<Self, Box<dyn Error>> {
         let rust = StructPaths::new(context, java.path.as_id())?;
 
-        return Ok(Self { rust, java });
+        Ok(Self { rust, java })
     }
 
     pub(crate) fn write(&self, context: &Context, indent: &str, out: &mut impl io::Write) -> io::Result<()> {
-        writeln!(out, "")?;
+        writeln!(out)?;
 
         // Ignored access_flags: SUPER, SYNTHETIC, ANNOTATION, ABSTRACT
 
@@ -127,7 +127,7 @@ impl Struct {
 
         let visibility = if self.java.is_public() { "public" } else { "private" };
 
-        let attributes = format!("{}", if self.java.deprecated { "#[deprecated] " } else { "" });
+        let attributes = (if self.java.deprecated { "#[deprecated] " } else { "" }).to_string();
 
         let super_path = if let Some(super_path) = self.java.super_path.as_ref() {
             context.java_to_rust_path(super_path.as_id()).unwrap()

@@ -16,7 +16,7 @@ impl Module {
         let next_indent = format!("{}    ", indent);
 
         for (name, module) in self.modules.iter() {
-            writeln!(out, "")?;
+            writeln!(out)?;
             if indent.is_empty() {
                 writeln!(
                     out,
@@ -47,7 +47,7 @@ impl Module {
 
         for (_, structure) in self.structs.iter() {
             if indent.is_empty() {
-                if structure.rust.struct_name.contains("_") {
+                if structure.rust.struct_name.contains('_') {
                     writeln!(
                         out,
                         "#[allow(non_camel_case_types)] // We map Java inner classes to Outer_Inner"
