@@ -80,32 +80,32 @@ impl<'env> Env<'env> {
 
     // String methods
 
-    pub unsafe fn new_string(&self, chars: *const jchar, len: jsize) -> jstring {
+    pub unsafe fn new_string(self, chars: *const jchar, len: jsize) -> jstring {
         ((**self.env).v1_2.NewString)(self.env, chars as *const _, len)
     }
 
-    pub unsafe fn get_string_length(&self, string: jstring) -> jsize {
+    pub unsafe fn get_string_length(self, string: jstring) -> jsize {
         ((**self.env).v1_2.GetStringLength)(self.env, string)
     }
 
-    pub unsafe fn get_string_chars(&self, string: jstring) -> *const jchar {
+    pub unsafe fn get_string_chars(self, string: jstring) -> *const jchar {
         ((**self.env).v1_2.GetStringChars)(self.env, string, null_mut()) as *const _
     }
 
-    pub unsafe fn release_string_chars(&self, string: jstring, chars: *const jchar) {
+    pub unsafe fn release_string_chars(self, string: jstring, chars: *const jchar) {
         ((**self.env).v1_2.ReleaseStringChars)(self.env, string, chars as *const _)
     }
 
     // Query Methods
 
-    pub unsafe fn require_class(&self, class: &str) -> jclass {
+    pub unsafe fn require_class(self, class: &str) -> jclass {
         debug_assert!(class.ends_with('\0'));
         let class = ((**self.env).v1_2.FindClass)(self.env, class.as_ptr() as *const c_char);
         assert!(!class.is_null());
         class
     }
 
-    pub unsafe fn require_method(&self, class: jclass, method: &str, descriptor: &str) -> jmethodID {
+    pub unsafe fn require_method(self, class: jclass, method: &str, descriptor: &str) -> jmethodID {
         debug_assert!(method.ends_with('\0'));
         debug_assert!(descriptor.ends_with('\0'));
 
@@ -119,7 +119,7 @@ impl<'env> Env<'env> {
         method
     }
 
-    pub unsafe fn require_static_method(&self, class: jclass, method: &str, descriptor: &str) -> jmethodID {
+    pub unsafe fn require_static_method(self, class: jclass, method: &str, descriptor: &str) -> jmethodID {
         debug_assert!(method.ends_with('\0'));
         debug_assert!(descriptor.ends_with('\0'));
 
@@ -133,7 +133,7 @@ impl<'env> Env<'env> {
         method
     }
 
-    pub unsafe fn require_field(&self, class: jclass, field: &str, descriptor: &str) -> jfieldID {
+    pub unsafe fn require_field(self, class: jclass, field: &str, descriptor: &str) -> jfieldID {
         debug_assert!(field.ends_with('\0'));
         debug_assert!(field.ends_with('\0'));
 
@@ -147,7 +147,7 @@ impl<'env> Env<'env> {
         field
     }
 
-    pub unsafe fn require_static_field(&self, class: jclass, field: &str, descriptor: &str) -> jfieldID {
+    pub unsafe fn require_static_field(self, class: jclass, field: &str, descriptor: &str) -> jfieldID {
         debug_assert!(field.ends_with('\0'));
         debug_assert!(field.ends_with('\0'));
 
@@ -163,13 +163,13 @@ impl<'env> Env<'env> {
 
     // Multi-Query Methods
 
-    pub unsafe fn require_class_method(&self, class: &str, method: &str, descriptor: &str) -> (jclass, jmethodID) {
+    pub unsafe fn require_class_method(self, class: &str, method: &str, descriptor: &str) -> (jclass, jmethodID) {
         let class = self.require_class(class);
         (class, self.require_method(class, method, descriptor))
     }
 
     pub unsafe fn require_class_static_method(
-        &self,
+        self,
         class: &str,
         method: &str,
         descriptor: &str,
@@ -178,12 +178,12 @@ impl<'env> Env<'env> {
         (class, self.require_static_method(class, method, descriptor))
     }
 
-    pub unsafe fn require_class_field(&self, class: &str, method: &str, descriptor: &str) -> (jclass, jfieldID) {
+    pub unsafe fn require_class_field(self, class: &str, method: &str, descriptor: &str) -> (jclass, jfieldID) {
         let class = self.require_class(class);
         (class, self.require_field(class, method, descriptor))
     }
 
-    pub unsafe fn require_class_static_field(&self, class: &str, method: &str, descriptor: &str) -> (jclass, jfieldID) {
+    pub unsafe fn require_class_static_field(self, class: &str, method: &str, descriptor: &str) -> (jclass, jfieldID) {
         let class = self.require_class(class);
         (class, self.require_static_field(class, method, descriptor))
     }
@@ -191,7 +191,7 @@ impl<'env> Env<'env> {
     // Constructor Methods
 
     pub unsafe fn new_object_a<R: AsValidJObjectAndEnv, E: ThrowableType>(
-        &self,
+        self,
         class: jclass,
         method: jmethodID,
         args: *const jvalue,
@@ -210,7 +210,7 @@ impl<'env> Env<'env> {
     // Instance Methods
 
     pub unsafe fn call_object_method_a<R: AsValidJObjectAndEnv, E: ThrowableType>(
-        &self,
+        self,
         this: jobject,
         method: jmethodID,
         args: *const jvalue,
@@ -228,7 +228,7 @@ impl<'env> Env<'env> {
     }
 
     pub unsafe fn call_boolean_method_a<E: ThrowableType>(
-        &self,
+        self,
         this: jobject,
         method: jmethodID,
         args: *const jvalue,
@@ -244,7 +244,7 @@ impl<'env> Env<'env> {
     }
 
     pub unsafe fn call_byte_method_a<E: ThrowableType>(
-        &self,
+        self,
         this: jobject,
         method: jmethodID,
         args: *const jvalue,
@@ -260,7 +260,7 @@ impl<'env> Env<'env> {
     }
 
     pub unsafe fn call_char_method_a<E: ThrowableType>(
-        &self,
+        self,
         this: jobject,
         method: jmethodID,
         args: *const jvalue,
@@ -276,7 +276,7 @@ impl<'env> Env<'env> {
     }
 
     pub unsafe fn call_short_method_a<E: ThrowableType>(
-        &self,
+        self,
         this: jobject,
         method: jmethodID,
         args: *const jvalue,
@@ -292,7 +292,7 @@ impl<'env> Env<'env> {
     }
 
     pub unsafe fn call_int_method_a<E: ThrowableType>(
-        &self,
+        self,
         this: jobject,
         method: jmethodID,
         args: *const jvalue,
@@ -308,7 +308,7 @@ impl<'env> Env<'env> {
     }
 
     pub unsafe fn call_long_method_a<E: ThrowableType>(
-        &self,
+        self,
         this: jobject,
         method: jmethodID,
         args: *const jvalue,
@@ -324,7 +324,7 @@ impl<'env> Env<'env> {
     }
 
     pub unsafe fn call_float_method_a<E: ThrowableType>(
-        &self,
+        self,
         this: jobject,
         method: jmethodID,
         args: *const jvalue,
@@ -340,7 +340,7 @@ impl<'env> Env<'env> {
     }
 
     pub unsafe fn call_double_method_a<E: ThrowableType>(
-        &self,
+        self,
         this: jobject,
         method: jmethodID,
         args: *const jvalue,
@@ -356,7 +356,7 @@ impl<'env> Env<'env> {
     }
 
     pub unsafe fn call_void_method_a<E: ThrowableType>(
-        &self,
+        self,
         this: jobject,
         method: jmethodID,
         args: *const jvalue,
@@ -374,7 +374,7 @@ impl<'env> Env<'env> {
     // Static Methods
 
     pub unsafe fn call_static_object_method_a<R: AsValidJObjectAndEnv, E: ThrowableType>(
-        &self,
+        self,
         class: jclass,
         method: jmethodID,
         args: *const jvalue,
@@ -392,7 +392,7 @@ impl<'env> Env<'env> {
     }
 
     pub unsafe fn call_static_boolean_method_a<E: ThrowableType>(
-        &self,
+        self,
         class: jclass,
         method: jmethodID,
         args: *const jvalue,
@@ -408,7 +408,7 @@ impl<'env> Env<'env> {
     }
 
     pub unsafe fn call_static_byte_method_a<E: ThrowableType>(
-        &self,
+        self,
         class: jclass,
         method: jmethodID,
         args: *const jvalue,
@@ -424,7 +424,7 @@ impl<'env> Env<'env> {
     }
 
     pub unsafe fn call_static_char_method_a<E: ThrowableType>(
-        &self,
+        self,
         class: jclass,
         method: jmethodID,
         args: *const jvalue,
@@ -440,7 +440,7 @@ impl<'env> Env<'env> {
     }
 
     pub unsafe fn call_static_short_method_a<E: ThrowableType>(
-        &self,
+        self,
         class: jclass,
         method: jmethodID,
         args: *const jvalue,
@@ -456,7 +456,7 @@ impl<'env> Env<'env> {
     }
 
     pub unsafe fn call_static_int_method_a<E: ThrowableType>(
-        &self,
+        self,
         class: jclass,
         method: jmethodID,
         args: *const jvalue,
@@ -472,7 +472,7 @@ impl<'env> Env<'env> {
     }
 
     pub unsafe fn call_static_long_method_a<E: ThrowableType>(
-        &self,
+        self,
         class: jclass,
         method: jmethodID,
         args: *const jvalue,
@@ -488,7 +488,7 @@ impl<'env> Env<'env> {
     }
 
     pub unsafe fn call_static_float_method_a<E: ThrowableType>(
-        &self,
+        self,
         class: jclass,
         method: jmethodID,
         args: *const jvalue,
@@ -504,7 +504,7 @@ impl<'env> Env<'env> {
     }
 
     pub unsafe fn call_static_double_method_a<E: ThrowableType>(
-        &self,
+        self,
         class: jclass,
         method: jmethodID,
         args: *const jvalue,
@@ -520,7 +520,7 @@ impl<'env> Env<'env> {
     }
 
     pub unsafe fn call_static_void_method_a<E: ThrowableType>(
-        &self,
+        self,
         class: jclass,
         method: jmethodID,
         args: *const jvalue,
@@ -538,7 +538,7 @@ impl<'env> Env<'env> {
     // Instance Fields
 
     pub unsafe fn get_object_field<R: AsValidJObjectAndEnv>(
-        &self,
+        self,
         this: jobject,
         field: jfieldID,
     ) -> Option<Local<'env, R>> {
@@ -550,42 +550,42 @@ impl<'env> Env<'env> {
         }
     }
 
-    pub unsafe fn get_boolean_field(&self, this: jobject, field: jfieldID) -> bool {
+    pub unsafe fn get_boolean_field(self, this: jobject, field: jfieldID) -> bool {
         let result = ((**self.env).v1_2.GetBooleanField)(self.env, this, field);
         result != JNI_FALSE
     }
 
-    pub unsafe fn get_byte_field(&self, this: jobject, field: jfieldID) -> jbyte {
+    pub unsafe fn get_byte_field(self, this: jobject, field: jfieldID) -> jbyte {
         ((**self.env).v1_2.GetByteField)(self.env, this, field)
     }
 
-    pub unsafe fn get_char_field(&self, this: jobject, field: jfieldID) -> jchar {
+    pub unsafe fn get_char_field(self, this: jobject, field: jfieldID) -> jchar {
         let result = ((**self.env).v1_2.GetCharField)(self.env, this, field);
         jchar(result)
     }
 
-    pub unsafe fn get_short_field(&self, this: jobject, field: jfieldID) -> jshort {
+    pub unsafe fn get_short_field(self, this: jobject, field: jfieldID) -> jshort {
         ((**self.env).v1_2.GetShortField)(self.env, this, field)
     }
 
-    pub unsafe fn get_int_field(&self, this: jobject, field: jfieldID) -> jint {
+    pub unsafe fn get_int_field(self, this: jobject, field: jfieldID) -> jint {
         ((**self.env).v1_2.GetIntField)(self.env, this, field)
     }
 
-    pub unsafe fn get_long_field(&self, this: jobject, field: jfieldID) -> jlong {
+    pub unsafe fn get_long_field(self, this: jobject, field: jfieldID) -> jlong {
         ((**self.env).v1_2.GetLongField)(self.env, this, field)
     }
 
-    pub unsafe fn get_float_field(&self, this: jobject, field: jfieldID) -> jfloat {
+    pub unsafe fn get_float_field(self, this: jobject, field: jfieldID) -> jfloat {
         ((**self.env).v1_2.GetFloatField)(self.env, this, field)
     }
 
-    pub unsafe fn get_double_field(&self, this: jobject, field: jfieldID) -> jdouble {
+    pub unsafe fn get_double_field(self, this: jobject, field: jfieldID) -> jdouble {
         ((**self.env).v1_2.GetDoubleField)(self.env, this, field)
     }
 
     pub unsafe fn set_object_field<'obj, R: 'obj + AsValidJObjectAndEnv>(
-        &self,
+        self,
         this: jobject,
         field: jfieldID,
         value: impl Into<Option<&'obj R>>,
@@ -594,42 +594,42 @@ impl<'env> Env<'env> {
         ((**self.env).v1_2.SetObjectField)(self.env, this, field, value);
     }
 
-    pub unsafe fn set_boolean_field(&self, this: jobject, field: jfieldID, value: bool) {
+    pub unsafe fn set_boolean_field(self, this: jobject, field: jfieldID, value: bool) {
         ((**self.env).v1_2.SetBooleanField)(self.env, this, field, if value { JNI_TRUE } else { JNI_FALSE });
     }
 
-    pub unsafe fn set_byte_field(&self, this: jobject, field: jfieldID, value: jbyte) {
+    pub unsafe fn set_byte_field(self, this: jobject, field: jfieldID, value: jbyte) {
         ((**self.env).v1_2.SetByteField)(self.env, this, field, value);
     }
 
-    pub unsafe fn set_char_field(&self, this: jobject, field: jfieldID, value: jchar) {
+    pub unsafe fn set_char_field(self, this: jobject, field: jfieldID, value: jchar) {
         ((**self.env).v1_2.SetCharField)(self.env, this, field, value.0);
     }
 
-    pub unsafe fn set_short_field(&self, this: jobject, field: jfieldID, value: jshort) {
+    pub unsafe fn set_short_field(self, this: jobject, field: jfieldID, value: jshort) {
         ((**self.env).v1_2.SetShortField)(self.env, this, field, value);
     }
 
-    pub unsafe fn set_int_field(&self, this: jobject, field: jfieldID, value: jint) {
+    pub unsafe fn set_int_field(self, this: jobject, field: jfieldID, value: jint) {
         ((**self.env).v1_2.SetIntField)(self.env, this, field, value);
     }
 
-    pub unsafe fn set_long_field(&self, this: jobject, field: jfieldID, value: jlong) {
+    pub unsafe fn set_long_field(self, this: jobject, field: jfieldID, value: jlong) {
         ((**self.env).v1_2.SetLongField)(self.env, this, field, value);
     }
 
-    pub unsafe fn set_float_field(&self, this: jobject, field: jfieldID, value: jfloat) {
+    pub unsafe fn set_float_field(self, this: jobject, field: jfieldID, value: jfloat) {
         ((**self.env).v1_2.SetFloatField)(self.env, this, field, value);
     }
 
-    pub unsafe fn set_double_field(&self, this: jobject, field: jfieldID, value: jdouble) {
+    pub unsafe fn set_double_field(self, this: jobject, field: jfieldID, value: jdouble) {
         ((**self.env).v1_2.SetDoubleField)(self.env, this, field, value);
     }
 
     // Static Fields
 
     pub unsafe fn get_static_object_field<R: AsValidJObjectAndEnv>(
-        &self,
+        self,
         class: jclass,
         field: jfieldID,
     ) -> Option<Local<'env, R>> {
@@ -641,42 +641,42 @@ impl<'env> Env<'env> {
         }
     }
 
-    pub unsafe fn get_static_boolean_field(&self, class: jclass, field: jfieldID) -> bool {
+    pub unsafe fn get_static_boolean_field(self, class: jclass, field: jfieldID) -> bool {
         let result = ((**self.env).v1_2.GetStaticBooleanField)(self.env, class, field);
         result != JNI_FALSE
     }
 
-    pub unsafe fn get_static_byte_field(&self, class: jclass, field: jfieldID) -> jbyte {
+    pub unsafe fn get_static_byte_field(self, class: jclass, field: jfieldID) -> jbyte {
         ((**self.env).v1_2.GetStaticByteField)(self.env, class, field)
     }
 
-    pub unsafe fn get_static_char_field(&self, class: jclass, field: jfieldID) -> jchar {
+    pub unsafe fn get_static_char_field(self, class: jclass, field: jfieldID) -> jchar {
         let result = ((**self.env).v1_2.GetStaticCharField)(self.env, class, field);
         jchar(result)
     }
 
-    pub unsafe fn get_static_short_field(&self, class: jclass, field: jfieldID) -> jshort {
+    pub unsafe fn get_static_short_field(self, class: jclass, field: jfieldID) -> jshort {
         ((**self.env).v1_2.GetStaticShortField)(self.env, class, field)
     }
 
-    pub unsafe fn get_static_int_field(&self, class: jclass, field: jfieldID) -> jint {
+    pub unsafe fn get_static_int_field(self, class: jclass, field: jfieldID) -> jint {
         ((**self.env).v1_2.GetStaticIntField)(self.env, class, field)
     }
 
-    pub unsafe fn get_static_long_field(&self, class: jclass, field: jfieldID) -> jlong {
+    pub unsafe fn get_static_long_field(self, class: jclass, field: jfieldID) -> jlong {
         ((**self.env).v1_2.GetStaticLongField)(self.env, class, field)
     }
 
-    pub unsafe fn get_static_float_field(&self, class: jclass, field: jfieldID) -> jfloat {
+    pub unsafe fn get_static_float_field(self, class: jclass, field: jfieldID) -> jfloat {
         ((**self.env).v1_2.GetStaticFloatField)(self.env, class, field)
     }
 
-    pub unsafe fn get_static_double_field(&self, class: jclass, field: jfieldID) -> jdouble {
+    pub unsafe fn get_static_double_field(self, class: jclass, field: jfieldID) -> jdouble {
         ((**self.env).v1_2.GetStaticDoubleField)(self.env, class, field)
     }
 
     pub unsafe fn set_static_object_field<'obj, R: 'obj + AsValidJObjectAndEnv>(
-        &self,
+        self,
         class: jclass,
         field: jfieldID,
         value: impl Into<Option<&'obj R>>,
@@ -685,35 +685,35 @@ impl<'env> Env<'env> {
         ((**self.env).v1_2.SetStaticObjectField)(self.env, class, field, value);
     }
 
-    pub unsafe fn set_static_boolean_field(&self, class: jclass, field: jfieldID, value: bool) {
+    pub unsafe fn set_static_boolean_field(self, class: jclass, field: jfieldID, value: bool) {
         ((**self.env).v1_2.SetStaticBooleanField)(self.env, class, field, if value { JNI_TRUE } else { JNI_FALSE });
     }
 
-    pub unsafe fn set_static_byte_field(&self, class: jclass, field: jfieldID, value: jbyte) {
+    pub unsafe fn set_static_byte_field(self, class: jclass, field: jfieldID, value: jbyte) {
         ((**self.env).v1_2.SetStaticByteField)(self.env, class, field, value);
     }
 
-    pub unsafe fn set_static_char_field(&self, class: jclass, field: jfieldID, value: jchar) {
+    pub unsafe fn set_static_char_field(self, class: jclass, field: jfieldID, value: jchar) {
         ((**self.env).v1_2.SetStaticCharField)(self.env, class, field, value.0);
     }
 
-    pub unsafe fn set_static_short_field(&self, class: jclass, field: jfieldID, value: jshort) {
+    pub unsafe fn set_static_short_field(self, class: jclass, field: jfieldID, value: jshort) {
         ((**self.env).v1_2.SetStaticShortField)(self.env, class, field, value);
     }
 
-    pub unsafe fn set_static_int_field(&self, class: jclass, field: jfieldID, value: jint) {
+    pub unsafe fn set_static_int_field(self, class: jclass, field: jfieldID, value: jint) {
         ((**self.env).v1_2.SetStaticIntField)(self.env, class, field, value);
     }
 
-    pub unsafe fn set_static_long_field(&self, class: jclass, field: jfieldID, value: jlong) {
+    pub unsafe fn set_static_long_field(self, class: jclass, field: jfieldID, value: jlong) {
         ((**self.env).v1_2.SetStaticLongField)(self.env, class, field, value);
     }
 
-    pub unsafe fn set_static_float_field(&self, class: jclass, field: jfieldID, value: jfloat) {
+    pub unsafe fn set_static_float_field(self, class: jclass, field: jfieldID, value: jfloat) {
         ((**self.env).v1_2.SetStaticFloatField)(self.env, class, field, value);
     }
 
-    pub unsafe fn set_static_double_field(&self, class: jclass, field: jfieldID, value: jdouble) {
+    pub unsafe fn set_static_double_field(self, class: jclass, field: jfieldID, value: jdouble) {
         ((**self.env).v1_2.SetStaticDoubleField)(self.env, class, field, value);
     }
 }
