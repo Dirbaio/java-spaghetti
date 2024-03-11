@@ -57,13 +57,25 @@ impl<'env, Class: AsValidJObjectAndEnv> From<Local<'env, Class>> for Global<Clas
     }
 }
 
+impl<Class: AsValidJObjectAndEnv> Clone for Global<Class> {
+    fn clone(&self) -> Self {
+        self.vm.with_env(|env| {
+            let env = env.as_jni_env();
+            let object = unsafe { ((**env).v1_2.NewGlobalRef)(env, self.global) };
+            Self {
+                global: object,
+                vm: self.vm,
+                pd: PhantomData,
+            }
+        })
+    }
+}
+
 impl<Class: AsValidJObjectAndEnv> Drop for Global<Class> {
     fn drop(&mut self) {
         self.vm.with_env(|env| {
             let env = env.as_jni_env();
-            unsafe {
-                ((**env).v1_2.DeleteGlobalRef)(env, self.global);
-            }
+            unsafe { ((**env).v1_2.DeleteGlobalRef)(env, self.global) }
         });
     }
 }
