@@ -53,15 +53,7 @@ impl<Class: AsValidJObjectAndEnv> Global<Class> {
 
 impl<'env, Class: AsValidJObjectAndEnv> From<Local<'env, Class>> for Global<Class> {
     fn from(local: Local<'env, Class>) -> Global<Class> {
-        let env = unsafe { Env::from_ptr(local.oae.env) };
-        let jnienv = env.as_jni_env();
-        let vm = env.get_vm();
-        let global = unsafe { ((**jnienv).v1_2.NewGlobalRef)(jnienv, local.oae.object) };
-        Global {
-            global,
-            vm,
-            pd: PhantomData,
-        }
+        local.as_global()
     }
 }
 

@@ -4,7 +4,7 @@ use std::ops::Deref;
 
 use jni_sys::*;
 
-use crate::{AsValidJObjectAndEnv, Env, ObjectAndEnv, Ref};
+use crate::{AsValidJObjectAndEnv, Env, Global, ObjectAndEnv, Ref};
 
 /// A [Local](https://www.ibm.com/support/knowledgecenter/en/SSYKE2_8.0.0/com.ibm.java.vm.80.doc/docs/jni_refs.html),
 /// non-null, reference to a Java object (+ &[Env]) limited to the current thread/stack.
@@ -60,6 +60,18 @@ impl<'env, Class: AsValidJObjectAndEnv> Local<'env, Class> {
         };
         std::mem::forget(local); // Don't allow local to DeleteLocalRef the jobject
         result
+    }
+
+    pub fn as_global(&self) -> Global<Class> {
+        let env = unsafe { Env::from_ptr(self.oae.env) };
+        let jnienv = env.as_jni_env();
+        let vm = env.get_vm();
+        let global = unsafe { ((**jnienv).v1_2.NewGlobalRef)(jnienv, self.oae.object) };
+        Global {
+            global,
+            vm,
+            pd: PhantomData,
+        }
     }
 }
 
