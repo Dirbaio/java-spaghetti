@@ -95,7 +95,7 @@ impl<'a> Method<'a> {
         // Contents of fn name<'env>(...) {
         let mut params_decl = if self.java.is_constructor() || self.java.is_static() {
             match context.config.codegen.static_env {
-                config::toml::StaticEnvStyle::Explicit => String::from("__jni_env: &'env __jni_bindgen::Env"),
+                config::toml::StaticEnvStyle::Explicit => String::from("__jni_env: __jni_bindgen::Env<'env>"),
                 config::toml::StaticEnvStyle::__NonExhaustive => {
                     emit_reject_reasons.push("ERROR:  StaticEnvStyle::__NonExhaustive is invalid, silly goose!");
                     String::new()
@@ -366,7 +366,7 @@ impl<'a> Method<'a> {
         } else {
             writeln!(
                 out,
-                "{}        let __jni_env = __jni_bindgen::Env::from_ptr(self.0.env);",
+                "{}        let __jni_env = __jni_bindgen::Env::from_raw(self.0.env);",
                 indent
             )?;
         }

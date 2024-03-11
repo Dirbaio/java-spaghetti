@@ -5,5 +5,5 @@ use jni_sys::*;
 #[derive(Copy, Clone)]
 pub struct ObjectAndEnv {
     pub object: jobject,
-    pub env: *const JNIEnv,
+    pub env: *mut JNIEnv,
 }

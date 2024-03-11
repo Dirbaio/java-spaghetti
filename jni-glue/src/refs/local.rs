@@ -33,7 +33,7 @@ use crate::{AsValidJObjectAndEnv, Env, Global, ObjectAndEnv, Ref};
 /// [Global]: struct.Global.html
 pub struct Local<'env, Class: AsValidJObjectAndEnv> {
     pub(crate) oae: ObjectAndEnv,
-    pub(crate) _env: PhantomData<&'env Env>,
+    pub(crate) _env: PhantomData<Env<'env>>,
     pub(crate) _class: PhantomData<&'env Class>,
 }
 
@@ -41,7 +41,7 @@ pub struct Local<'env, Class: AsValidJObjectAndEnv> {
 // Do *not* implement Copy, cannot be safely done.
 
 impl<'env, Class: AsValidJObjectAndEnv> Local<'env, Class> {
-    pub unsafe fn from_env_object(env: *const JNIEnv, object: jobject) -> Self {
+    pub unsafe fn from_env_object(env: *mut JNIEnv, object: jobject) -> Self {
         Self {
             oae: ObjectAndEnv { object, env },
             _env: PhantomData,
@@ -63,8 +63,8 @@ impl<'env, Class: AsValidJObjectAndEnv> Local<'env, Class> {
     }
 
     pub fn as_global(&self) -> Global<Class> {
-        let env = unsafe { Env::from_ptr(self.oae.env) };
-        let jnienv = env.as_jni_env();
+        let env = unsafe { Env::from_raw(self.oae.env) };
+        let jnienv = env.as_raw();
         let vm = env.get_vm();
         let global = unsafe { ((**jnienv).v1_2.NewGlobalRef)(jnienv, self.oae.object) };
         Global {

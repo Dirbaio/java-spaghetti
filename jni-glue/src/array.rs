@@ -43,7 +43,7 @@ where
     T: Clone + Default,
 {
     /// Uses env.New{Type}Array to create a new java array containing "size" elements.
-    fn new(env: &Env, size: usize) -> Local<'_, Self>;
+    fn new<'env>(env: Env<'env>, size: usize) -> Local<'env, Self>;
 
     /// Uses env.GetArrayLength to get the length of the java array.
     fn len(&self) -> usize;
@@ -55,7 +55,7 @@ where
     fn set_region(&self, start: usize, elements: &[T]);
 
     /// Uses env.New{Type}Array + Set{Type}ArrayRegion to create a new java array containing a copy of "elements".
-    fn from<'env>(env: &'env Env, elements: &[T]) -> Local<'env, Self> {
+    fn from<'env>(env: Env<'env>, elements: &[T]) -> Local<'env, Self> {
         let array = Self::new(env, elements.len());
         array.set_region(0, elements);
         array
@@ -112,10 +112,10 @@ macro_rules! primitive_array {
         }
 
         impl PrimitiveArray<$type> for $name {
-            fn new(env: &Env, size: usize) -> Local<'_, Self> {
+            fn new<'env>(env: Env<'env>, size: usize) -> Local<'env, Self> {
                 assert!(size <= std::i32::MAX as usize); // jsize == jint == i32
                 let size = size as jsize;
-                let env = env.as_jni_env();
+                let env = env.as_raw();
                 unsafe {
                     let object = ((**env).v1_2.$new_array)(env, size);
                     let exception = ((**env).v1_2.ExceptionOccurred)(env);
@@ -124,7 +124,7 @@ macro_rules! primitive_array {
                 }
             }
 
-            fn from<'env>(env: &'env Env, elements: &[$type]) -> Local<'env, Self> {
+            fn from<'env>(env: Env<'env>, elements: &[$type]) -> Local<'env, Self> {
                 let array = Self::new(env, elements.len());
                 let size = elements.len() as jsize;
                 let env = array.0.env as *mut JNIEnv;
@@ -219,11 +219,11 @@ unsafe impl<T: AsValidJObjectAndEnv, E: ThrowableType> AsJValue for ObjectArray<
 }
 
 impl<T: AsValidJObjectAndEnv, E: ThrowableType> ObjectArray<T, E> {
-    pub fn new(env: &Env, size: usize) -> Local<'_, Self> {
+    pub fn new<'env>(env: Env<'env>, size: usize) -> Local<'env, Self> {
         assert!(size <= std::i32::MAX as usize); // jsize == jint == i32
         let class = Self::static_with_jni_type(|t| unsafe { env.require_class(t) });
         let size = size as jsize;
-        let env = env.as_jni_env();
+        let env = env.as_raw();
         unsafe {
             let fill = null_mut();
             let object = ((**env).v1_2.NewObjectArray)(env, size, class, fill);
@@ -242,7 +242,7 @@ impl<T: AsValidJObjectAndEnv, E: ThrowableType> ObjectArray<T, E> {
     }
 
     pub fn from<'env>(
-        env: &'env Env,
+        env: Env<'env>,
         elements: impl 'env + ExactSizeIterator + Iterator<Item = impl Into<Option<&'env T>>>,
     ) -> Local<'env, Self> {
         let size = elements.len();

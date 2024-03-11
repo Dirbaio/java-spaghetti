@@ -29,13 +29,13 @@ unsafe impl<Class: AsValidJObjectAndEnv> Send for Global<Class> {}
 unsafe impl<Class: AsValidJObjectAndEnv> Sync for Global<Class> {}
 
 impl<Class: AsValidJObjectAndEnv> Global<Class> {
-    pub fn with<'env>(&'env self, env: &'env Env) -> GlobalRef<'env, Class> {
+    pub fn with<'env>(&'env self, env: Env<'env>) -> GlobalRef<'env, Class> {
         assert_eq!(self.vm, env.get_vm()); // Soundness check - env *must* belong to the same VM!
         unsafe { self.with_unchecked(env) }
     }
 
-    pub unsafe fn with_unchecked<'env>(&'env self, env: &'env Env) -> GlobalRef<'env, Class> {
-        let env = env.as_jni_env();
+    pub unsafe fn with_unchecked<'env>(&'env self, env: Env<'env>) -> GlobalRef<'env, Class> {
+        let env = env.as_raw();
         GlobalRef {
             oae: ObjectAndEnv {
                 object: self.global,
@@ -60,7 +60,7 @@ impl<'env, Class: AsValidJObjectAndEnv> From<Local<'env, Class>> for Global<Clas
 impl<Class: AsValidJObjectAndEnv> Clone for Global<Class> {
     fn clone(&self) -> Self {
         self.vm.with_env(|env| {
-            let env = env.as_jni_env();
+            let env = env.as_raw();
             let object = unsafe { ((**env).v1_2.NewGlobalRef)(env, self.global) };
             Self {
                 global: object,
@@ -74,7 +74,7 @@ impl<Class: AsValidJObjectAndEnv> Clone for Global<Class> {
 impl<Class: AsValidJObjectAndEnv> Drop for Global<Class> {
     fn drop(&mut self) {
         self.vm.with_env(|env| {
-            let env = env.as_jni_env();
+            let env = env.as_raw();
             unsafe { ((**env).v1_2.DeleteGlobalRef)(env, self.global) }
         });
     }

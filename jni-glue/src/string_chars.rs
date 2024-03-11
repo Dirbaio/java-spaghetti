@@ -8,7 +8,7 @@ use crate::{jchar, Env};
 /// Represents an env.GetStringChars + env.GetStringLength query.
 /// Will automatically env.ReleaseStringChars when dropped.
 pub struct StringChars<'env> {
-    env: &'env Env,
+    env: Env<'env>,
     string: jstring,
     chars: *const jchar,
     length: jsize, // in characters
@@ -16,7 +16,7 @@ pub struct StringChars<'env> {
 
 impl<'env> StringChars<'env> {
     /// Construct a StringChars from an Env + jstring.
-    pub unsafe fn from_env_jstring(env: &'env Env, string: jstring) -> Self {
+    pub unsafe fn from_env_jstring(env: Env<'env>, string: jstring) -> Self {
         debug_assert!(!string.is_null());
 
         let chars = env.get_string_chars(string);

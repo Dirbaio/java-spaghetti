@@ -53,7 +53,7 @@ fn default_method_naming_style_collision() -> MethodManglingStyle {
 /// The \[codegen\] section.
 #[derive(Debug, Clone, Deserialize)]
 pub struct CodeGen {
-    /// How static methods should accept their &Env.
+    /// How static methods should accept their Env.
     #[serde(default = "Default::default")]
     pub static_env: StaticEnvStyle,
 

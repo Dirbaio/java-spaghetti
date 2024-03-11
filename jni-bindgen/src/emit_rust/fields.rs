@@ -187,7 +187,7 @@ impl<'a> Field<'a> {
         }
 
         let env_param = if self.java.is_static() {
-            "env: &'env __jni_bindgen::Env"
+            "env: __jni_bindgen::Env<'env>"
         } else {
             "&'env self"
         };
@@ -248,7 +248,7 @@ impl<'a> Field<'a> {
                 if !self.java.is_static() {
                     writeln!(
                         out,
-                        "{}        let env = __jni_bindgen::Env::from_ptr(self.0.env);",
+                        "{}        let env = __jni_bindgen::Env::from_raw(self.0.env);",
                         indent
                     )?;
                 }
@@ -300,7 +300,7 @@ impl<'a> Field<'a> {
                     if !self.java.is_static() {
                         writeln!(
                             out,
-                            "{}        let env = __jni_bindgen::Env::from_ptr(self.0.env);",
+                            "{}        let env = __jni_bindgen::Env::from_raw(self.0.env);",
                             indent
                         )?;
                     }

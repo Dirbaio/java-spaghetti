@@ -18,7 +18,7 @@ use crate::{AsValidJObjectAndEnv, Env, ObjectAndEnv};
 #[derive(Copy, Clone)]
 pub struct Ref<'env, Class: AsValidJObjectAndEnv> {
     pub(crate) oae: ObjectAndEnv,
-    pub(crate) _env: PhantomData<&'env Env>,
+    pub(crate) _env: PhantomData<Env<'env>>,
     pub(crate) _class: PhantomData<&'env Class>,
 }
 

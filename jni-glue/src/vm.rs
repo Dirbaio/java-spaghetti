@@ -36,13 +36,13 @@ impl VM {
 
     pub fn with_env<F, R>(&self, callback: F) -> R
     where
-        F: FnOnce(&Env) -> R,
+        F: for<'env> FnOnce(Env<'env>) -> R,
     {
         let mut env = null_mut();
         match unsafe { ((**self.0).v1_2.GetEnv)(self.0, &mut env, JNI_VERSION_1_2) } {
-            JNI_OK => callback(unsafe { Env::from_jni_void_ref(&env) }),
+            JNI_OK => callback(unsafe { Env::from_raw(env as _) }),
             JNI_EDETACHED => match unsafe { ((**self.0).v1_2.AttachCurrentThread)(self.0, &mut env, null_mut()) } {
-                JNI_OK => callback(unsafe { Env::from_jni_void_ref(&env) }),
+                JNI_OK => callback(unsafe { Env::from_raw(env as _) }),
                 unexpected => panic!("AttachCurrentThread returned unknown error: {}", unexpected),
             },
             JNI_EVERSION => panic!("GetEnv returned JNI_EVERSION"),
