@@ -83,7 +83,7 @@ impl<'env, Class: AsValidJObjectAndEnv> Deref for Local<'env, Class> {
 
 impl<'env, Class: AsValidJObjectAndEnv> Clone for Local<'env, Class> {
     fn clone(&self) -> Self {
-        let env = self.oae.env as *mut JNIEnv;
+        let env = self.oae.env;
         let object = unsafe { ((**env).v1_2.NewLocalRef)(env, self.oae.object) };
         unsafe { Self::from_env_object(self.oae.env, object) }
     }
@@ -91,7 +91,7 @@ impl<'env, Class: AsValidJObjectAndEnv> Clone for Local<'env, Class> {
 
 impl<'env, Class: AsValidJObjectAndEnv> Drop for Local<'env, Class> {
     fn drop(&mut self) {
-        let env = self.oae.env as *mut JNIEnv;
+        let env = self.oae.env;
         unsafe { ((**env).v1_2.DeleteLocalRef)(env, self.oae.object) }
     }
 }

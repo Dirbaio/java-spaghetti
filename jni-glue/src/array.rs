@@ -127,7 +127,7 @@ macro_rules! primitive_array {
             fn from<'env>(env: Env<'env>, elements: &[$type]) -> Local<'env, Self> {
                 let array = Self::new(env, elements.len());
                 let size = elements.len() as jsize;
-                let env = array.0.env as *mut JNIEnv;
+                let env = array.0.env;
                 let object = array.0.object;
                 unsafe {
                     ((**env).v1_1.$set_region)(env, object, 0, size, elements.as_ptr() as *const _);
@@ -247,7 +247,7 @@ impl<T: AsValidJObjectAndEnv, E: ThrowableType> ObjectArray<T, E> {
     ) -> Local<'env, Self> {
         let size = elements.len();
         let array = Self::new(env, size);
-        let env = array.0.env as *mut JNIEnv;
+        let env = array.0.env;
         let this = array.0.object;
 
         for (index, element) in elements.enumerate() {
@@ -269,7 +269,7 @@ impl<T: AsValidJObjectAndEnv, E: ThrowableType> ObjectArray<T, E> {
     pub fn get(&self, index: usize) -> Result<Option<Local<'_, T>>, Local<'_, E>> {
         assert!(index <= std::i32::MAX as usize); // jsize == jint == i32 XXX: Should maybe be treated as an exception?
         let index = index as jsize;
-        let env = self.0.env as *mut JNIEnv;
+        let env = self.0.env;
         let this = self.0.object;
         unsafe {
             let result = ((**env).v1_2.GetObjectArrayElement)(env, this, index);
@@ -293,7 +293,7 @@ impl<T: AsValidJObjectAndEnv, E: ThrowableType> ObjectArray<T, E> {
             .map(|v| unsafe { AsJValue::as_jvalue(v).l })
             .unwrap_or(null_mut());
         let index = index as jsize;
-        let env = self.0.env as *mut JNIEnv;
+        let env = self.0.env;
         let this = self.0.object;
         unsafe {
             ((**env).v1_2.SetObjectArrayElement)(env, this, index, value);
