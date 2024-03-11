@@ -65,11 +65,10 @@ impl<'env, Class: AsValidJObjectAndEnv> Local<'env, Class> {
     pub fn as_global(&self) -> Global<Class> {
         let env = unsafe { Env::from_raw(self.oae.env) };
         let jnienv = env.as_raw();
-        let vm = env.get_vm();
         let global = unsafe { ((**jnienv).v1_2.NewGlobalRef)(jnienv, self.oae.object) };
         Global {
             global,
-            vm,
+            vm: env.vm(),
             pd: PhantomData,
         }
     }

@@ -30,7 +30,7 @@ unsafe impl<Class: AsValidJObjectAndEnv> Sync for Global<Class> {}
 
 impl<Class: AsValidJObjectAndEnv> Global<Class> {
     pub fn with<'env>(&'env self, env: Env<'env>) -> GlobalRef<'env, Class> {
-        assert_eq!(self.vm, env.get_vm()); // Soundness check - env *must* belong to the same VM!
+        assert_eq!(self.vm, env.vm()); // Soundness check - env *must* belong to the same VM!
         unsafe { self.with_unchecked(env) }
     }
 

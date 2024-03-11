@@ -69,7 +69,7 @@ impl<'env> Env<'env> {
         self.env
     }
 
-    pub(crate) fn get_vm(&self) -> VM {
+    pub fn vm(&self) -> VM {
         let jni_env = self.as_raw();
         let mut vm = null_mut();
         let err = unsafe { ((**jni_env).v1_2.GetJavaVM)(jni_env, &mut vm) };
