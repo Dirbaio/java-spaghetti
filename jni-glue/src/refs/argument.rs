@@ -19,11 +19,15 @@ pub struct Argument<Class: AsValidJObjectAndEnv> {
 
 impl<Class: AsValidJObjectAndEnv> Argument<Class> {
     /// **unsafe**:  There's no guarantee the jobject being passed is valid or null, nor any means of checking it.
-    pub unsafe fn from_unchecked(object: jobject) -> Self {
+    pub unsafe fn from_raw(object: jobject) -> Self {
         Self {
             object,
             _class: PhantomData,
         }
+    }
+
+    pub fn as_raw(&self) -> jobject {
+        self.object
     }
 
     /// **unsafe**:  This assumes the argument belongs to the given Env/VM, which is technically unsound.  However, the
@@ -53,9 +57,9 @@ impl<Class: AsValidJObjectAndEnv> Argument<Class> {
             None
         } else {
             let jnienv = env.as_raw();
-            let global = ((**jnienv).v1_2.NewGlobalRef)(jnienv, self.object);
+            let object = ((**jnienv).v1_2.NewGlobalRef)(jnienv, self.object);
             Some(Global {
-                global,
+                object,
                 vm: env.vm(),
                 pd: PhantomData,
             })

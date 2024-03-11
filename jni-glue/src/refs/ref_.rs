@@ -1,6 +1,8 @@
 use std::marker::PhantomData;
 use std::ops::Deref;
 
+use jni_sys::jobject;
+
 use crate::{AsValidJObjectAndEnv, Env, ObjectAndEnv};
 
 /// A non-null, [reference](https://www.ibm.com/support/knowledgecenter/en/SSYKE2_8.0.0/com.ibm.java.vm.80.doc/docs/jni_refs.html)
@@ -20,6 +22,27 @@ pub struct Ref<'env, Class: AsValidJObjectAndEnv> {
     pub(crate) oae: ObjectAndEnv,
     pub(crate) _env: PhantomData<Env<'env>>,
     pub(crate) _class: PhantomData<&'env Class>,
+}
+
+impl<'env, Class: AsValidJObjectAndEnv> Ref<'env, Class> {
+    pub unsafe fn from_raw(env: Env<'env>, object: jobject) -> Self {
+        Self {
+            oae: ObjectAndEnv {
+                object,
+                env: env.as_raw(),
+            },
+            _env: PhantomData,
+            _class: PhantomData,
+        }
+    }
+
+    pub fn env(&self) -> Env<'env> {
+        unsafe { Env::from_raw(self.oae.env) }
+    }
+
+    pub fn as_raw(&self) -> jobject {
+        self.oae.object
+    }
 }
 
 impl<'env, Class: AsValidJObjectAndEnv> Deref for Ref<'env, Class> {

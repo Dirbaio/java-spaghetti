@@ -115,12 +115,12 @@ macro_rules! primitive_array {
             fn new<'env>(env: Env<'env>, size: usize) -> Local<'env, Self> {
                 assert!(size <= std::i32::MAX as usize); // jsize == jint == i32
                 let size = size as jsize;
-                let env = env.as_raw();
+                let jnienv = env.as_raw();
                 unsafe {
-                    let object = ((**env).v1_2.$new_array)(env, size);
-                    let exception = ((**env).v1_2.ExceptionOccurred)(env);
+                    let object = ((**jnienv).v1_2.$new_array)(jnienv, size);
+                    let exception = ((**jnienv).v1_2.ExceptionOccurred)(jnienv);
                     assert!(exception.is_null()); // Only sane exception here is an OOM exception
-                    Local::from_env_object(env, object)
+                    Local::from_raw(env, object)
                 }
             }
 
@@ -223,13 +223,13 @@ impl<T: AsValidJObjectAndEnv, E: ThrowableType> ObjectArray<T, E> {
         assert!(size <= std::i32::MAX as usize); // jsize == jint == i32
         let class = Self::static_with_jni_type(|t| unsafe { env.require_class(t) });
         let size = size as jsize;
-        let env = env.as_raw();
+        let jnienv = env.as_raw();
         unsafe {
             let fill = null_mut();
-            let object = ((**env).v1_2.NewObjectArray)(env, size, class, fill);
-            let exception = ((**env).v1_2.ExceptionOccurred)(env);
+            let object = ((**jnienv).v1_2.NewObjectArray)(jnienv, size, class, fill);
+            let exception = ((**jnienv).v1_2.ExceptionOccurred)(jnienv);
             assert!(exception.is_null()); // Only sane exception here is an OOM exception
-            Local::from_env_object(env, object)
+            Local::from_raw(env, object)
         }
     }
 
@@ -276,11 +276,11 @@ impl<T: AsValidJObjectAndEnv, E: ThrowableType> ObjectArray<T, E> {
             let exception = ((**env).v1_2.ExceptionOccurred)(env);
             if !exception.is_null() {
                 ((**env).v1_2.ExceptionClear)(env);
-                Err(Local::from_env_object(env, exception))
+                Err(Local::from_raw(Env::from_raw(env), exception))
             } else if result.is_null() {
                 Ok(None)
             } else {
-                Ok(Some(Local::from_env_object(env, result)))
+                Ok(Some(Local::from_raw(Env::from_raw(env), result)))
             }
         }
     }
@@ -300,7 +300,7 @@ impl<T: AsValidJObjectAndEnv, E: ThrowableType> ObjectArray<T, E> {
             let exception = ((**env).v1_2.ExceptionOccurred)(env);
             if !exception.is_null() {
                 ((**env).v1_2.ExceptionClear)(env);
-                Err(Local::from_env_object(env, exception))
+                Err(Local::from_raw(Env::from_raw(env), exception))
             } else {
                 Ok(())
             }

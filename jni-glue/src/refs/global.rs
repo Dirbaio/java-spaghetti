@@ -20,7 +20,7 @@ use crate::{AsValidJObjectAndEnv, Env, Local, ObjectAndEnv, Ref, VM};
 /// [Global]:       struct.Global.html
 /// [GlobalRef]:    type.GlobalRef.html
 pub struct Global<Class: AsValidJObjectAndEnv> {
-    pub(crate) global: jobject,
+    pub(crate) object: jobject,
     pub(crate) vm: VM,
     pub(crate) pd: PhantomData<Class>,
 }
@@ -29,6 +29,22 @@ unsafe impl<Class: AsValidJObjectAndEnv> Send for Global<Class> {}
 unsafe impl<Class: AsValidJObjectAndEnv> Sync for Global<Class> {}
 
 impl<Class: AsValidJObjectAndEnv> Global<Class> {
+    pub unsafe fn from_raw(vm: VM, object: jobject) -> Self {
+        Self {
+            object,
+            vm,
+            pd: PhantomData,
+        }
+    }
+
+    pub fn vm(&self) -> VM {
+        self.vm
+    }
+
+    pub fn as_raw(&self) -> jobject {
+        self.object
+    }
+
     pub fn with<'env>(&'env self, env: Env<'env>) -> GlobalRef<'env, Class> {
         assert_eq!(self.vm, env.vm()); // Soundness check - env *must* belong to the same VM!
         unsafe { self.with_unchecked(env) }
@@ -38,16 +54,12 @@ impl<Class: AsValidJObjectAndEnv> Global<Class> {
         let env = env.as_raw();
         GlobalRef {
             oae: ObjectAndEnv {
-                object: self.global,
+                object: self.object,
                 env,
             },
             _env: PhantomData,
             _class: PhantomData,
         }
-    }
-
-    pub fn vm(&self) -> VM {
-        self.vm
     }
 }
 
@@ -61,9 +73,9 @@ impl<Class: AsValidJObjectAndEnv> Clone for Global<Class> {
     fn clone(&self) -> Self {
         self.vm.with_env(|env| {
             let env = env.as_raw();
-            let object = unsafe { ((**env).v1_2.NewGlobalRef)(env, self.global) };
+            let object = unsafe { ((**env).v1_2.NewGlobalRef)(env, self.object) };
             Self {
-                global: object,
+                object,
                 vm: self.vm,
                 pd: PhantomData,
             }
@@ -75,7 +87,7 @@ impl<Class: AsValidJObjectAndEnv> Drop for Global<Class> {
     fn drop(&mut self) {
         self.vm.with_env(|env| {
             let env = env.as_raw();
-            unsafe { ((**env).v1_2.DeleteGlobalRef)(env, self.global) }
+            unsafe { ((**env).v1_2.DeleteGlobalRef)(env, self.object) }
         });
     }
 }

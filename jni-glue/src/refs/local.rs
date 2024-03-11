@@ -41,12 +41,23 @@ pub struct Local<'env, Class: AsValidJObjectAndEnv> {
 // Do *not* implement Copy, cannot be safely done.
 
 impl<'env, Class: AsValidJObjectAndEnv> Local<'env, Class> {
-    pub unsafe fn from_env_object(env: *mut JNIEnv, object: jobject) -> Self {
+    pub unsafe fn from_raw(env: Env<'env>, object: jobject) -> Self {
         Self {
-            oae: ObjectAndEnv { object, env },
+            oae: ObjectAndEnv {
+                object,
+                env: env.as_raw(),
+            },
             _env: PhantomData,
             _class: PhantomData,
         }
+    }
+
+    pub fn env(&self) -> Env<'env> {
+        unsafe { Env::from_raw(self.oae.env) }
+    }
+
+    pub fn as_raw(&self) -> jobject {
+        self.oae.object
     }
 
     pub fn leak(local: Self) -> Ref<'env, Class> {
@@ -65,9 +76,9 @@ impl<'env, Class: AsValidJObjectAndEnv> Local<'env, Class> {
     pub fn as_global(&self) -> Global<Class> {
         let env = unsafe { Env::from_raw(self.oae.env) };
         let jnienv = env.as_raw();
-        let global = unsafe { ((**jnienv).v1_2.NewGlobalRef)(jnienv, self.oae.object) };
+        let object = unsafe { ((**jnienv).v1_2.NewGlobalRef)(jnienv, self.oae.object) };
         Global {
-            global,
+            object,
             vm: env.vm(),
             pd: PhantomData,
         }
@@ -85,7 +96,7 @@ impl<'env, Class: AsValidJObjectAndEnv> Clone for Local<'env, Class> {
     fn clone(&self) -> Self {
         let env = self.oae.env;
         let object = unsafe { ((**env).v1_2.NewLocalRef)(env, self.oae.object) };
-        unsafe { Self::from_env_object(self.oae.env, object) }
+        unsafe { Self::from_raw(self.env(), object) }
     }
 }
 

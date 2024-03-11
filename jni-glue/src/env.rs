@@ -200,10 +200,10 @@ impl<'env> Env<'env> {
         let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
         if !exception.is_null() {
             ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_env_object(self.env, exception))
+            Err(Local::from_raw(self, exception))
         } else {
             assert!(!result.is_null());
-            Ok(Local::from_env_object(self.env, result))
+            Ok(Local::from_raw(self, result))
         }
     }
 
@@ -219,11 +219,11 @@ impl<'env> Env<'env> {
         let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
         if !exception.is_null() {
             ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_env_object(self.env, exception))
+            Err(Local::from_raw(self, exception))
         } else if result.is_null() {
             Ok(None)
         } else {
-            Ok(Some(Local::from_env_object(self.env, result)))
+            Ok(Some(Local::from_raw(self, result)))
         }
     }
 
@@ -237,7 +237,7 @@ impl<'env> Env<'env> {
         let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
         if !exception.is_null() {
             ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_env_object(self.env, exception))
+            Err(Local::from_raw(self, exception))
         } else {
             Ok(result != JNI_FALSE)
         }
@@ -253,7 +253,7 @@ impl<'env> Env<'env> {
         let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
         if !exception.is_null() {
             ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_env_object(self.env, exception))
+            Err(Local::from_raw(self, exception))
         } else {
             Ok(result)
         }
@@ -269,7 +269,7 @@ impl<'env> Env<'env> {
         let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
         if !exception.is_null() {
             ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_env_object(self.env, exception))
+            Err(Local::from_raw(self, exception))
         } else {
             Ok(jchar(result))
         }
@@ -285,7 +285,7 @@ impl<'env> Env<'env> {
         let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
         if !exception.is_null() {
             ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_env_object(self.env, exception))
+            Err(Local::from_raw(self, exception))
         } else {
             Ok(result)
         }
@@ -301,7 +301,7 @@ impl<'env> Env<'env> {
         let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
         if !exception.is_null() {
             ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_env_object(self.env, exception))
+            Err(Local::from_raw(self, exception))
         } else {
             Ok(result)
         }
@@ -317,7 +317,7 @@ impl<'env> Env<'env> {
         let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
         if !exception.is_null() {
             ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_env_object(self.env, exception))
+            Err(Local::from_raw(self, exception))
         } else {
             Ok(result)
         }
@@ -333,7 +333,7 @@ impl<'env> Env<'env> {
         let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
         if !exception.is_null() {
             ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_env_object(self.env, exception))
+            Err(Local::from_raw(self, exception))
         } else {
             Ok(result)
         }
@@ -349,7 +349,7 @@ impl<'env> Env<'env> {
         let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
         if !exception.is_null() {
             ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_env_object(self.env, exception))
+            Err(Local::from_raw(self, exception))
         } else {
             Ok(result)
         }
@@ -365,7 +365,7 @@ impl<'env> Env<'env> {
         let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
         if !exception.is_null() {
             ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_env_object(self.env, exception))
+            Err(Local::from_raw(self, exception))
         } else {
             Ok(())
         }
@@ -383,11 +383,11 @@ impl<'env> Env<'env> {
         let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
         if !exception.is_null() {
             ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_env_object(self.env, exception))
+            Err(Local::from_raw(self, exception))
         } else if result.is_null() {
             Ok(None)
         } else {
-            Ok(Some(Local::from_env_object(self.env, result)))
+            Ok(Some(Local::from_raw(self, result)))
         }
     }
 
@@ -401,7 +401,7 @@ impl<'env> Env<'env> {
         let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
         if !exception.is_null() {
             ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_env_object(self.env, exception))
+            Err(Local::from_raw(self, exception))
         } else {
             Ok(result != JNI_FALSE)
         }
@@ -417,7 +417,7 @@ impl<'env> Env<'env> {
         let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
         if !exception.is_null() {
             ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_env_object(self.env, exception))
+            Err(Local::from_raw(self, exception))
         } else {
             Ok(result)
         }
@@ -433,7 +433,7 @@ impl<'env> Env<'env> {
         let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
         if !exception.is_null() {
             ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_env_object(self.env, exception))
+            Err(Local::from_raw(self, exception))
         } else {
             Ok(jchar(result))
         }
@@ -449,7 +449,7 @@ impl<'env> Env<'env> {
         let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
         if !exception.is_null() {
             ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_env_object(self.env, exception))
+            Err(Local::from_raw(self, exception))
         } else {
             Ok(result)
         }
@@ -465,7 +465,7 @@ impl<'env> Env<'env> {
         let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
         if !exception.is_null() {
             ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_env_object(self.env, exception))
+            Err(Local::from_raw(self, exception))
         } else {
             Ok(result)
         }
@@ -481,7 +481,7 @@ impl<'env> Env<'env> {
         let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
         if !exception.is_null() {
             ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_env_object(self.env, exception))
+            Err(Local::from_raw(self, exception))
         } else {
             Ok(result)
         }
@@ -497,7 +497,7 @@ impl<'env> Env<'env> {
         let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
         if !exception.is_null() {
             ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_env_object(self.env, exception))
+            Err(Local::from_raw(self, exception))
         } else {
             Ok(result)
         }
@@ -513,7 +513,7 @@ impl<'env> Env<'env> {
         let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
         if !exception.is_null() {
             ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_env_object(self.env, exception))
+            Err(Local::from_raw(self, exception))
         } else {
             Ok(result)
         }
@@ -529,7 +529,7 @@ impl<'env> Env<'env> {
         let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
         if !exception.is_null() {
             ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_env_object(self.env, exception))
+            Err(Local::from_raw(self, exception))
         } else {
             Ok(())
         }
@@ -546,7 +546,7 @@ impl<'env> Env<'env> {
         if result.is_null() {
             None
         } else {
-            Some(Local::from_env_object(self.env, result))
+            Some(Local::from_raw(self, result))
         }
     }
 
@@ -637,7 +637,7 @@ impl<'env> Env<'env> {
         if result.is_null() {
             None
         } else {
-            Some(Local::from_env_object(self.env, result))
+            Some(Local::from_raw(self, result))
         }
     }
 
