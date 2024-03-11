@@ -53,11 +53,11 @@ impl<Class: AsValidJObjectAndEnv> Argument<Class> {
             None
         } else {
             let jnienv = env.as_jni_env();
-            let gen_vm = env.get_gen_vm();
+            let vm = env.get_vm();
             let global = ((**jnienv).v1_2.NewGlobalRef)(jnienv, self.object);
             Some(Global {
                 global,
-                gen_vm,
+                vm,
                 pd: PhantomData,
             })
         }

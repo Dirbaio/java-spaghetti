@@ -4,7 +4,7 @@ use std::ptr::null_mut;
 
 use jni_sys::*;
 
-use crate::{jchar, AsJValue, AsValidJObjectAndEnv, GenVM, Local, ThrowableType, VMS};
+use crate::{jchar, AsJValue, AsValidJObjectAndEnv, Local, ThrowableType, VM};
 
 /// FFI:  Use **&Env** instead of \*const JNIEnv.  This represents a per-thread Java exection environment.
 ///
@@ -68,13 +68,13 @@ impl Env {
         Self::from_jni_local(&*(*ptr as *const c_void as *const JNIEnv))
     }
 
-    pub(crate) fn get_gen_vm(&self) -> GenVM {
+    pub(crate) fn get_vm(&self) -> VM {
         let jni_env = self.as_jni_env();
         let mut vm = null_mut();
         let err = unsafe { ((**jni_env).v1_2.GetJavaVM)(jni_env, &mut vm) };
         assert_eq!(err, JNI_OK);
         assert_ne!(vm, null_mut());
-        VMS.read().unwrap().get_gen_vm(vm)
+        unsafe { VM::from_raw(vm) }
     }
 
     // String methods

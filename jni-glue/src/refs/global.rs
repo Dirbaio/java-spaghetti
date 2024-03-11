@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use jni_sys::*;
 
-use crate::{AsValidJObjectAndEnv, Env, GenVM, Local, ObjectAndEnv, Ref, VMS};
+use crate::{AsValidJObjectAndEnv, Env, Local, ObjectAndEnv, Ref, VM};
 
 /// A [Global](https://www.ibm.com/support/knowledgecenter/en/SSYKE2_8.0.0/com.ibm.java.vm.80.doc/docs/jni_refs.html),
 /// non-null, reference to a Java object (+ &[VM]).
@@ -21,7 +21,7 @@ use crate::{AsValidJObjectAndEnv, Env, GenVM, Local, ObjectAndEnv, Ref, VMS};
 /// [GlobalRef]:    type.GlobalRef.html
 pub struct Global<Class: AsValidJObjectAndEnv> {
     pub(crate) global: jobject,
-    pub(crate) gen_vm: GenVM,
+    pub(crate) vm: VM,
     pub(crate) pd: PhantomData<Class>,
 }
 
@@ -30,7 +30,7 @@ unsafe impl<Class: AsValidJObjectAndEnv> Sync for Global<Class> {}
 
 impl<Class: AsValidJObjectAndEnv> Global<Class> {
     pub fn with<'env>(&'env self, env: &'env Env) -> GlobalRef<'env, Class> {
-        assert_eq!(self.gen_vm, env.get_gen_vm()); // Soundness check - env *must* belong to the same VM!
+        assert_eq!(self.vm, env.get_vm()); // Soundness check - env *must* belong to the same VM!
         unsafe { self.with_unchecked(env) }
     }
 
@@ -45,17 +45,21 @@ impl<Class: AsValidJObjectAndEnv> Global<Class> {
             _class: PhantomData,
         }
     }
+
+    pub fn vm(&self) -> VM {
+        self.vm
+    }
 }
 
 impl<'env, Class: AsValidJObjectAndEnv> From<Local<'env, Class>> for Global<Class> {
     fn from(local: Local<'env, Class>) -> Global<Class> {
         let env = unsafe { Env::from_ptr(local.oae.env) };
         let jnienv = env.as_jni_env();
-        let gen_vm = env.get_gen_vm();
+        let vm = env.get_vm();
         let global = unsafe { ((**jnienv).v1_2.NewGlobalRef)(jnienv, local.oae.object) };
         Global {
             global,
-            gen_vm,
+            vm,
             pd: PhantomData,
         }
     }
@@ -63,13 +67,11 @@ impl<'env, Class: AsValidJObjectAndEnv> From<Local<'env, Class>> for Global<Clas
 
 impl<Class: AsValidJObjectAndEnv> Drop for Global<Class> {
     fn drop(&mut self) {
-        VMS.read().unwrap().use_vm(self.gen_vm, |vm| {
-            vm.with_env(|env| {
-                let env = env.as_jni_env();
-                unsafe {
-                    ((**env).v1_2.DeleteGlobalRef)(env, self.global);
-                }
-            });
+        self.vm.with_env(|env| {
+            let env = env.as_jni_env();
+            unsafe {
+                ((**env).v1_2.DeleteGlobalRef)(env, self.global);
+            }
         });
     }
 }

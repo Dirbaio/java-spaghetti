@@ -22,24 +22,26 @@ use crate::Env;
 ///     modify the JavaVM, so as long as you're not accepting a *mut JavaVM elsewhere, using unsafe to dereference it,
 ///     and mucking with the methods on it yourself, I believe this "should" be fine.
 #[repr(transparent)]
-pub struct VM(JavaVM);
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct VM(*mut JavaVM);
+
 impl VM {
-    pub fn as_java_vm(&self) -> *const JavaVM {
-        &self.0
+    pub fn as_raw(&self) -> *mut JavaVM {
+        self.0
     }
-    pub unsafe fn from_jni_local(vm: &JavaVM) -> &VM {
-        &*(vm as *const JavaVM as *const VM)
+
+    pub unsafe fn from_raw(vm: *mut JavaVM) -> Self {
+        Self(vm)
     }
 
     pub fn with_env<F, R>(&self, callback: F) -> R
     where
         F: FnOnce(&Env) -> R,
     {
-        let java_vm = self.as_java_vm() as *mut JavaVM;
         let mut env = null_mut();
-        match unsafe { ((**java_vm).v1_2.GetEnv)(java_vm, &mut env, JNI_VERSION_1_2) } {
+        match unsafe { ((**self.0).v1_2.GetEnv)(self.0, &mut env, JNI_VERSION_1_2) } {
             JNI_OK => callback(unsafe { Env::from_jni_void_ref(&env) }),
-            JNI_EDETACHED => match unsafe { ((**java_vm).v1_2.AttachCurrentThread)(java_vm, &mut env, null_mut()) } {
+            JNI_EDETACHED => match unsafe { ((**self.0).v1_2.AttachCurrentThread)(self.0, &mut env, null_mut()) } {
                 JNI_OK => callback(unsafe { Env::from_jni_void_ref(&env) }),
                 unexpected => panic!("AttachCurrentThread returned unknown error: {}", unexpected),
             },
