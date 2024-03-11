@@ -15,6 +15,7 @@ use crate::{AsValidJObjectAndEnv, Env, ObjectAndEnv};
 /// [Local]:    struct.Local.html
 /// [Global]:   struct.Global.html
 /// [Argument]: struct.Argument.html
+#[derive(Copy, Clone)]
 pub struct Ref<'env, Class: AsValidJObjectAndEnv> {
     pub(crate) oae: ObjectAndEnv,
     pub(crate) _env: PhantomData<&'env Env>,
