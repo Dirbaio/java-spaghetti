@@ -4,7 +4,7 @@ use std::ptr::null_mut;
 
 use jni_sys::*;
 
-use crate::{jchar, AsJValue, AsValidJObjectAndEnv, Local, ThrowableType, VM};
+use crate::{AsJValue, AsValidJObjectAndEnv, Local, ThrowableType, VM};
 
 /// FFI:  Use **&Env** instead of \*const JNIEnv.  This represents a per-thread Java exection environment.
 ///
@@ -271,7 +271,7 @@ impl<'env> Env<'env> {
             ((**self.env).v1_2.ExceptionClear)(self.env);
             Err(Local::from_raw(self, exception))
         } else {
-            Ok(jchar(result))
+            Ok(result)
         }
     }
 
@@ -435,7 +435,7 @@ impl<'env> Env<'env> {
             ((**self.env).v1_2.ExceptionClear)(self.env);
             Err(Local::from_raw(self, exception))
         } else {
-            Ok(jchar(result))
+            Ok(result)
         }
     }
 
@@ -560,8 +560,7 @@ impl<'env> Env<'env> {
     }
 
     pub unsafe fn get_char_field(self, this: jobject, field: jfieldID) -> jchar {
-        let result = ((**self.env).v1_2.GetCharField)(self.env, this, field);
-        jchar(result)
+        ((**self.env).v1_2.GetCharField)(self.env, this, field)
     }
 
     pub unsafe fn get_short_field(self, this: jobject, field: jfieldID) -> jshort {
@@ -603,7 +602,7 @@ impl<'env> Env<'env> {
     }
 
     pub unsafe fn set_char_field(self, this: jobject, field: jfieldID, value: jchar) {
-        ((**self.env).v1_2.SetCharField)(self.env, this, field, value.0);
+        ((**self.env).v1_2.SetCharField)(self.env, this, field, value);
     }
 
     pub unsafe fn set_short_field(self, this: jobject, field: jfieldID, value: jshort) {
@@ -651,8 +650,7 @@ impl<'env> Env<'env> {
     }
 
     pub unsafe fn get_static_char_field(self, class: jclass, field: jfieldID) -> jchar {
-        let result = ((**self.env).v1_2.GetStaticCharField)(self.env, class, field);
-        jchar(result)
+        ((**self.env).v1_2.GetStaticCharField)(self.env, class, field)
     }
 
     pub unsafe fn get_static_short_field(self, class: jclass, field: jfieldID) -> jshort {
@@ -694,7 +692,7 @@ impl<'env> Env<'env> {
     }
 
     pub unsafe fn set_static_char_field(self, class: jclass, field: jfieldID, value: jchar) {
-        ((**self.env).v1_2.SetStaticCharField)(self.env, class, field, value.0);
+        ((**self.env).v1_2.SetStaticCharField)(self.env, class, field, value);
     }
 
     pub unsafe fn set_static_short_field(self, class: jclass, field: jfieldID, value: jshort) {

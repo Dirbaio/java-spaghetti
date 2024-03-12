@@ -3,7 +3,7 @@ use std::{char, iter, slice};
 
 use jni_sys::*;
 
-use crate::{jchar, Env};
+use crate::Env;
 
 /// Represents an env.GetStringChars + env.GetStringLength query.
 /// Will automatically env.ReleaseStringChars when dropped.

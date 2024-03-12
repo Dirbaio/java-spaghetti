@@ -22,7 +22,7 @@ use crate::{AsJValue, AsValidJObjectAndEnv, Env, JniType, Local, ObjectAndEnv, T
 ///
 /// [bool]:         https://doc.rust-lang.org/std/primitive.bool.html
 /// [jbyte]:        https://docs.rs/jni-sys/0.3.0/jni_sys/type.jbyte.html
-/// [jchar]:        struct.jchar.html
+/// [jchar]:        https://docs.rs/jni-sys/0.3.0/jni_sys/type.jchar.html
 /// [jint]:         https://docs.rs/jni-sys/0.3.0/jni_sys/type.jint.html
 /// [jlong]:        https://docs.rs/jni-sys/0.3.0/jni_sys/type.jlong.html
 /// [jfloat]:       https://docs.rs/jni-sys/0.3.0/jni_sys/type.jfloat.html

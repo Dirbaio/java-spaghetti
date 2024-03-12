@@ -117,7 +117,7 @@ impl<'a> Method<'a> {
                 }
                 method::Type::Single(method::BasicType::Boolean) => "bool".to_owned(),
                 method::Type::Single(method::BasicType::Byte) => "i8".to_owned(),
-                method::Type::Single(method::BasicType::Char) => "__jni_bindgen::jchar".to_owned(),
+                method::Type::Single(method::BasicType::Char) => "u16".to_owned(),
                 method::Type::Single(method::BasicType::Short) => "i16".to_owned(),
                 method::Type::Single(method::BasicType::Int) => "i32".to_owned(),
                 method::Type::Single(method::BasicType::Long) => "i64".to_owned(),
@@ -216,7 +216,7 @@ impl<'a> Method<'a> {
             method::Type::Single(method::BasicType::Void) => "()".to_owned(),
             method::Type::Single(method::BasicType::Boolean) => "bool".to_owned(),
             method::Type::Single(method::BasicType::Byte) => "i8".to_owned(),
-            method::Type::Single(method::BasicType::Char) => "__jni_bindgen::jchar".to_owned(),
+            method::Type::Single(method::BasicType::Char) => "u16".to_owned(),
             method::Type::Single(method::BasicType::Short) => "i16".to_owned(),
             method::Type::Single(method::BasicType::Int) => "i32".to_owned(),
             method::Type::Single(method::BasicType::Long) => "i64".to_owned(),

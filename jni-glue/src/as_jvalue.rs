@@ -2,7 +2,7 @@ use std::ptr::null_mut;
 
 use jni_sys::*;
 
-use crate::{jchar, AsValidJObjectAndEnv};
+use crate::AsValidJObjectAndEnv;
 
 #[doc(hidden)] // You should generally not be interacting with this type directly, but it must be public for codegen.
 /// By implementing this you assert that you're constructing a valid jvalue for the given argument type (e.g. valid
@@ -25,7 +25,7 @@ unsafe impl AsJValue for jbyte {
 }
 unsafe impl AsJValue for jchar {
     fn as_jvalue(&self) -> jvalue {
-        jvalue { c: self.0 }
+        jvalue { c: *self }
     }
 }
 unsafe impl AsJValue for jshort {

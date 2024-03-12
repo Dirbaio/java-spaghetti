@@ -48,7 +48,7 @@ impl<'a> Field<'a> {
         let (rust_set_type, rust_get_type) = match descriptor {
             field::Descriptor::Single(field::BasicType::Boolean) => ("bool", "bool"),
             field::Descriptor::Single(field::BasicType::Byte) => ("i8", "i8"),
-            field::Descriptor::Single(field::BasicType::Char) => ("__jni_bindgen::jchar", "__jni_bindgen::jchar"),
+            field::Descriptor::Single(field::BasicType::Char) => ("u16", "u16"),
             field::Descriptor::Single(field::BasicType::Double) => ("f64", "f64"),
             field::Descriptor::Single(field::BasicType::Float) => ("f32", "f32"),
             field::Descriptor::Single(field::BasicType::Int) => ("i32", "i32"),
