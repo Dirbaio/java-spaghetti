@@ -89,6 +89,18 @@ impl<'env, Class: AsValidJObjectAndEnv> Local<'env, Class> {
             pd: PhantomData,
         }
     }
+
+    pub fn cast<Class2: AsValidJObjectAndEnv>(&self) -> Option<Local<'env, Class2>> {
+        let env = self.env();
+        let jnienv = env.as_raw();
+        let class1 = unsafe { ((**jnienv).v1_2.GetObjectClass)(jnienv, self.oae.object) };
+        let class2 = Class2::static_with_jni_type(|t| unsafe { env.require_class(t) });
+        if !unsafe { ((**jnienv).v1_2.IsAssignableFrom)(jnienv, class1, class2) } {
+            return None;
+        }
+        let object = unsafe { ((**jnienv).v1_2.NewLocalRef)(jnienv, self.oae.object) };
+        Some(unsafe { Local::from_raw(env, object) })
+    }
 }
 
 impl<'env, Class: AsValidJObjectAndEnv> Deref for Local<'env, Class> {

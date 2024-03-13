@@ -43,6 +43,17 @@ impl<'env, Class: AsValidJObjectAndEnv> Ref<'env, Class> {
     pub fn as_raw(&self) -> jobject {
         self.oae.object
     }
+
+    pub fn cast<Class2: AsValidJObjectAndEnv>(&self) -> Option<Ref<'env, Class2>> {
+        let env = self.env();
+        let jnienv = env.as_raw();
+        let class1 = unsafe { ((**jnienv).v1_2.GetObjectClass)(jnienv, self.oae.object) };
+        let class2 = Class2::static_with_jni_type(|t| unsafe { env.require_class(t) });
+        if !unsafe { ((**jnienv).v1_2.IsAssignableFrom)(jnienv, class1, class2) } {
+            return None;
+        }
+        Some(unsafe { Ref::from_raw(env, self.oae.object) })
+    }
 }
 
 impl<'env, Class: AsValidJObjectAndEnv> Deref for Ref<'env, Class> {
