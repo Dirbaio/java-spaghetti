@@ -45,6 +45,12 @@ impl<Class: AsValidJObjectAndEnv> Global<Class> {
         self.object
     }
 
+    pub fn into_raw(self) -> jobject {
+        let object = self.object;
+        std::mem::forget(self); // Don't delete the object.
+        object
+    }
+
     pub fn with<'env>(&'env self, env: Env<'env>) -> GlobalRef<'env, Class> {
         assert_eq!(self.vm, env.vm()); // Soundness check - env *must* belong to the same VM!
         unsafe { self.with_unchecked(env) }

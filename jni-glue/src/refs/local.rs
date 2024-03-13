@@ -60,16 +60,22 @@ impl<'env, Class: AsValidJObjectAndEnv> Local<'env, Class> {
         self.oae.object
     }
 
-    pub fn leak(local: Self) -> Ref<'env, Class> {
+    pub fn into_raw(self) -> jobject {
+        let object = self.oae.object;
+        std::mem::forget(self); // Don't allow local to DeleteLocalRef the jobject
+        object
+    }
+
+    pub fn leak(self) -> Ref<'env, Class> {
         let result = Ref {
             oae: ObjectAndEnv {
-                object: local.oae.object,
-                env: local.oae.env,
+                object: self.oae.object,
+                env: self.oae.env,
             },
             _env: PhantomData,
             _class: PhantomData,
         };
-        std::mem::forget(local); // Don't allow local to DeleteLocalRef the jobject
+        std::mem::forget(self); // Don't allow local to DeleteLocalRef the jobject
         result
     }
 
