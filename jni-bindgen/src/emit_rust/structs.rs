@@ -134,7 +134,7 @@ impl Struct {
             visibility,
             keyword,
             &self.rust.struct_name,
-            self.java.path.as_str(),
+            self.java.path.as_str().to_string() + "\0",
             super_path
         )?;
         let mut implements = false;
