@@ -6,6 +6,8 @@
 #![allow(deprecated)] // We're generating deprecated types/methods
 #![allow(non_upper_case_globals)] // We might be generating Java style fields/methods
 #![allow(non_snake_case)] // We might be generating Java style fields/methods
+#![allow(clippy::all)] // we don't ensure generated bindings are clippy-compliant at all.
+#![allow(unsafe_code)] // play nice if user has `deny(unsafe_code)` in their crate.
 
 #[doc(hidden)]
 use jni_glue as __jni_bindgen;
