@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use jni_sys::*;
 
-use crate::{Env, Global, ObjectAndEnv, Ref, ReferenceType};
+use crate::{Env, Global, Ref, ReferenceType};
 
 /// FFI: Use **Argument\<java::lang::Object\>** instead of jobject.  This represents a (null?) function argument.
 ///
@@ -33,19 +33,11 @@ impl<T: ReferenceType> Argument<T> {
     /// **unsafe**:  This assumes the argument belongs to the given Env/VM, which is technically unsound.  However, the
     /// intended use case of immediately converting any Argument s into ArgumentRef s at the start of a JNI callback,
     /// where Java directly invoked your function with an Env + arguments, is sound.
-    pub unsafe fn with_unchecked<'env>(&'env self, env: Env<'env>) -> Option<ArgumentRef<'env, T>> {
+    pub unsafe fn with_unchecked<'env>(&'env self, env: Env<'env>) -> Option<Ref<'env, T>> {
         if self.object.is_null() {
             None
         } else {
-            let env = env.as_raw();
-            Some(ArgumentRef {
-                oae: ObjectAndEnv {
-                    object: self.object,
-                    env,
-                },
-                _env: PhantomData,
-                _class: PhantomData,
-            })
+            Some(Ref::from_raw(env, self.object))
         }
     }
 
@@ -66,14 +58,3 @@ impl<T: ReferenceType> Argument<T> {
         }
     }
 }
-
-/// A [Local](https://www.ibm.com/support/knowledgecenter/en/SSYKE2_8.0.0/com.ibm.java.vm.80.doc/docs/jni_refs.html),
-/// non-null, reference to a Java object (+ &Env).
-///
-/// Much like Local, the inclusion of an Env means this cannot be stored statically or shared between threads.
-///
-/// **Not FFI Safe:**  #\[repr(rust)\], and exact layout is likely to change - depending on exact features used - in the
-/// future.  Specifically, on Android, since we're guaranteed to only have a single ambient VM, we can likely store the
-/// \*const JNIEnv in thread local storage instead of lugging it around in every Local.  Of course, there's no
-/// guarantee that's actually an *optimization*...
-pub type ArgumentRef<'env, T> = Ref<'env, T>;

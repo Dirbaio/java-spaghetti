@@ -4,7 +4,7 @@ use std::ops::Deref;
 
 use jni_sys::*;
 
-use crate::{Env, Global, ObjectAndEnv, Ref, ReferenceType};
+use crate::{Env, Global, Ref, ReferenceType};
 
 /// A [Local](https://www.ibm.com/support/knowledgecenter/en/SSYKE2_8.0.0/com.ibm.java.vm.80.doc/docs/jni_refs.html),
 /// non-null, reference to a Java object (+ &[Env]) limited to the current thread/stack.
@@ -28,13 +28,9 @@ use crate::{Env, Global, ObjectAndEnv, Ref, ReferenceType};
 /// future.  Specifically, on Android, since we're guaranteed to only have a single ambient VM, we can likely store the
 /// \*const JNIEnv in thread local storage instead of lugging it around in every Local.  Of course, there's no
 /// guarantee that's actually an *optimization*...
-///
-/// [Env]:    struct.Env.html
-/// [Global]: struct.Global.html
+#[repr(transparent)]
 pub struct Local<'env, T: ReferenceType> {
-    pub(crate) oae: ObjectAndEnv,
-    pub(crate) _env: PhantomData<Env<'env>>,
-    pub(crate) _class: PhantomData<&'env T>,
+    ref_: Ref<'env, T>,
 }
 
 // Could implement clone if necessary via NewLocalRef
@@ -43,46 +39,34 @@ pub struct Local<'env, T: ReferenceType> {
 impl<'env, T: ReferenceType> Local<'env, T> {
     pub unsafe fn from_raw(env: Env<'env>, object: jobject) -> Self {
         Self {
-            oae: ObjectAndEnv {
-                object,
-                env: env.as_raw(),
-            },
-            _env: PhantomData,
-            _class: PhantomData,
+            ref_: Ref::from_raw(env, object),
         }
     }
 
     pub fn env(&self) -> Env<'env> {
-        unsafe { Env::from_raw(self.oae.env) }
+        self.ref_.env()
     }
 
     pub fn as_raw(&self) -> jobject {
-        self.oae.object
+        self.ref_.as_raw()
     }
 
     pub fn into_raw(self) -> jobject {
-        let object = self.oae.object;
+        let object = self.ref_.as_raw();
         std::mem::forget(self); // Don't allow local to DeleteLocalRef the jobject
         object
     }
 
     pub fn leak(self) -> Ref<'env, T> {
-        let result = Ref {
-            oae: ObjectAndEnv {
-                object: self.oae.object,
-                env: self.oae.env,
-            },
-            _env: PhantomData,
-            _class: PhantomData,
-        };
+        let result = self.ref_;
         std::mem::forget(self); // Don't allow local to DeleteLocalRef the jobject
         result
     }
 
     pub fn as_global(&self) -> Global<T> {
-        let env = unsafe { Env::from_raw(self.oae.env) };
+        let env = self.env();
         let jnienv = env.as_raw();
-        let object = unsafe { ((**jnienv).v1_2.NewGlobalRef)(jnienv, self.oae.object) };
+        let object = unsafe { ((**jnienv).v1_2.NewGlobalRef)(jnienv, self.ref_.as_raw()) };
         Global {
             object,
             vm: env.vm(),
@@ -93,12 +77,12 @@ impl<'env, T: ReferenceType> Local<'env, T> {
     pub fn cast<U: ReferenceType>(&self) -> Result<Local<'env, U>, crate::CastError> {
         let env = self.env();
         let jnienv = env.as_raw();
-        let class1 = unsafe { ((**jnienv).v1_2.GetObjectClass)(jnienv, self.oae.object) };
+        let class1 = unsafe { ((**jnienv).v1_2.GetObjectClass)(jnienv, self.as_raw()) };
         let class2 = U::static_with_jni_type(|t| unsafe { env.require_class(t) });
         if !unsafe { ((**jnienv).v1_2.IsAssignableFrom)(jnienv, class1, class2) } {
             return Err(crate::CastError);
         }
-        let object = unsafe { ((**jnienv).v1_2.NewLocalRef)(jnienv, self.oae.object) };
+        let object = unsafe { ((**jnienv).v1_2.NewLocalRef)(jnienv, self.as_raw()) };
         Ok(unsafe { Local::from_raw(env, object) })
     }
 }
@@ -106,22 +90,22 @@ impl<'env, T: ReferenceType> Local<'env, T> {
 impl<'env, T: ReferenceType> Deref for Local<'env, T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
-        unsafe { &*(&self.oae as *const ObjectAndEnv as *const Self::Target) }
+        unsafe { &*(self as *const Self as *const Self::Target) }
     }
 }
 
 impl<'env, T: ReferenceType> Clone for Local<'env, T> {
     fn clone(&self) -> Self {
-        let env = self.oae.env;
-        let object = unsafe { ((**env).v1_2.NewLocalRef)(env, self.oae.object) };
+        let env = self.env().as_raw();
+        let object = unsafe { ((**env).v1_2.NewLocalRef)(env, self.as_raw()) };
         unsafe { Self::from_raw(self.env(), object) }
     }
 }
 
 impl<'env, T: ReferenceType> Drop for Local<'env, T> {
     fn drop(&mut self) {
-        let env = self.oae.env;
-        unsafe { ((**env).v1_2.DeleteLocalRef)(env, self.oae.object) }
+        let env = self.env().as_raw();
+        unsafe { ((**env).v1_2.DeleteLocalRef)(env, self.as_raw()) }
     }
 }
 

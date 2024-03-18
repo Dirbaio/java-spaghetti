@@ -12,15 +12,11 @@ use crate::{Env, ObjectAndEnv, ReferenceType};
 /// future.  Specifically, on Android, since we're guaranteed to only have a single ambient VM, we can likely store the
 /// \*const JNIEnv in thread local storage instead of lugging it around in every Local.  Of course, there's no
 /// guarantee that's actually an *optimization*...
-///
-/// [Env]:      struct.Env.html
-/// [Local]:    struct.Local.html
-/// [Global]:   struct.Global.html
-/// [Argument]: struct.Argument.html
+#[repr(transparent)]
 pub struct Ref<'env, T: ReferenceType> {
-    pub(crate) oae: ObjectAndEnv,
-    pub(crate) _env: PhantomData<Env<'env>>,
-    pub(crate) _class: PhantomData<&'env T>,
+    oae: ObjectAndEnv,
+    _env: PhantomData<Env<'env>>,
+    _class: PhantomData<&'env T>,
 }
 
 impl<'env, T: ReferenceType> Copy for Ref<'env, T> {}
@@ -57,12 +53,12 @@ impl<'env, T: ReferenceType> Ref<'env, T> {
     pub fn cast<U: ReferenceType>(&self) -> Result<Ref<'env, U>, crate::CastError> {
         let env = self.env();
         let jnienv = env.as_raw();
-        let class1 = unsafe { ((**jnienv).v1_2.GetObjectClass)(jnienv, self.oae.object) };
+        let class1 = unsafe { ((**jnienv).v1_2.GetObjectClass)(jnienv, self.as_raw()) };
         let class2 = U::static_with_jni_type(|t| unsafe { env.require_class(t) });
         if !unsafe { ((**jnienv).v1_2.IsAssignableFrom)(jnienv, class1, class2) } {
             return Err(crate::CastError);
         }
-        Ok(unsafe { Ref::from_raw(env, self.oae.object) })
+        Ok(unsafe { Ref::from_raw(env, self.as_raw()) })
     }
 }
 
