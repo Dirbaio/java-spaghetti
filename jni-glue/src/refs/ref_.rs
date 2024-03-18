@@ -1,3 +1,4 @@
+use std::fmt::{self, Debug, Display, Formatter};
 use std::marker::PhantomData;
 use std::ops::Deref;
 
@@ -66,5 +67,17 @@ impl<'env, T: ReferenceType> Deref for Ref<'env, T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         unsafe { &*(&self.oae as *const ObjectAndEnv as *const Self::Target) }
+    }
+}
+
+impl<'env, T: ReferenceType + Debug> Debug for Ref<'env, T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        (**self).fmt(f)
+    }
+}
+
+impl<'env, T: ReferenceType + Display> Display for Ref<'env, T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        (**self).fmt(f)
     }
 }
