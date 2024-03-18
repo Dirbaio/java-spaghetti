@@ -17,14 +17,14 @@ use crate::{Env, ObjectAndEnv, ReferenceType};
 /// [Local]:    struct.Local.html
 /// [Global]:   struct.Global.html
 /// [Argument]: struct.Argument.html
-pub struct Ref<'env, Class: ReferenceType> {
+pub struct Ref<'env, T: ReferenceType> {
     pub(crate) oae: ObjectAndEnv,
     pub(crate) _env: PhantomData<Env<'env>>,
-    pub(crate) _class: PhantomData<&'env Class>,
+    pub(crate) _class: PhantomData<&'env T>,
 }
 
-impl<'env, Class: ReferenceType> Copy for Ref<'env, Class> {}
-impl<'env, Class: ReferenceType> Clone for Ref<'env, Class> {
+impl<'env, T: ReferenceType> Copy for Ref<'env, T> {}
+impl<'env, T: ReferenceType> Clone for Ref<'env, T> {
     fn clone(&self) -> Self {
         Self {
             oae: self.oae,
@@ -34,7 +34,7 @@ impl<'env, Class: ReferenceType> Clone for Ref<'env, Class> {
     }
 }
 
-impl<'env, Class: ReferenceType> Ref<'env, Class> {
+impl<'env, T: ReferenceType> Ref<'env, T> {
     pub unsafe fn from_raw(env: Env<'env>, object: jobject) -> Self {
         Self {
             oae: ObjectAndEnv {
@@ -54,11 +54,11 @@ impl<'env, Class: ReferenceType> Ref<'env, Class> {
         self.oae.object
     }
 
-    pub fn cast<Class2: ReferenceType>(&self) -> Result<Ref<'env, Class2>, crate::CastError> {
+    pub fn cast<U: ReferenceType>(&self) -> Result<Ref<'env, U>, crate::CastError> {
         let env = self.env();
         let jnienv = env.as_raw();
         let class1 = unsafe { ((**jnienv).v1_2.GetObjectClass)(jnienv, self.oae.object) };
-        let class2 = Class2::static_with_jni_type(|t| unsafe { env.require_class(t) });
+        let class2 = U::static_with_jni_type(|t| unsafe { env.require_class(t) });
         if !unsafe { ((**jnienv).v1_2.IsAssignableFrom)(jnienv, class1, class2) } {
             return Err(crate::CastError);
         }
@@ -66,8 +66,8 @@ impl<'env, Class: ReferenceType> Ref<'env, Class> {
     }
 }
 
-impl<'env, Class: ReferenceType> Deref for Ref<'env, Class> {
-    type Target = Class;
+impl<'env, T: ReferenceType> Deref for Ref<'env, T> {
+    type Target = T;
     fn deref(&self) -> &Self::Target {
         unsafe { &*(&self.oae as *const ObjectAndEnv as *const Self::Target) }
     }

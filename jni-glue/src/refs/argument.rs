@@ -12,12 +12,12 @@ use crate::{Env, Global, ObjectAndEnv, Ref, ReferenceType};
 /// soundness issues, but at least on Android mostly seems to just result in JNI aborting execution for the current
 /// process when calling methods on an instance of the wrong type.
 #[repr(transparent)]
-pub struct Argument<Class: ReferenceType> {
+pub struct Argument<T: ReferenceType> {
     object: jobject,
-    _class: PhantomData<Class>,
+    _class: PhantomData<T>,
 }
 
-impl<Class: ReferenceType> Argument<Class> {
+impl<T: ReferenceType> Argument<T> {
     /// **unsafe**:  There's no guarantee the jobject being passed is valid or null, nor any means of checking it.
     pub unsafe fn from_raw(object: jobject) -> Self {
         Self {
@@ -33,7 +33,7 @@ impl<Class: ReferenceType> Argument<Class> {
     /// **unsafe**:  This assumes the argument belongs to the given Env/VM, which is technically unsound.  However, the
     /// intended use case of immediately converting any Argument s into ArgumentRef s at the start of a JNI callback,
     /// where Java directly invoked your function with an Env + arguments, is sound.
-    pub unsafe fn with_unchecked<'env>(&'env self, env: Env<'env>) -> Option<ArgumentRef<'env, Class>> {
+    pub unsafe fn with_unchecked<'env>(&'env self, env: Env<'env>) -> Option<ArgumentRef<'env, T>> {
         if self.object.is_null() {
             None
         } else {
@@ -52,7 +52,7 @@ impl<Class: ReferenceType> Argument<Class> {
     /// **unsafe**:  This assumes the argument belongs to the given Env/VM, which is technically unsound.  However, the
     /// intended use case of immediately converting any Argument s into ArgumentRef s at the start of a JNI callback,
     /// where Java directly invoked your function with an Env + arguments, is sound.
-    pub unsafe fn into_global(self, env: Env) -> Option<Global<Class>> {
+    pub unsafe fn into_global(self, env: Env) -> Option<Global<T>> {
         if self.object.is_null() {
             None
         } else {
@@ -76,4 +76,4 @@ impl<Class: ReferenceType> Argument<Class> {
 /// future.  Specifically, on Android, since we're guaranteed to only have a single ambient VM, we can likely store the
 /// \*const JNIEnv in thread local storage instead of lugging it around in every Local.  Of course, there's no
 /// guarantee that's actually an *optimization*...
-pub type ArgumentRef<'env, Class> = Ref<'env, Class>;
+pub type ArgumentRef<'env, T> = Ref<'env, T>;

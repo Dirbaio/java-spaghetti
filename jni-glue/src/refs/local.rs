@@ -19,7 +19,7 @@ use crate::{Env, Global, ObjectAndEnv, Ref, ReferenceType};
 ///
 /// ```rust,no_run
 /// # use jni_glue::*;
-/// # fn example<Class: ReferenceType>(local: Local<Class>) {
+/// # fn example<T: ReferenceType>(local: Local<T>) {
 /// let local = Local::leak(local);
 /// # }
 /// ```
@@ -31,16 +31,16 @@ use crate::{Env, Global, ObjectAndEnv, Ref, ReferenceType};
 ///
 /// [Env]:    struct.Env.html
 /// [Global]: struct.Global.html
-pub struct Local<'env, Class: ReferenceType> {
+pub struct Local<'env, T: ReferenceType> {
     pub(crate) oae: ObjectAndEnv,
     pub(crate) _env: PhantomData<Env<'env>>,
-    pub(crate) _class: PhantomData<&'env Class>,
+    pub(crate) _class: PhantomData<&'env T>,
 }
 
 // Could implement clone if necessary via NewLocalRef
 // Do *not* implement Copy, cannot be safely done.
 
-impl<'env, Class: ReferenceType> Local<'env, Class> {
+impl<'env, T: ReferenceType> Local<'env, T> {
     pub unsafe fn from_raw(env: Env<'env>, object: jobject) -> Self {
         Self {
             oae: ObjectAndEnv {
@@ -66,7 +66,7 @@ impl<'env, Class: ReferenceType> Local<'env, Class> {
         object
     }
 
-    pub fn leak(self) -> Ref<'env, Class> {
+    pub fn leak(self) -> Ref<'env, T> {
         let result = Ref {
             oae: ObjectAndEnv {
                 object: self.oae.object,
@@ -79,7 +79,7 @@ impl<'env, Class: ReferenceType> Local<'env, Class> {
         result
     }
 
-    pub fn as_global(&self) -> Global<Class> {
+    pub fn as_global(&self) -> Global<T> {
         let env = unsafe { Env::from_raw(self.oae.env) };
         let jnienv = env.as_raw();
         let object = unsafe { ((**jnienv).v1_2.NewGlobalRef)(jnienv, self.oae.object) };
@@ -90,11 +90,11 @@ impl<'env, Class: ReferenceType> Local<'env, Class> {
         }
     }
 
-    pub fn cast<Class2: ReferenceType>(&self) -> Result<Local<'env, Class2>, crate::CastError> {
+    pub fn cast<U: ReferenceType>(&self) -> Result<Local<'env, U>, crate::CastError> {
         let env = self.env();
         let jnienv = env.as_raw();
         let class1 = unsafe { ((**jnienv).v1_2.GetObjectClass)(jnienv, self.oae.object) };
-        let class2 = Class2::static_with_jni_type(|t| unsafe { env.require_class(t) });
+        let class2 = U::static_with_jni_type(|t| unsafe { env.require_class(t) });
         if !unsafe { ((**jnienv).v1_2.IsAssignableFrom)(jnienv, class1, class2) } {
             return Err(crate::CastError);
         }
@@ -103,14 +103,14 @@ impl<'env, Class: ReferenceType> Local<'env, Class> {
     }
 }
 
-impl<'env, Class: ReferenceType> Deref for Local<'env, Class> {
-    type Target = Class;
+impl<'env, T: ReferenceType> Deref for Local<'env, T> {
+    type Target = T;
     fn deref(&self) -> &Self::Target {
         unsafe { &*(&self.oae as *const ObjectAndEnv as *const Self::Target) }
     }
 }
 
-impl<'env, Class: ReferenceType> Clone for Local<'env, Class> {
+impl<'env, T: ReferenceType> Clone for Local<'env, T> {
     fn clone(&self) -> Self {
         let env = self.oae.env;
         let object = unsafe { ((**env).v1_2.NewLocalRef)(env, self.oae.object) };
@@ -118,20 +118,20 @@ impl<'env, Class: ReferenceType> Clone for Local<'env, Class> {
     }
 }
 
-impl<'env, Class: ReferenceType> Drop for Local<'env, Class> {
+impl<'env, T: ReferenceType> Drop for Local<'env, T> {
     fn drop(&mut self) {
         let env = self.oae.env;
         unsafe { ((**env).v1_2.DeleteLocalRef)(env, self.oae.object) }
     }
 }
 
-impl<'env, Class: ReferenceType + Debug> Debug for Local<'env, Class> {
+impl<'env, T: ReferenceType + Debug> Debug for Local<'env, T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         (**self).fmt(f)
     }
 }
 
-impl<'env, Class: ReferenceType + Display> Display for Local<'env, Class> {
+impl<'env, T: ReferenceType + Display> Display for Local<'env, T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         (**self).fmt(f)
     }

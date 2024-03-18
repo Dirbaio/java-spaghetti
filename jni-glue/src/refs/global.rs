@@ -19,16 +19,16 @@ use crate::{Env, Local, ObjectAndEnv, Ref, ReferenceType, VM};
 /// [VM]:           struct.VM.html
 /// [Global]:       struct.Global.html
 /// [GlobalRef]:    type.GlobalRef.html
-pub struct Global<Class: ReferenceType> {
+pub struct Global<T: ReferenceType> {
     pub(crate) object: jobject,
     pub(crate) vm: VM,
-    pub(crate) pd: PhantomData<Class>,
+    pub(crate) pd: PhantomData<T>,
 }
 
-unsafe impl<Class: ReferenceType> Send for Global<Class> {}
-unsafe impl<Class: ReferenceType> Sync for Global<Class> {}
+unsafe impl<T: ReferenceType> Send for Global<T> {}
+unsafe impl<T: ReferenceType> Sync for Global<T> {}
 
-impl<Class: ReferenceType> Global<Class> {
+impl<T: ReferenceType> Global<T> {
     pub unsafe fn from_raw(vm: VM, object: jobject) -> Self {
         Self {
             object,
@@ -51,12 +51,12 @@ impl<Class: ReferenceType> Global<Class> {
         object
     }
 
-    pub fn with<'env>(&'env self, env: Env<'env>) -> GlobalRef<'env, Class> {
+    pub fn with<'env>(&'env self, env: Env<'env>) -> GlobalRef<'env, T> {
         assert_eq!(self.vm, env.vm()); // Soundness check - env *must* belong to the same VM!
         unsafe { self.with_unchecked(env) }
     }
 
-    pub unsafe fn with_unchecked<'env>(&'env self, env: Env<'env>) -> GlobalRef<'env, Class> {
+    pub unsafe fn with_unchecked<'env>(&'env self, env: Env<'env>) -> GlobalRef<'env, T> {
         let env = env.as_raw();
         GlobalRef {
             oae: ObjectAndEnv {
@@ -69,13 +69,13 @@ impl<Class: ReferenceType> Global<Class> {
     }
 }
 
-impl<'env, Class: ReferenceType> From<Local<'env, Class>> for Global<Class> {
-    fn from(local: Local<'env, Class>) -> Global<Class> {
+impl<'env, T: ReferenceType> From<Local<'env, T>> for Global<T> {
+    fn from(local: Local<'env, T>) -> Global<T> {
         local.as_global()
     }
 }
 
-impl<Class: ReferenceType> Clone for Global<Class> {
+impl<T: ReferenceType> Clone for Global<T> {
     fn clone(&self) -> Self {
         self.vm.with_env(|env| {
             let env = env.as_raw();
@@ -89,7 +89,7 @@ impl<Class: ReferenceType> Clone for Global<Class> {
     }
 }
 
-impl<Class: ReferenceType> Drop for Global<Class> {
+impl<T: ReferenceType> Drop for Global<T> {
     fn drop(&mut self) {
         self.vm.with_env(|env| {
             let env = env.as_raw();
@@ -107,4 +107,4 @@ impl<Class: ReferenceType> Drop for Global<Class> {
 /// future.  Specifically, on Android, since we're guaranteed to only have a single ambient VM, we can likely store the
 /// \*const JNIEnv in thread local storage instead of lugging it around in every Local.  Of course, there's no
 /// guarantee that's actually an *optimization*...
-pub type GlobalRef<'env, Class> = Ref<'env, Class>;
+pub type GlobalRef<'env, T> = Ref<'env, T>;
