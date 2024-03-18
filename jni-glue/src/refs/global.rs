@@ -47,12 +47,12 @@ impl<T: ReferenceType> Global<T> {
         object
     }
 
-    pub fn with<'env>(&'env self, env: Env<'env>) -> Ref<'env, T> {
+    pub fn with<'env>(&self, env: Env<'env>) -> Ref<'env, T> {
         assert_eq!(self.vm, env.vm()); // Soundness check - env *must* belong to the same VM!
         unsafe { self.with_unchecked(env) }
     }
 
-    pub unsafe fn with_unchecked<'env>(&'env self, env: Env<'env>) -> Ref<'env, T> {
+    pub unsafe fn with_unchecked<'env>(&self, env: Env<'env>) -> Ref<'env, T> {
         Ref::from_raw(env, self.object)
     }
 }

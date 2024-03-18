@@ -33,7 +33,7 @@ impl<T: ReferenceType> Argument<T> {
     /// **unsafe**:  This assumes the argument belongs to the given Env/VM, which is technically unsound.  However, the
     /// intended use case of immediately converting any Argument s into ArgumentRef s at the start of a JNI callback,
     /// where Java directly invoked your function with an Env + arguments, is sound.
-    pub unsafe fn with_unchecked<'env>(&'env self, env: Env<'env>) -> Option<Ref<'env, T>> {
+    pub unsafe fn into_ref<'env>(self, env: Env<'env>) -> Option<Ref<'env, T>> {
         if self.object.is_null() {
             None
         } else {
