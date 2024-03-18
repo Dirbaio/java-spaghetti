@@ -17,11 +17,21 @@ use crate::{Env, ObjectAndEnv, ReferenceType};
 /// [Local]:    struct.Local.html
 /// [Global]:   struct.Global.html
 /// [Argument]: struct.Argument.html
-#[derive(Copy, Clone)]
 pub struct Ref<'env, Class: ReferenceType> {
     pub(crate) oae: ObjectAndEnv,
     pub(crate) _env: PhantomData<Env<'env>>,
     pub(crate) _class: PhantomData<&'env Class>,
+}
+
+impl<'env, Class: ReferenceType> Copy for Ref<'env, Class> {}
+impl<'env, Class: ReferenceType> Clone for Ref<'env, Class> {
+    fn clone(&self) -> Self {
+        Self {
+            oae: self.oae,
+            _env: PhantomData,
+            _class: PhantomData,
+        }
+    }
 }
 
 impl<'env, Class: ReferenceType> Ref<'env, Class> {
