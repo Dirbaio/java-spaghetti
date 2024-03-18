@@ -4,7 +4,7 @@ use std::ops::Deref;
 
 use jni_sys::*;
 
-use crate::{Env, Global, Ref, ReferenceType};
+use crate::{Env, Global, JavaDebug, JavaDisplay, Ref, ReferenceType};
 
 /// A [Local](https://www.ibm.com/support/knowledgecenter/en/SSYKE2_8.0.0/com.ibm.java.vm.80.doc/docs/jni_refs.html),
 /// non-null, reference to a Java object (+ [Env]) limited to the current thread/stack.
@@ -28,7 +28,6 @@ use crate::{Env, Global, Ref, ReferenceType};
 /// future.  Specifically, on Android, since we're guaranteed to only have a single ambient VM, we can likely store the
 /// \*const JNIEnv in thread local storage instead of lugging it around in every Local.  Of course, there's no
 /// guarantee that's actually an *optimization*...
-#[repr(transparent)]
 pub struct Local<'env, T: ReferenceType> {
     ref_: Ref<'env, T>,
 }
@@ -88,9 +87,9 @@ impl<'env, T: ReferenceType> Local<'env, T> {
 }
 
 impl<'env, T: ReferenceType> Deref for Local<'env, T> {
-    type Target = T;
+    type Target = Ref<'env, T>;
     fn deref(&self) -> &Self::Target {
-        unsafe { &*(self as *const Self as *const Self::Target) }
+        &self.ref_
     }
 }
 
@@ -109,14 +108,14 @@ impl<'env, T: ReferenceType> Drop for Local<'env, T> {
     }
 }
 
-impl<'env, T: ReferenceType + Debug> Debug for Local<'env, T> {
+impl<'env, T: JavaDebug> Debug for Local<'env, T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        (**self).fmt(f)
+        T::fmt(**self, f)
     }
 }
 
-impl<'env, T: ReferenceType + Display> Display for Local<'env, T> {
+impl<'env, T: JavaDisplay> Display for Local<'env, T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        (**self).fmt(f)
+        T::fmt(**self, f)
     }
 }

@@ -4,7 +4,7 @@ use std::ptr::null_mut;
 
 use jni_sys::*;
 
-use crate::{AsJValue, Local, ReferenceType, ThrowableType, VM};
+use crate::{Local, Ref, ReferenceType, ThrowableType, VM};
 
 /// FFI:  Use **Env** instead of \*const JNIEnv.  This represents a per-thread Java exection environment.
 ///
@@ -583,9 +583,9 @@ impl<'env> Env<'env> {
         self,
         this: jobject,
         field: jfieldID,
-        value: impl Into<Option<&'obj R>>,
+        value: impl Into<Option<Ref<'obj, R>>>,
     ) {
-        let value = value.into().map(|v| AsJValue::as_jvalue(v).l).unwrap_or(null_mut());
+        let value = value.into().map(Ref::as_raw).unwrap_or(null_mut());
         ((**self.env).v1_2.SetObjectField)(self.env, this, field, value);
     }
 
@@ -673,9 +673,9 @@ impl<'env> Env<'env> {
         self,
         class: jclass,
         field: jfieldID,
-        value: impl Into<Option<&'obj R>>,
+        value: impl Into<Option<Ref<'obj, R>>>,
     ) {
-        let value = value.into().map(|v| AsJValue::as_jvalue(v).l).unwrap_or(null_mut());
+        let value = value.into().map(Ref::as_raw).unwrap_or(null_mut());
         ((**self.env).v1_2.SetStaticObjectField)(self.env, class, field, value);
     }
 

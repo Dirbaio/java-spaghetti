@@ -3,6 +3,8 @@
 //! See also the [Android JNI tips](https://developer.android.com/training/articles/perf-jni) documentation as well as the
 //! [Java Native Interface Specification](https://docs.oracle.com/javase/7/docs/technotes/guides/jni/spec/jniTOC.html).
 
+#![feature(receiver_trait)]
+
 use std::fmt;
 
 /// public jni-sys reexport.
@@ -55,21 +57,13 @@ impl fmt::Display for CastError {
 pub trait ThrowableType: ReferenceType {}
 
 /// You should generally not be interacting with this type directly, but it must be public for codegen.
-/// This is hideously unsafe to implement:
-///
-/// 1) You assert the type is a #[repr(transparent)] wrapper around ObjectAndEnv.
-/// 2) You assert the type cannot exist with a dangling object or env.
-///     2.1) Do not implement Copy or Clone.
-///     2.2) Do not allow value access.
-///     2.3) Do not allow &mut T access.
-///     2.4) Only allow &T access, which cannot be moved from.
 #[doc(hidden)]
-pub unsafe trait ReferenceType: AsJValue + JniType + 'static {}
+pub unsafe trait ReferenceType: JniType + Sized + 'static {}
 
-#[repr(C)] // Given how frequently we transmute to/from this, we'd better keep a consistent layout.
-#[doc(hidden)] // You should generally not be interacting with this type directly, but it must be public for codegen.
-#[derive(Copy, Clone)]
-pub struct ObjectAndEnv {
-    pub object: jni_sys::jobject,
-    pub env: *mut jni_sys::JNIEnv,
+pub trait JavaDisplay: ReferenceType {
+    fn fmt(self: Ref<'_, Self>, f: &mut fmt::Formatter<'_>) -> fmt::Result;
+}
+
+pub trait JavaDebug: ReferenceType {
+    fn fmt(self: Ref<'_, Self>, f: &mut fmt::Formatter<'_>) -> fmt::Result;
 }
