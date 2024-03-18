@@ -20,23 +20,6 @@ use crate::{AsJValue, Env, JniType, Local, ObjectAndEnv, ReferenceType, Throwabl
 /// | [jfloat]\[\]  | [FloatArray]      |
 /// | [jdouble]\[\] | [DoubleArray]     |
 ///
-/// [bool]:         https://doc.rust-lang.org/std/primitive.bool.html
-/// [jbyte]:        https://docs.rs/jni-sys/0.3.0/jni_sys/type.jbyte.html
-/// [jchar]:        https://docs.rs/jni-sys/0.3.0/jni_sys/type.jchar.html
-/// [jint]:         https://docs.rs/jni-sys/0.3.0/jni_sys/type.jint.html
-/// [jlong]:        https://docs.rs/jni-sys/0.3.0/jni_sys/type.jlong.html
-/// [jfloat]:       https://docs.rs/jni-sys/0.3.0/jni_sys/type.jfloat.html
-/// [jdouble]:      https://docs.rs/jni-sys/0.3.0/jni_sys/type.jdouble.html
-///
-/// [BooleanArray]: struct.BooleanArray.html
-/// [ByteArray]:    struct.ByteArray.html
-/// [CharArray]:    struct.CharArray.html
-/// [IntArray]:     struct.IntArray.html
-/// [LongArray]:    struct.LongArray.html
-/// [FloatArray]:   struct.FloatArray.html
-/// [DoubleArray]:  struct.DoubleArray.html
-/// [ObjectArray]:  struct.ObjectArray.html
-///
 pub trait PrimitiveArray<T>: Sized + ReferenceType
 where
     T: Clone + Default,
@@ -94,7 +77,7 @@ where
 
 macro_rules! primitive_array {
     (#[repr(transparent)] pub struct $name:ident = $type_str:expr, $type:ident { $new_array:ident $set_region:ident $get_region:ident } ) => {
-        /// A [PrimitiveArray](trait.PrimitiveArray.html) implementation.
+        /// A [PrimitiveArray] implementation.
         #[repr(transparent)]
         pub struct $name(ObjectAndEnv);
 
@@ -197,9 +180,6 @@ primitive_array! { #[repr(transparent)] pub struct DoubleArray  = "[D\0", jdoubl
 /// A Java Array of reference types (classes, interfaces, other arrays, etc.)
 ///
 /// See also [PrimitiveArray] for arrays of reference types.
-///
-/// [PrimitiveArray]:   struct.PrimitiveArray.html
-///
 #[repr(transparent)]
 pub struct ObjectArray<T: ReferenceType, E: ThrowableType>(ObjectAndEnv, PhantomData<(T, E)>);
 

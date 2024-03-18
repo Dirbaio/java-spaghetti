@@ -7,7 +7,7 @@ use jni_sys::*;
 use crate::{Env, Global, Ref, ReferenceType};
 
 /// A [Local](https://www.ibm.com/support/knowledgecenter/en/SSYKE2_8.0.0/com.ibm.java.vm.80.doc/docs/jni_refs.html),
-/// non-null, reference to a Java object (+ &[Env]) limited to the current thread/stack.
+/// non-null, reference to a Java object (+ [Env]) limited to the current thread/stack.
 ///
 /// Including the env allows for the convenient execution of methods without having to individually pass the env as an
 /// argument to each and every one.  Since this is limited to the current thread/stack, these cannot be sanely stored
@@ -19,7 +19,7 @@ use crate::{Env, Global, Ref, ReferenceType};
 ///
 /// ```rust,no_run
 /// # use jni_glue::*;
-/// # fn example<T: ReferenceType>(local: Local<T>) {
+/// # fn example<T: Class>(local: Local<T>) {
 /// let local = Local::leak(local);
 /// # }
 /// ```

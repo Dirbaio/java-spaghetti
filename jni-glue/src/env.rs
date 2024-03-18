@@ -6,7 +6,7 @@ use jni_sys::*;
 
 use crate::{AsJValue, Local, ReferenceType, ThrowableType, VM};
 
-/// FFI:  Use **&Env** instead of \*const JNIEnv.  This represents a per-thread Java exection environment.
+/// FFI:  Use **Env** instead of \*const JNIEnv.  This represents a per-thread Java exection environment.
 ///
 /// A "safe" alternative to jni_sys::JNIEnv raw pointers, with the following caveats:
 ///
@@ -42,7 +42,7 @@ use crate::{AsJValue, Local, ReferenceType, ThrowableType, VM};
 ///
 /// #[no_mangle] pub extern "system"
 /// fn Java_com_maulingmonkey_example_MainActivity_dispatchKeyEvent<'env>(
-///     _env:       &Env,
+///     _env:       Env<'env>,
 ///     _this:      jobject, // TODO: Replace with safer equivalent
 ///     _key_event: jobject  // TODO: Replace with safer equivalent
 /// ) -> jboolean {

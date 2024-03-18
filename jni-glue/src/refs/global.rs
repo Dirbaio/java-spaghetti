@@ -5,20 +5,16 @@ use jni_sys::*;
 use crate::{Env, Local, Ref, ReferenceType, VM};
 
 /// A [Global](https://www.ibm.com/support/knowledgecenter/en/SSYKE2_8.0.0/com.ibm.java.vm.80.doc/docs/jni_refs.html),
-/// non-null, reference to a Java object (+ &[VM]).
+/// non-null, reference to a Java object (+ [VM]).
 ///
 /// Unlike Local, this can be stored statically and shared between threads.  This has a few caveats:
-/// * You must create a [GlobalRef] before use.
+/// * You must create a [Ref] before use.
 /// * The [Global] can be invalidated if the [VM] is unloaded.
 ///
 /// **Not FFI Safe:**  #\[repr(rust)\], and exact layout is likely to change - depending on exact features used - in the
 /// future.  Specifically, on Android, since we're guaranteed to only have a single ambient [VM], we can likely store the
 /// *const JavaVM in static and/or thread local storage instead of lugging it around in every [Local].  Of course, there's
 /// no guarantee that's actually an *optimization*...
-///
-/// [VM]:           struct.VM.html
-/// [Global]:       struct.Global.html
-/// [GlobalRef]:    type.GlobalRef.html
 pub struct Global<T: ReferenceType> {
     pub(crate) object: jobject,
     pub(crate) vm: VM,

@@ -8,7 +8,7 @@ use super::rust_identifier::{javaify_identifier, rustify_identifier, IdentifierM
 #[serde(rename_all = "snake_case")]
 pub enum MethodManglingStyle {
     /// Leave the original method name alone as much as possible.
-    /// Constructors will still be renamed from "<init>" to "new".
+    /// Constructors will still be renamed from "\<init>" to "new".
     ///
     /// # Examples:
     ///
@@ -19,7 +19,7 @@ pub enum MethodManglingStyle {
     Java,
 
     /// Leave the original method name alone as much as possible... with unqualified typenames appended for disambiguation.
-    /// Constructors will still be renamed from "<init>" to "new".
+    /// Constructors will still be renamed from "\<init>" to "new".
     ///
     /// # Examples:
     ///
@@ -30,7 +30,7 @@ pub enum MethodManglingStyle {
     JavaShortSignature,
 
     /// Leave the original method name alone as much as possible... with qualified typenames appended for disambiguation.
-    /// Constructors will still be renamed from "<init>" to "new".
+    /// Constructors will still be renamed from "\<init>" to "new".
     ///
     /// # Examples:
     ///
