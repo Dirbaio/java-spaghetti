@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use jni_sys::*;
 
-use crate::{AsValidJObjectAndEnv, Env, Local, ObjectAndEnv, Ref, VM};
+use crate::{Env, Local, ObjectAndEnv, Ref, ReferenceType, VM};
 
 /// A [Global](https://www.ibm.com/support/knowledgecenter/en/SSYKE2_8.0.0/com.ibm.java.vm.80.doc/docs/jni_refs.html),
 /// non-null, reference to a Java object (+ &[VM]).
@@ -19,16 +19,16 @@ use crate::{AsValidJObjectAndEnv, Env, Local, ObjectAndEnv, Ref, VM};
 /// [VM]:           struct.VM.html
 /// [Global]:       struct.Global.html
 /// [GlobalRef]:    type.GlobalRef.html
-pub struct Global<Class: AsValidJObjectAndEnv> {
+pub struct Global<Class: ReferenceType> {
     pub(crate) object: jobject,
     pub(crate) vm: VM,
     pub(crate) pd: PhantomData<Class>,
 }
 
-unsafe impl<Class: AsValidJObjectAndEnv> Send for Global<Class> {}
-unsafe impl<Class: AsValidJObjectAndEnv> Sync for Global<Class> {}
+unsafe impl<Class: ReferenceType> Send for Global<Class> {}
+unsafe impl<Class: ReferenceType> Sync for Global<Class> {}
 
-impl<Class: AsValidJObjectAndEnv> Global<Class> {
+impl<Class: ReferenceType> Global<Class> {
     pub unsafe fn from_raw(vm: VM, object: jobject) -> Self {
         Self {
             object,
@@ -69,13 +69,13 @@ impl<Class: AsValidJObjectAndEnv> Global<Class> {
     }
 }
 
-impl<'env, Class: AsValidJObjectAndEnv> From<Local<'env, Class>> for Global<Class> {
+impl<'env, Class: ReferenceType> From<Local<'env, Class>> for Global<Class> {
     fn from(local: Local<'env, Class>) -> Global<Class> {
         local.as_global()
     }
 }
 
-impl<Class: AsValidJObjectAndEnv> Clone for Global<Class> {
+impl<Class: ReferenceType> Clone for Global<Class> {
     fn clone(&self) -> Self {
         self.vm.with_env(|env| {
             let env = env.as_raw();
@@ -89,7 +89,7 @@ impl<Class: AsValidJObjectAndEnv> Clone for Global<Class> {
     }
 }
 
-impl<Class: AsValidJObjectAndEnv> Drop for Global<Class> {
+impl<Class: ReferenceType> Drop for Global<Class> {
     fn drop(&mut self) {
         self.vm.with_env(|env| {
             let env = env.as_raw();

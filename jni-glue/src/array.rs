@@ -4,7 +4,7 @@ use std::ptr::null_mut;
 
 use jni_sys::*;
 
-use crate::{AsJValue, AsValidJObjectAndEnv, Env, JniType, Local, ObjectAndEnv, ThrowableType};
+use crate::{AsJValue, Env, JniType, Local, ObjectAndEnv, ReferenceType, ThrowableType};
 
 /// A Java Array of some POD-like type such as bool, jbyte, jchar, jshort, jint, jlong, jfloat, or jdouble.
 ///
@@ -39,7 +39,7 @@ use crate::{AsJValue, AsValidJObjectAndEnv, Env, JniType, Local, ObjectAndEnv, T
 ///
 pub trait PrimitiveArray<T>
 where
-    Self: Sized + AsValidJObjectAndEnv,
+    Self: Sized + ReferenceType,
     T: Clone + Default,
 {
     /// Uses env.New{Type}Array to create a new java array containing "size" elements.
@@ -99,7 +99,7 @@ macro_rules! primitive_array {
         #[repr(transparent)]
         pub struct $name(ObjectAndEnv);
 
-        unsafe impl AsValidJObjectAndEnv for $name {}
+        unsafe impl ReferenceType for $name {}
         unsafe impl AsJValue for $name {
             fn as_jvalue(&self) -> jni_sys::jvalue {
                 jni_sys::jvalue { l: self.0.object }
@@ -202,23 +202,23 @@ primitive_array! { #[repr(transparent)] pub struct DoubleArray  = "[D\0", jdoubl
 /// [PrimitiveArray]:   struct.PrimitiveArray.html
 ///
 #[repr(transparent)]
-pub struct ObjectArray<T: AsValidJObjectAndEnv, E: ThrowableType>(ObjectAndEnv, PhantomData<(T, E)>);
+pub struct ObjectArray<T: ReferenceType, E: ThrowableType>(ObjectAndEnv, PhantomData<(T, E)>);
 
-unsafe impl<T: AsValidJObjectAndEnv, E: ThrowableType> AsValidJObjectAndEnv for ObjectArray<T, E> {}
+unsafe impl<T: ReferenceType, E: ThrowableType> ReferenceType for ObjectArray<T, E> {}
 
-unsafe impl<T: AsValidJObjectAndEnv, E: ThrowableType> JniType for ObjectArray<T, E> {
+unsafe impl<T: ReferenceType, E: ThrowableType> JniType for ObjectArray<T, E> {
     fn static_with_jni_type<R>(callback: impl FnOnce(&str) -> R) -> R {
         T::static_with_jni_type(|inner| callback(format!("[{}", inner).as_str()))
     }
 }
 
-unsafe impl<T: AsValidJObjectAndEnv, E: ThrowableType> AsJValue for ObjectArray<T, E> {
+unsafe impl<T: ReferenceType, E: ThrowableType> AsJValue for ObjectArray<T, E> {
     fn as_jvalue(&self) -> jni_sys::jvalue {
         jni_sys::jvalue { l: self.0.object }
     }
 }
 
-impl<T: AsValidJObjectAndEnv, E: ThrowableType> ObjectArray<T, E> {
+impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
     pub fn new<'env>(env: Env<'env>, size: usize) -> Local<'env, Self> {
         assert!(size <= std::i32::MAX as usize); // jsize == jint == i32
         let class = Self::static_with_jni_type(|t| unsafe { env.require_class(t) });
@@ -308,13 +308,13 @@ impl<T: AsValidJObjectAndEnv, E: ThrowableType> ObjectArray<T, E> {
     }
 }
 
-pub struct ObjectArrayIter<'env, T: AsValidJObjectAndEnv, E: ThrowableType> {
+pub struct ObjectArrayIter<'env, T: ReferenceType, E: ThrowableType> {
     array: &'env ObjectArray<T, E>,
     index: usize,
     length: usize,
 }
 
-impl<'env, T: AsValidJObjectAndEnv, E: ThrowableType> Iterator for ObjectArrayIter<'env, T, E> {
+impl<'env, T: ReferenceType, E: ThrowableType> Iterator for ObjectArrayIter<'env, T, E> {
     type Item = Option<Local<'env, T>>;
     fn next(&mut self) -> Option<Self::Item> {
         let index = self.index;

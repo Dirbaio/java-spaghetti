@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use jni_sys::*;
 
-use crate::{AsValidJObjectAndEnv, Env, Global, ObjectAndEnv, Ref};
+use crate::{Env, Global, ObjectAndEnv, Ref, ReferenceType};
 
 /// FFI: Use **Argument\<java::lang::Object\>** instead of jobject.  This represents a (null?) function argument.
 ///
@@ -12,12 +12,12 @@ use crate::{AsValidJObjectAndEnv, Env, Global, ObjectAndEnv, Ref};
 /// soundness issues, but at least on Android mostly seems to just result in JNI aborting execution for the current
 /// process when calling methods on an instance of the wrong type.
 #[repr(transparent)]
-pub struct Argument<Class: AsValidJObjectAndEnv> {
+pub struct Argument<Class: ReferenceType> {
     object: jobject,
     _class: PhantomData<Class>,
 }
 
-impl<Class: AsValidJObjectAndEnv> Argument<Class> {
+impl<Class: ReferenceType> Argument<Class> {
     /// **unsafe**:  There's no guarantee the jobject being passed is valid or null, nor any means of checking it.
     pub unsafe fn from_raw(object: jobject) -> Self {
         Self {

@@ -4,7 +4,7 @@ use std::ptr::null_mut;
 
 use jni_sys::*;
 
-use crate::{AsJValue, AsValidJObjectAndEnv, Local, ThrowableType, VM};
+use crate::{AsJValue, Local, ReferenceType, ThrowableType, VM};
 
 /// FFI:  Use **&Env** instead of \*const JNIEnv.  This represents a per-thread Java exection environment.
 ///
@@ -190,7 +190,7 @@ impl<'env> Env<'env> {
 
     // Constructor Methods
 
-    pub unsafe fn new_object_a<R: AsValidJObjectAndEnv, E: ThrowableType>(
+    pub unsafe fn new_object_a<R: ReferenceType, E: ThrowableType>(
         self,
         class: jclass,
         method: jmethodID,
@@ -209,7 +209,7 @@ impl<'env> Env<'env> {
 
     // Instance Methods
 
-    pub unsafe fn call_object_method_a<R: AsValidJObjectAndEnv, E: ThrowableType>(
+    pub unsafe fn call_object_method_a<R: ReferenceType, E: ThrowableType>(
         self,
         this: jobject,
         method: jmethodID,
@@ -373,7 +373,7 @@ impl<'env> Env<'env> {
 
     // Static Methods
 
-    pub unsafe fn call_static_object_method_a<R: AsValidJObjectAndEnv, E: ThrowableType>(
+    pub unsafe fn call_static_object_method_a<R: ReferenceType, E: ThrowableType>(
         self,
         class: jclass,
         method: jmethodID,
@@ -537,11 +537,7 @@ impl<'env> Env<'env> {
 
     // Instance Fields
 
-    pub unsafe fn get_object_field<R: AsValidJObjectAndEnv>(
-        self,
-        this: jobject,
-        field: jfieldID,
-    ) -> Option<Local<'env, R>> {
+    pub unsafe fn get_object_field<R: ReferenceType>(self, this: jobject, field: jfieldID) -> Option<Local<'env, R>> {
         let result = ((**self.env).v1_2.GetObjectField)(self.env, this, field);
         if result.is_null() {
             None
@@ -583,7 +579,7 @@ impl<'env> Env<'env> {
         ((**self.env).v1_2.GetDoubleField)(self.env, this, field)
     }
 
-    pub unsafe fn set_object_field<'obj, R: 'obj + AsValidJObjectAndEnv>(
+    pub unsafe fn set_object_field<'obj, R: 'obj + ReferenceType>(
         self,
         this: jobject,
         field: jfieldID,
@@ -627,7 +623,7 @@ impl<'env> Env<'env> {
 
     // Static Fields
 
-    pub unsafe fn get_static_object_field<R: AsValidJObjectAndEnv>(
+    pub unsafe fn get_static_object_field<R: ReferenceType>(
         self,
         class: jclass,
         field: jfieldID,
@@ -673,7 +669,7 @@ impl<'env> Env<'env> {
         ((**self.env).v1_2.GetStaticDoubleField)(self.env, class, field)
     }
 
-    pub unsafe fn set_static_object_field<'obj, R: 'obj + AsValidJObjectAndEnv>(
+    pub unsafe fn set_static_object_field<'obj, R: 'obj + ReferenceType>(
         self,
         class: jclass,
         field: jfieldID,

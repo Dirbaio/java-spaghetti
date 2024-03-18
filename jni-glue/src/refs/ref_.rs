@@ -3,7 +3,7 @@ use std::ops::Deref;
 
 use jni_sys::jobject;
 
-use crate::{AsValidJObjectAndEnv, Env, ObjectAndEnv};
+use crate::{Env, ObjectAndEnv, ReferenceType};
 
 /// A non-null, [reference](https://www.ibm.com/support/knowledgecenter/en/SSYKE2_8.0.0/com.ibm.java.vm.80.doc/docs/jni_refs.html)
 /// to a Java object (+ &[Env]).  This may refer to a [Local], [Global], local [Argument], etc.
@@ -18,13 +18,13 @@ use crate::{AsValidJObjectAndEnv, Env, ObjectAndEnv};
 /// [Global]:   struct.Global.html
 /// [Argument]: struct.Argument.html
 #[derive(Copy, Clone)]
-pub struct Ref<'env, Class: AsValidJObjectAndEnv> {
+pub struct Ref<'env, Class: ReferenceType> {
     pub(crate) oae: ObjectAndEnv,
     pub(crate) _env: PhantomData<Env<'env>>,
     pub(crate) _class: PhantomData<&'env Class>,
 }
 
-impl<'env, Class: AsValidJObjectAndEnv> Ref<'env, Class> {
+impl<'env, Class: ReferenceType> Ref<'env, Class> {
     pub unsafe fn from_raw(env: Env<'env>, object: jobject) -> Self {
         Self {
             oae: ObjectAndEnv {
@@ -44,7 +44,7 @@ impl<'env, Class: AsValidJObjectAndEnv> Ref<'env, Class> {
         self.oae.object
     }
 
-    pub fn cast<Class2: AsValidJObjectAndEnv>(&self) -> Result<Ref<'env, Class2>, crate::CastError> {
+    pub fn cast<Class2: ReferenceType>(&self) -> Result<Ref<'env, Class2>, crate::CastError> {
         let env = self.env();
         let jnienv = env.as_raw();
         let class1 = unsafe { ((**jnienv).v1_2.GetObjectClass)(jnienv, self.oae.object) };
@@ -56,7 +56,7 @@ impl<'env, Class: AsValidJObjectAndEnv> Ref<'env, Class> {
     }
 }
 
-impl<'env, Class: AsValidJObjectAndEnv> Deref for Ref<'env, Class> {
+impl<'env, Class: ReferenceType> Deref for Ref<'env, Class> {
     type Target = Class;
     fn deref(&self) -> &Self::Target {
         unsafe { &*(&self.oae as *const ObjectAndEnv as *const Self::Target) }

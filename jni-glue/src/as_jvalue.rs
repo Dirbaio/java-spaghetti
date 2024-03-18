@@ -2,7 +2,7 @@ use std::ptr::null_mut;
 
 use jni_sys::*;
 
-use crate::AsValidJObjectAndEnv;
+use crate::ReferenceType;
 
 #[doc(hidden)] // You should generally not be interacting with this type directly, but it must be public for codegen.
 /// By implementing this you assert that you're constructing a valid jvalue for the given argument type (e.g. valid
@@ -55,7 +55,7 @@ unsafe impl AsJValue for jdouble {
 }
 //unsafe impl AsJValue for jobject  { fn as_jvalue(&self) -> jvalue { jvalue { l: *self } } } // do NOT implement, no guarantee any given jobject is actually safe!
 
-unsafe impl<T: AsValidJObjectAndEnv> AsJValue for Option<&T> {
+unsafe impl<T: ReferenceType> AsJValue for Option<&T> {
     fn as_jvalue(&self) -> jvalue {
         match self {
             None => jvalue { l: null_mut() },

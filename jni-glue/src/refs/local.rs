@@ -4,7 +4,7 @@ use std::ops::Deref;
 
 use jni_sys::*;
 
-use crate::{AsValidJObjectAndEnv, Env, Global, ObjectAndEnv, Ref};
+use crate::{Env, Global, ObjectAndEnv, Ref, ReferenceType};
 
 /// A [Local](https://www.ibm.com/support/knowledgecenter/en/SSYKE2_8.0.0/com.ibm.java.vm.80.doc/docs/jni_refs.html),
 /// non-null, reference to a Java object (+ &[Env]) limited to the current thread/stack.
@@ -19,7 +19,7 @@ use crate::{AsValidJObjectAndEnv, Env, Global, ObjectAndEnv, Ref};
 ///
 /// ```rust,no_run
 /// # use jni_glue::*;
-/// # fn example<Class: AsValidJObjectAndEnv>(local: Local<Class>) {
+/// # fn example<Class: ReferenceType>(local: Local<Class>) {
 /// let local = Local::leak(local);
 /// # }
 /// ```
@@ -31,7 +31,7 @@ use crate::{AsValidJObjectAndEnv, Env, Global, ObjectAndEnv, Ref};
 ///
 /// [Env]:    struct.Env.html
 /// [Global]: struct.Global.html
-pub struct Local<'env, Class: AsValidJObjectAndEnv> {
+pub struct Local<'env, Class: ReferenceType> {
     pub(crate) oae: ObjectAndEnv,
     pub(crate) _env: PhantomData<Env<'env>>,
     pub(crate) _class: PhantomData<&'env Class>,
@@ -40,7 +40,7 @@ pub struct Local<'env, Class: AsValidJObjectAndEnv> {
 // Could implement clone if necessary via NewLocalRef
 // Do *not* implement Copy, cannot be safely done.
 
-impl<'env, Class: AsValidJObjectAndEnv> Local<'env, Class> {
+impl<'env, Class: ReferenceType> Local<'env, Class> {
     pub unsafe fn from_raw(env: Env<'env>, object: jobject) -> Self {
         Self {
             oae: ObjectAndEnv {
@@ -90,7 +90,7 @@ impl<'env, Class: AsValidJObjectAndEnv> Local<'env, Class> {
         }
     }
 
-    pub fn cast<Class2: AsValidJObjectAndEnv>(&self) -> Result<Local<'env, Class2>, crate::CastError> {
+    pub fn cast<Class2: ReferenceType>(&self) -> Result<Local<'env, Class2>, crate::CastError> {
         let env = self.env();
         let jnienv = env.as_raw();
         let class1 = unsafe { ((**jnienv).v1_2.GetObjectClass)(jnienv, self.oae.object) };
@@ -103,14 +103,14 @@ impl<'env, Class: AsValidJObjectAndEnv> Local<'env, Class> {
     }
 }
 
-impl<'env, Class: AsValidJObjectAndEnv> Deref for Local<'env, Class> {
+impl<'env, Class: ReferenceType> Deref for Local<'env, Class> {
     type Target = Class;
     fn deref(&self) -> &Self::Target {
         unsafe { &*(&self.oae as *const ObjectAndEnv as *const Self::Target) }
     }
 }
 
-impl<'env, Class: AsValidJObjectAndEnv> Clone for Local<'env, Class> {
+impl<'env, Class: ReferenceType> Clone for Local<'env, Class> {
     fn clone(&self) -> Self {
         let env = self.oae.env;
         let object = unsafe { ((**env).v1_2.NewLocalRef)(env, self.oae.object) };
@@ -118,20 +118,20 @@ impl<'env, Class: AsValidJObjectAndEnv> Clone for Local<'env, Class> {
     }
 }
 
-impl<'env, Class: AsValidJObjectAndEnv> Drop for Local<'env, Class> {
+impl<'env, Class: ReferenceType> Drop for Local<'env, Class> {
     fn drop(&mut self) {
         let env = self.oae.env;
         unsafe { ((**env).v1_2.DeleteLocalRef)(env, self.oae.object) }
     }
 }
 
-impl<'env, Class: AsValidJObjectAndEnv + Debug> Debug for Local<'env, Class> {
+impl<'env, Class: ReferenceType + Debug> Debug for Local<'env, Class> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         (**self).fmt(f)
     }
 }
 
-impl<'env, Class: AsValidJObjectAndEnv + Display> Display for Local<'env, Class> {
+impl<'env, Class: ReferenceType + Display> Display for Local<'env, Class> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         (**self).fmt(f)
     }
