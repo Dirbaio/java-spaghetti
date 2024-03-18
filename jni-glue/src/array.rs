@@ -37,9 +37,8 @@ use crate::{AsJValue, Env, JniType, Local, ObjectAndEnv, ReferenceType, Throwabl
 /// [DoubleArray]:  struct.DoubleArray.html
 /// [ObjectArray]:  struct.ObjectArray.html
 ///
-pub trait PrimitiveArray<T>
+pub trait PrimitiveArray<T>: Sized + ReferenceType
 where
-    Self: Sized + ReferenceType,
     T: Clone + Default,
 {
     /// Uses env.New{Type}Array to create a new java array containing "size" elements.
