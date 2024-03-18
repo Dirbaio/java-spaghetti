@@ -13,13 +13,13 @@ use crate::{Env, Global, Ref, ReferenceType};
 /// argument to each and every one.  Since this is limited to the current thread/stack, these cannot be sanely stored
 /// in any kind of static storage, nor shared between threads - instead use a [Global] if you need to do either.
 ///
-/// Will DeleteLocalRef when dropped, invalidating the jobject but ensuring threads that rarely or never return to
+/// Will `DeleteLocalRef` when dropped, invalidating the jobject but ensuring threads that rarely or never return to
 /// Java may run without being guaranteed to eventually exhaust their local reference limit.  If this is not desired,
 /// convert to a plain Ref with:
 ///
 /// ```rust,no_run
 /// # use java_spaghetti::*;
-/// # fn example<T: Class>(local: Local<T>) {
+/// # fn example<T: ReferenceType>(local: Local<T>) {
 /// let local = Local::leak(local);
 /// # }
 /// ```
