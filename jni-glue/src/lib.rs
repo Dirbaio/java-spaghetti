@@ -27,23 +27,17 @@ mod refs {
 mod __jni_bindgen;
 mod array;
 mod as_jvalue;
-mod as_valid_jobject_and_env;
 mod env;
 mod jni_type;
-mod object_and_env;
 mod string_chars;
-mod throwable_type;
 mod vm;
 
 pub use array::*;
 pub use as_jvalue::*;
-pub use as_valid_jobject_and_env::*;
 pub use env::*;
 pub use jni_type::JniType;
-pub use object_and_env::*;
 pub use refs::*;
 pub use string_chars::*;
-pub use throwable_type::*;
 pub use vm::*;
 
 /// Error returned on failed `.cast()`.`
@@ -55,4 +49,27 @@ impl fmt::Display for CastError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("Cast failed")
     }
+}
+
+/// A marker type indicating this is a valid exception type that all exceptions thrown by java should be compatible with
+pub trait ThrowableType: ReferenceType {}
+
+/// You should generally not be interacting with this type directly, but it must be public for codegen.
+/// This is hideously unsafe to implement:
+///
+/// 1) You assert the type is a #[repr(transparent)] wrapper around ObjectAndEnv.
+/// 2) You assert the type cannot exist with a dangling object or env.
+///     2.1) Do not implement Copy or Clone.
+///     2.2) Do not allow value access.
+///     2.3) Do not allow &mut T access.
+///     2.4) Only allow &T access, which cannot be moved from.
+#[doc(hidden)]
+pub unsafe trait ReferenceType: AsJValue + JniType + 'static {}
+
+#[repr(C)] // Given how frequently we transmute to/from this, we'd better keep a consistent layout.
+#[doc(hidden)] // You should generally not be interacting with this type directly, but it must be public for codegen.
+#[derive(Copy, Clone)]
+pub struct ObjectAndEnv {
+    pub object: jni_sys::jobject,
+    pub env: *mut jni_sys::JNIEnv,
 }
