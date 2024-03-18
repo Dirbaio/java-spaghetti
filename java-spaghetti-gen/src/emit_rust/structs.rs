@@ -113,7 +113,7 @@ impl Struct {
             "()".to_owned() // This might only happen for java.lang.Object
         };
 
-        writeln!(out, "{}__jni_bindgen! {{", indent)?;
+        writeln!(out, "{}::java_spaghetti::class! {{", indent)?;
         if let Some(url) = KnownDocsUrl::from_class(context, self.java.path.as_id()) {
             writeln!(out, "{}    /// {} {} {}", indent, visibility, keyword, url)?;
         } else {

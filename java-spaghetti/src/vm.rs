@@ -7,9 +7,7 @@ use crate::Env;
 /// FFI: Use **&VM** instead of *const JavaVM.  This represents a global, process-wide Java exection environment.
 ///
 /// On Android, there is only one VM per-process, although on desktop it's possible (if rare) to have multiple VMs
-/// within the same process.  While this library does not yet support having multiple VMs active simultaniously, please
-/// don't hesitate to [file an issue](https://github.com/MaulingMonkey/jni-bindgen/issues/new) if this is an important
-/// use case for you.
+/// within the same process.  This library does not support having multiple VMs active simultaniously.
 ///
 /// This is a "safe" alternative to jni_sys::JavaVM raw pointers, with the following caveats:
 ///

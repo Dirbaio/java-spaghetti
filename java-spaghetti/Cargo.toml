@@ -1,0 +1,13 @@
+[package]
+name = "java-spaghetti"
+version = "0.1.0"
+edition = "2021"
+description = "Glue code to accompany the java-spaghetti code generator for binding to JVM APIs from Rust"
+documentation = "https://docs.rs/java-spaghetti/"
+repository = "https://github.com/Dirbaio/java-spaghetti"
+keywords = ["jvm", "jni", "bindgen", "android"]
+categories = ["external-ffi-bindings"]
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+jni-sys = "0.4.0"

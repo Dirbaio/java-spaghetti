@@ -1,4 +1,4 @@
-//! jni-bindgen.toml configuration file structures and parsing APIs.
+//! java-spaghetti.toml configuration file structures and parsing APIs.
 
 use std::path::{Path, PathBuf};
 use std::{fs, io};
@@ -231,7 +231,7 @@ pub struct Rename {
     pub signature: Option<String>,
 }
 
-/// Format for a `jni-bindgen.toml` file or in-memory settings.
+/// Format for a `java-spaghetti.toml` file or in-memory settings.
 ///
 /// # Example File
 ///
@@ -310,14 +310,14 @@ pub struct File {
     #[serde(default = "Default::default")]
     pub documentation: Documentation,
 
-    /// Input(s) into the jni-bindgen process.
+    /// Input(s) into the java-spaghetti-gen process.
     pub input: Input,
 
     /// Logging settings
     #[serde(default = "Default::default")]
     pub logging: Logging,
 
-    /// Output(s) from the jni-bindgen process.
+    /// Output(s) from the java-spaghetti-gen process.
     pub output: Output,
 
     /// Classes and class methods to include.
@@ -337,33 +337,33 @@ pub struct File {
 }
 
 impl File {
-    /// Read from I/O, under the assumption that it's in the "jni-bindgen.toml" file format.
+    /// Read from I/O, under the assumption that it's in the "java-spaghetti.toml" file format.
     pub fn read(file: &mut impl io::Read) -> io::Result<Self> {
         let mut buffer = String::new();
         file.read_to_string(&mut buffer)?; // Apparently toml can't stream.
         Self::read_str(&buffer[..])
     }
 
-    /// Read from a memory buffer, under the assumption that it's in the "jni-bindgen.toml" file format.
+    /// Read from a memory buffer, under the assumption that it's in the "java-spaghetti.toml" file format.
     pub fn read_str(buffer: &str) -> io::Result<Self> {
         let file: File = toml::from_str(buffer).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
         Ok(file)
     }
 
-    /// Search the current directory - or failing that, it's ancestors - until we find "jni-bindgen.toml" or reach the
+    /// Search the current directory - or failing that, it's ancestors - until we find "java-spaghetti.toml" or reach the
     /// root of the filesystem and cannot continue.
     #[allow(dead_code)]
     pub fn from_current_directory() -> io::Result<FileWithContext> {
         Self::from_directory(std::env::current_dir()?.as_path())
     }
 
-    /// Search the specified directory - or failing that, it's ancestors - until we find "jni-bindgen.toml" or reach the
+    /// Search the specified directory - or failing that, it's ancestors - until we find "java-spaghetti.toml" or reach the
     /// root of the filesystem and cannot continue.
     pub fn from_directory(path: &Path) -> io::Result<FileWithContext> {
         let original = path;
         let mut path = path.to_owned();
         loop {
-            path.push("jni-bindgen.toml");
+            path.push("java-spaghetti.toml");
             println!("cargo:rerun-if-changed={}", path.display());
             if path.exists() {
                 let file = File::read(&mut fs::File::open(&path)?)?;
@@ -374,7 +374,7 @@ impl File {
                 Err(io::Error::new(
                     io::ErrorKind::NotFound,
                     format!(
-                        "Failed to find jni-bindgen.toml in \"{}\" or any of it's parent directories.",
+                        "Failed to find java-spaghetti.toml in \"{}\" or any of it's parent directories.",
                         original.display()
                     ),
                 ))?;
@@ -557,9 +557,9 @@ fn load_minimal_toml() {
 /// [File]:         struct.File.html
 #[derive(Debug, Clone)]
 pub struct FileWithContext {
-    /// The parsed `jni-bindgen.toml` configuration file.
+    /// The parsed `java-spaghetti.toml` configuration file.
     pub file: File,
 
-    /// The directory that contained the `jni-bindgen.toml` file, against which paths should be resolved.
+    /// The directory that contained the `java-spaghetti.toml` file, against which paths should be resolved.
     pub directory: PathBuf,
 }

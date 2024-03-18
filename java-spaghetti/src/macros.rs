@@ -2,13 +2,11 @@
 
 #[doc(hidden)] // For codegen use only, not (yet?) an otherwise stable part of the glue interface.
 #[macro_export]
-macro_rules! __jni_bindgen {
+macro_rules! class {
     () => {};
 
-
-
     (@deref $from:ty => (); $($rest:tt)*) => {
-        __jni_bindgen! { $($rest)* }
+        $crate::class! { $($rest)* }
     };
 
     (@deref $from:ty => $target:ty; $($rest:tt)*) => {
@@ -18,7 +16,7 @@ macro_rules! __jni_bindgen {
                 unsafe { &*(self as *const Self as *const Self::Target) }
             }
         }
-        __jni_bindgen! { $($rest)* }
+        $crate::class! { $($rest)* }
     };
 
     (@implements $from:ty => $target:ty; $($rest:tt)*) => {
@@ -27,7 +25,7 @@ macro_rules! __jni_bindgen {
                 unsafe { &*(self as *const Self as *const $target) }
             }
         }
-        __jni_bindgen! { $($rest)* }
+        $crate::class! { $($rest)* }
     };
 
 
@@ -36,7 +34,7 @@ macro_rules! __jni_bindgen {
         $(#[$attr])* #[repr(transparent)] struct $name;
         impl $name { $($body)* }
         unsafe impl $crate::JniType for $name { fn static_with_jni_type<R>(callback: impl FnOnce(&str) -> R) -> R { callback($jni_type) } }
-        __jni_bindgen! {
+        $crate::class! {
             // static
             $($rest)*
         }
@@ -48,7 +46,7 @@ macro_rules! __jni_bindgen {
         unsafe impl $crate::ReferenceType for $name {}
         unsafe impl $crate::AsJValue for $name { fn as_jvalue(&self) -> $crate::sys::jvalue { $crate::sys::jvalue { l: self.0.object } } }
         unsafe impl $crate::JniType for $name { fn static_with_jni_type<R>(callback: impl FnOnce(&str) -> R) -> R { callback($jni_type) } }
-        __jni_bindgen! {
+        $crate::class! {
             $($(@implements $name => $interface;)*)*
             @deref $name => $parent;
             $($rest)*
@@ -61,7 +59,7 @@ macro_rules! __jni_bindgen {
         unsafe impl $crate::ReferenceType for $name {}
         unsafe impl $crate::AsJValue for $name { fn as_jvalue(&self) -> $crate::sys::jvalue { $crate::sys::jvalue { l: self.0.object } } }
         unsafe impl $crate::JniType for $name { fn static_with_jni_type<R>(callback: impl FnOnce(&str) -> R) -> R { callback($jni_type) } }
-        __jni_bindgen! {
+        $crate::class! {
             $($(@implements $name => $interface;)*)*
             @deref $name => $parent;
             $($rest)*
@@ -74,7 +72,7 @@ macro_rules! __jni_bindgen {
         unsafe impl $crate::ReferenceType for $name {}
         unsafe impl $crate::AsJValue for $name { fn as_jvalue(&self) -> $crate::sys::jvalue { $crate::sys::jvalue { l: self.0.object } } }
         unsafe impl $crate::JniType for $name { fn static_with_jni_type<R>(callback: impl FnOnce(&str) -> R) -> R { callback($jni_type) } }
-        __jni_bindgen! {
+        $crate::class! {
             $($(@implements $name => $interface;)*)*
             @deref $name => $parent;
             $($rest)*
@@ -87,7 +85,7 @@ macro_rules! __jni_bindgen {
         unsafe impl $crate::ReferenceType for $name {}
         unsafe impl $crate::AsJValue for $name { fn as_jvalue(&self) -> $crate::sys::jvalue { $crate::sys::jvalue { l: self.0.object } } }
         unsafe impl $crate::JniType for $name { fn static_with_jni_type<R>(callback: impl FnOnce(&str) -> R) -> R { callback($jni_type) } }
-        __jni_bindgen! {
+        $crate::class! {
             $($(@implements $name => $interface;)*)*
             @deref $name => $parent;
             $($rest)*
@@ -100,7 +98,7 @@ macro_rules! __jni_bindgen {
         $(#[$attr])* #[repr(transparent)] pub struct $name;
         impl $name { $($body)* }
         unsafe impl $crate::JniType for $name { fn static_with_jni_type<R>(callback: impl FnOnce(&str) -> R) -> R { callback($jni_type) } }
-        __jni_bindgen! {
+        $crate::class! {
             // static
             $($rest)*
         }
@@ -112,7 +110,7 @@ macro_rules! __jni_bindgen {
         unsafe impl $crate::ReferenceType for $name {}
         unsafe impl $crate::AsJValue for $name { fn as_jvalue(&self) -> $crate::sys::jvalue { $crate::sys::jvalue { l: self.0.object } } }
         unsafe impl $crate::JniType for $name { fn static_with_jni_type<R>(callback: impl FnOnce(&str) -> R) -> R { callback($jni_type) } }
-        __jni_bindgen! {
+        $crate::class! {
             $($(@implements $name => $interface;)*)*
             @deref $name => $parent;
             $($rest)*
@@ -125,7 +123,7 @@ macro_rules! __jni_bindgen {
         unsafe impl $crate::ReferenceType for $name {}
         unsafe impl $crate::AsJValue for $name { fn as_jvalue(&self) -> $crate::sys::jvalue { $crate::sys::jvalue { l: self.0.object } } }
         unsafe impl $crate::JniType for $name { fn static_with_jni_type<R>(callback: impl FnOnce(&str) -> R) -> R { callback($jni_type) } }
-        __jni_bindgen! {
+        $crate::class! {
             $($(@implements $name => $interface;)*)*
             @deref $name => $parent;
             $($rest)*
@@ -138,7 +136,7 @@ macro_rules! __jni_bindgen {
         unsafe impl $crate::ReferenceType for $name {}
         unsafe impl $crate::AsJValue for $name { fn as_jvalue(&self) -> $crate::sys::jvalue { $crate::sys::jvalue { l: self.0.object } } }
         unsafe impl $crate::JniType for $name { fn static_with_jni_type<R>(callback: impl FnOnce(&str) -> R) -> R { callback($jni_type) } }
-        __jni_bindgen! {
+        $crate::class! {
             $($(@implements $name => $interface;)*)*
             @deref $name => $parent;
             $($rest)*
@@ -151,7 +149,7 @@ macro_rules! __jni_bindgen {
         unsafe impl $crate::ReferenceType for $name {}
         unsafe impl $crate::AsJValue for $name { fn as_jvalue(&self) -> $crate::sys::jvalue { $crate::sys::jvalue { l: self.0.object } } }
         unsafe impl $crate::JniType for $name { fn static_with_jni_type<R>(callback: impl FnOnce(&str) -> R) -> R { callback($jni_type) } }
-        __jni_bindgen! {
+        $crate::class! {
             $($(@implements $name => $interface;)*)*
             @deref $name => $parent;
             $($rest)*

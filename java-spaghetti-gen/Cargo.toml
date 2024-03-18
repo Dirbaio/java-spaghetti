@@ -1,20 +1,15 @@
 [package]
-name = "jni-bindgen"
-version = "0.0.10"
-authors = ["MaulingMonkey <git@maulingmonkey.com>"]
+name = "java-spaghetti-gen"
+version = "0.1.0"
 edition = "2021"
 description = "Code generator for binding to JVM APIs from Rust"
-documentation = "https://docs.rs/jni-bindgen/"
-repository = "https://github.com/MaulingMonkey/jni-bindgen"
+repository = "https://github.com/Dirbaio/java-spaghetti"
 keywords = ["jvm", "jni", "bindgen", "android"]
 categories = ["development-tools::ffi"]
 license = "MIT OR Apache-2.0"
-include = ["/**/*.rs", "/Cargo.toml", "/cli.yml", "/LICENSE-MIT", "/LICENSE-APACHE"]
-
 
 [dependencies]
 jreflection             = "0.0.11"
-jni-glue                = { version = "=0.0.10", path = "../jni-glue" }
 clap                    = { version = "4", features = ["derive"] }
 bitflags                = "2.4.2"
 serde                   = "1.0.197"

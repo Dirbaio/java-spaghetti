@@ -38,7 +38,7 @@ use crate::{AsJValue, Local, ReferenceType, ThrowableType, VM};
 ///
 /// ```rust
 /// use jni_sys::{jboolean, jobject, JNI_TRUE}; // TODO: Replace with safer equivalent
-/// use jni_glue::Env;
+/// use java_spaghetti::Env;
 ///
 /// #[no_mangle] pub extern "system"
 /// fn Java_com_maulingmonkey_example_MainActivity_dispatchKeyEvent<'env>(

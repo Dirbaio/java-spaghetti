@@ -95,7 +95,7 @@ impl<'a> Method<'a> {
         // Contents of fn name<'env>(...) {
         let mut params_decl = if self.java.is_constructor() || self.java.is_static() {
             match context.config.codegen.static_env {
-                config::toml::StaticEnvStyle::Explicit => String::from("__jni_env: __jni_bindgen::Env<'env>"),
+                config::toml::StaticEnvStyle::Explicit => String::from("__jni_env: ::java_spaghetti::Env<'env>"),
                 config::toml::StaticEnvStyle::__NonExhaustive => {
                     emit_reject_reasons.push("ERROR:  StaticEnvStyle::__NonExhaustive is invalid, silly goose!");
                     String::new()
@@ -129,10 +129,7 @@ impl<'a> Method<'a> {
                     }
                     param_is_object = true;
                     match context.java_to_rust_path(class, mod_) {
-                        Ok(path) => format!(
-                            "impl __jni_bindgen::std::convert::Into<__jni_bindgen::std::option::Option<&'env {}>>",
-                            path
-                        ),
+                        Ok(path) => format!("impl ::std::convert::Into<::std::option::Option<&'env {}>>", path),
                         Err(_) => {
                             emit_reject_reasons
                                 .push("ERROR:  Failed to resolve JNI path to Rust path for argument type");
@@ -141,25 +138,24 @@ impl<'a> Method<'a> {
                     }
                 }
                 method::Type::Array { levels, inner } => {
-                    let mut buffer =
-                        "impl __jni_bindgen::std::convert::Into<__jni_bindgen::std::option::Option<&'env ".to_owned();
+                    let mut buffer = "impl ::std::convert::Into<::std::option::Option<&'env ".to_owned();
                     for _ in 0..(levels - 1) {
-                        buffer.push_str("__jni_bindgen::ObjectArray<");
+                        buffer.push_str("::java_spaghetti::ObjectArray<");
                     }
                     match inner {
-                        method::BasicType::Boolean => buffer.push_str("__jni_bindgen::BooleanArray"),
-                        method::BasicType::Byte => buffer.push_str("__jni_bindgen::ByteArray"),
-                        method::BasicType::Char => buffer.push_str("__jni_bindgen::CharArray"),
-                        method::BasicType::Short => buffer.push_str("__jni_bindgen::ShortArray"),
-                        method::BasicType::Int => buffer.push_str("__jni_bindgen::IntArray"),
-                        method::BasicType::Long => buffer.push_str("__jni_bindgen::LongArray"),
-                        method::BasicType::Float => buffer.push_str("__jni_bindgen::FloatArray"),
-                        method::BasicType::Double => buffer.push_str("__jni_bindgen::DoubleArray"),
+                        method::BasicType::Boolean => buffer.push_str("::java_spaghetti::BooleanArray"),
+                        method::BasicType::Byte => buffer.push_str("::java_spaghetti::ByteArray"),
+                        method::BasicType::Char => buffer.push_str("::java_spaghetti::CharArray"),
+                        method::BasicType::Short => buffer.push_str("::java_spaghetti::ShortArray"),
+                        method::BasicType::Int => buffer.push_str("::java_spaghetti::IntArray"),
+                        method::BasicType::Long => buffer.push_str("::java_spaghetti::LongArray"),
+                        method::BasicType::Float => buffer.push_str("::java_spaghetti::FloatArray"),
+                        method::BasicType::Double => buffer.push_str("::java_spaghetti::DoubleArray"),
                         method::BasicType::Class(class) => {
                             if !context.all_classes.contains(class.as_str()) {
                                 emit_reject_reasons.push("ERROR:  missing class for argument type");
                             }
-                            buffer.push_str("__jni_bindgen::ObjectArray<");
+                            buffer.push_str("::java_spaghetti::ObjectArray<");
                             match context.java_to_rust_path(class, mod_) {
                                 Ok(path) => buffer.push_str(path.as_str()),
                                 Err(_) => {
@@ -194,7 +190,7 @@ impl<'a> Method<'a> {
                 params_array.push_str(", ");
             }
 
-            params_array.push_str("__jni_bindgen::AsJValue::as_jvalue(");
+            params_array.push_str("::java_spaghetti::AsJValue::as_jvalue(");
             params_array.push('&');
             params_array.push_str(arg_name.as_str());
             if param_is_object {
@@ -227,10 +223,7 @@ impl<'a> Method<'a> {
                     emit_reject_reasons.push("ERROR:  missing class for return type");
                 }
                 match context.java_to_rust_path(class, mod_) {
-                    Ok(path) => format!(
-                        "__jni_bindgen::std::option::Option<__jni_bindgen::Local<'env, {}>>",
-                        path
-                    ),
+                    Ok(path) => format!("::std::option::Option<::java_spaghetti::Local<'env, {}>>", path),
                     Err(_) => {
                         emit_reject_reasons.push("ERROR:  Failed to resolve JNI path to Rust path for return type");
                         format!("{:?}", class)
@@ -245,24 +238,24 @@ impl<'a> Method<'a> {
                 "???".to_owned()
             }
             method::Type::Array { levels, inner } => {
-                let mut buffer = "__jni_bindgen::std::option::Option<__jni_bindgen::Local<'env, ".to_owned();
+                let mut buffer = "::std::option::Option<::java_spaghetti::Local<'env, ".to_owned();
                 for _ in 0..(levels - 1) {
-                    buffer.push_str("__jni_bindgen::ObjectArray<");
+                    buffer.push_str("::java_spaghetti::ObjectArray<");
                 }
                 match inner {
-                    method::BasicType::Boolean => buffer.push_str("__jni_bindgen::BooleanArray"),
-                    method::BasicType::Byte => buffer.push_str("__jni_bindgen::ByteArray"),
-                    method::BasicType::Char => buffer.push_str("__jni_bindgen::CharArray"),
-                    method::BasicType::Short => buffer.push_str("__jni_bindgen::ShortArray"),
-                    method::BasicType::Int => buffer.push_str("__jni_bindgen::IntArray"),
-                    method::BasicType::Long => buffer.push_str("__jni_bindgen::LongArray"),
-                    method::BasicType::Float => buffer.push_str("__jni_bindgen::FloatArray"),
-                    method::BasicType::Double => buffer.push_str("__jni_bindgen::DoubleArray"),
+                    method::BasicType::Boolean => buffer.push_str("::java_spaghetti::BooleanArray"),
+                    method::BasicType::Byte => buffer.push_str("::java_spaghetti::ByteArray"),
+                    method::BasicType::Char => buffer.push_str("::java_spaghetti::CharArray"),
+                    method::BasicType::Short => buffer.push_str("::java_spaghetti::ShortArray"),
+                    method::BasicType::Int => buffer.push_str("::java_spaghetti::IntArray"),
+                    method::BasicType::Long => buffer.push_str("::java_spaghetti::LongArray"),
+                    method::BasicType::Float => buffer.push_str("::java_spaghetti::FloatArray"),
+                    method::BasicType::Double => buffer.push_str("::java_spaghetti::DoubleArray"),
                     method::BasicType::Class(class) => {
                         if !context.all_classes.contains(class.as_str()) {
                             emit_reject_reasons.push("ERROR:  missing class for return type");
                         }
-                        buffer.push_str("__jni_bindgen::ObjectArray<");
+                        buffer.push_str("::java_spaghetti::ObjectArray<");
                         match context.java_to_rust_path(class, mod_) {
                             Ok(path) => buffer.push_str(path.as_str()),
                             Err(_) => {
@@ -309,7 +302,7 @@ impl<'a> Method<'a> {
         if self.java.is_constructor() {
             if descriptor.return_type() == method::Type::Single(method::BasicType::Void) {
                 ret_method_fragment = "object";
-                ret_decl = "__jni_bindgen::Local<'env, Self>".to_string();
+                ret_decl = "::java_spaghetti::Local<'env, Self>".to_string();
             } else {
                 emit_reject_reasons.push("ERROR:  Constructor should've returned void");
             }
@@ -338,7 +331,7 @@ impl<'a> Method<'a> {
         }
         writeln!(
             out,
-            "{}{}{}fn {}<'env>({}) -> __jni_bindgen::std::result::Result<{}, __jni_bindgen::Local<'env, {}>> {{",
+            "{}{}{}fn {}<'env>({}) -> ::std::result::Result<{}, ::java_spaghetti::Local<'env, {}>> {{",
             indent,
             attributes,
             access,
@@ -366,7 +359,7 @@ impl<'a> Method<'a> {
         } else {
             writeln!(
                 out,
-                "{}        let __jni_env = __jni_bindgen::Env::from_raw(self.0.env);",
+                "{}        let __jni_env = ::java_spaghetti::Env::from_raw(self.0.env);",
                 indent
             )?;
         }

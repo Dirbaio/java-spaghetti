@@ -19,7 +19,6 @@ impl Module {
             writeln!(out)?;
 
             writeln!(out, "{}pub mod {} {{", indent, name)?;
-            writeln!(out, "{}    use super::__jni_bindgen;", indent)?;
             module.write(context, &next_indent[..], out)?;
             writeln!(out, "{}}}", indent)?;
         }

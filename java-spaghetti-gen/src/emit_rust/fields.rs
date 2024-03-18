@@ -68,14 +68,8 @@ impl<'a> Field<'a> {
                     emit_reject_reasons.push("ERROR:  missing class for field type");
                 }
                 if let Ok(fqn) = context.java_to_rust_path(class, mod_) {
-                    rust_set_type_buffer = format!(
-                        "impl __jni_bindgen::std::convert::Into<__jni_bindgen::std::option::Option<&'obj {}>>",
-                        &fqn
-                    );
-                    rust_get_type_buffer = format!(
-                        "__jni_bindgen::std::option::Option<__jni_bindgen::Local<'env, {}>>",
-                        &fqn
-                    );
+                    rust_set_type_buffer = format!("impl ::std::convert::Into<::std::option::Option<&'obj {}>>", &fqn);
+                    rust_get_type_buffer = format!("::std::option::Option<::java_spaghetti::Local<'env, {}>>", &fqn);
                     (rust_set_type_buffer.as_str(), rust_get_type_buffer.as_str())
                 } else {
                     emit_reject_reasons.push("ERROR:  Unable to resolve class FQN");
@@ -85,23 +79,23 @@ impl<'a> Field<'a> {
             field::Descriptor::Array { levels, inner } => {
                 let mut buffer = String::new();
                 for _ in 0..(levels - 1) {
-                    buffer.push_str("__jni_bindgen::ObjectArray<");
+                    buffer.push_str("::java_spaghetti::ObjectArray<");
                 }
                 match inner {
-                    field::BasicType::Boolean => buffer.push_str("__jni_bindgen::BooleanArray"),
-                    field::BasicType::Byte => buffer.push_str("__jni_bindgen::ByteArray"),
-                    field::BasicType::Char => buffer.push_str("__jni_bindgen::CharArray"),
-                    field::BasicType::Short => buffer.push_str("__jni_bindgen::ShortArray"),
-                    field::BasicType::Int => buffer.push_str("__jni_bindgen::IntArray"),
-                    field::BasicType::Long => buffer.push_str("__jni_bindgen::LongArray"),
-                    field::BasicType::Float => buffer.push_str("__jni_bindgen::FloatArray"),
-                    field::BasicType::Double => buffer.push_str("__jni_bindgen::DoubleArray"),
+                    field::BasicType::Boolean => buffer.push_str("::java_spaghetti::BooleanArray"),
+                    field::BasicType::Byte => buffer.push_str("::java_spaghetti::ByteArray"),
+                    field::BasicType::Char => buffer.push_str("::java_spaghetti::CharArray"),
+                    field::BasicType::Short => buffer.push_str("::java_spaghetti::ShortArray"),
+                    field::BasicType::Int => buffer.push_str("::java_spaghetti::IntArray"),
+                    field::BasicType::Long => buffer.push_str("::java_spaghetti::LongArray"),
+                    field::BasicType::Float => buffer.push_str("::java_spaghetti::FloatArray"),
+                    field::BasicType::Double => buffer.push_str("::java_spaghetti::DoubleArray"),
                     field::BasicType::Class(class) => {
                         if !context.all_classes.contains(class.as_str()) {
                             emit_reject_reasons.push("ERROR:  missing class for field type");
                         }
 
-                        buffer.push_str("__jni_bindgen::ObjectArray<");
+                        buffer.push_str("::java_spaghetti::ObjectArray<");
                         match context.java_to_rust_path(class, mod_) {
                             Ok(path) => buffer.push_str(path.as_str()),
                             Err(_) => {
@@ -126,14 +120,8 @@ impl<'a> Field<'a> {
                     buffer.push('>');
                 }
 
-                rust_set_type_buffer = format!(
-                    "impl __jni_bindgen::std::convert::Into<__jni_bindgen::std::option::Option<&'obj {}>>",
-                    &buffer
-                );
-                rust_get_type_buffer = format!(
-                    "__jni_bindgen::std::option::Option<__jni_bindgen::Local<'env, {}>>",
-                    &buffer
-                );
+                rust_set_type_buffer = format!("impl ::std::convert::Into<::std::option::Option<&'obj {}>>", &buffer);
+                rust_get_type_buffer = format!("::std::option::Option<::java_spaghetti::Local<'env, {}>>", &buffer);
                 (rust_set_type_buffer.as_str(), rust_get_type_buffer.as_str())
             }
         };
@@ -187,7 +175,7 @@ impl<'a> Field<'a> {
         }
 
         let env_param = if self.java.is_static() {
-            "env: __jni_bindgen::Env<'env>"
+            "env: ::java_spaghetti::Env<'env>"
         } else {
             "&'env self"
         };
@@ -248,7 +236,7 @@ impl<'a> Field<'a> {
                 if !self.java.is_static() {
                     writeln!(
                         out,
-                        "{}        let env = __jni_bindgen::Env::from_raw(self.0.env);",
+                        "{}        let env = ::java_spaghetti::Env::from_raw(self.0.env);",
                         indent
                     )?;
                 }
@@ -300,7 +288,7 @@ impl<'a> Field<'a> {
                     if !self.java.is_static() {
                         writeln!(
                             out,
-                            "{}        let env = __jni_bindgen::Env::from_raw(self.0.env);",
+                            "{}        let env = ::java_spaghetti::Env::from_raw(self.0.env);",
                             indent
                         )?;
                     }

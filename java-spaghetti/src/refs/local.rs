@@ -18,7 +18,7 @@ use crate::{Env, Global, Ref, ReferenceType};
 /// convert to a plain Ref with:
 ///
 /// ```rust,no_run
-/// # use jni_glue::*;
+/// # use java_spaghetti::*;
 /// # fn example<T: Class>(local: Local<T>) {
 /// let local = Local::leak(local);
 /// # }
