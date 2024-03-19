@@ -13,12 +13,12 @@ pub use ::std;
 
 mod refs {
 
-    mod argument;
+    mod arg;
     mod global;
     mod local;
     mod ref_;
 
-    pub use argument::*;
+    pub use arg::*;
     pub use global::*;
     pub use local::*;
     pub use ref_::*;
