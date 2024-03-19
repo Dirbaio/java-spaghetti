@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use jni_sys::*;
 
-use crate::{Env, Global, Ref, ReferenceType};
+use crate::{Env, Global, Local, Ref, ReferenceType};
 
 /// FFI: Use **Argument\<java::lang::Object\>** instead of jobject.  This represents a (null?) function argument.
 ///
@@ -44,17 +44,24 @@ impl<T: ReferenceType> Argument<T> {
     /// **unsafe**:  This assumes the argument belongs to the given Env/VM, which is technically unsound.  However, the
     /// intended use case of immediately converting any Argument s into ArgumentRef s at the start of a JNI callback,
     /// where Java directly invoked your function with an Env + arguments, is sound.
+    pub unsafe fn into_local<'env>(self, env: Env<'env>) -> Option<Local<'env, T>> {
+        if self.object.is_null() {
+            None
+        } else {
+            Some(Local::from_raw(env, self.object))
+        }
+    }
+
+    /// **unsafe**:  This assumes the argument belongs to the given Env/VM, which is technically unsound.  However, the
+    /// intended use case of immediately converting any Argument s into ArgumentRef s at the start of a JNI callback,
+    /// where Java directly invoked your function with an Env + arguments, is sound.
     pub unsafe fn into_global(self, env: Env) -> Option<Global<T>> {
         if self.object.is_null() {
             None
         } else {
             let jnienv = env.as_raw();
             let object = ((**jnienv).v1_2.NewGlobalRef)(jnienv, self.object);
-            Some(Global {
-                object,
-                vm: env.vm(),
-                pd: PhantomData,
-            })
+            Some(Global::from_raw(env.vm(), object))
         }
     }
 }

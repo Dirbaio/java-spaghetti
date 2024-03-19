@@ -1,5 +1,4 @@
 use std::fmt::{self, Debug, Display, Formatter};
-use std::marker::PhantomData;
 use std::ops::Deref;
 
 use jni_sys::*;
@@ -33,9 +32,6 @@ pub struct Local<'env, T: ReferenceType> {
     ref_: Ref<'env, T>,
 }
 
-// Could implement clone if necessary via NewLocalRef
-// Do *not* implement Copy, cannot be safely done.
-
 impl<'env, T: ReferenceType> Local<'env, T> {
     pub unsafe fn from_raw(env: Env<'env>, object: jobject) -> Self {
         Self {
@@ -66,12 +62,12 @@ impl<'env, T: ReferenceType> Local<'env, T> {
     pub fn as_global(&self) -> Global<T> {
         let env = self.env();
         let jnienv = env.as_raw();
-        let object = unsafe { ((**jnienv).v1_2.NewGlobalRef)(jnienv, self.ref_.as_raw()) };
-        Global {
-            object,
-            vm: env.vm(),
-            pd: PhantomData,
-        }
+        let object = unsafe { ((**jnienv).v1_2.NewGlobalRef)(jnienv, self.as_raw()) };
+        unsafe { Global::from_raw(env.vm(), object) }
+    }
+
+    pub fn as_ref(&self) -> Ref<'_, T> {
+        self.ref_
     }
 
     pub fn cast<U: ReferenceType>(&self) -> Result<Local<'env, U>, crate::CastError> {
@@ -84,6 +80,24 @@ impl<'env, T: ReferenceType> Local<'env, T> {
         }
         let object = unsafe { ((**jnienv).v1_2.NewLocalRef)(jnienv, self.as_raw()) };
         Ok(unsafe { Local::from_raw(env, object) })
+    }
+}
+
+impl<'env, T: ReferenceType> From<Ref<'env, T>> for Local<'env, T> {
+    fn from(x: Ref<'env, T>) -> Self {
+        x.as_local()
+    }
+}
+
+impl<'env, T: ReferenceType> From<&Local<'env, T>> for Local<'env, T> {
+    fn from(x: &Local<'env, T>) -> Self {
+        x.clone()
+    }
+}
+
+impl<'env, T: ReferenceType> From<&Ref<'env, T>> for Local<'env, T> {
+    fn from(x: &Ref<'env, T>) -> Self {
+        x.as_local()
     }
 }
 

@@ -4,7 +4,7 @@ use std::ops::Deref;
 
 use jni_sys::jobject;
 
-use crate::{Env, ObjectAndEnv, ReferenceType};
+use crate::{Env, Global, Local, ObjectAndEnv, ReferenceType};
 
 /// A non-null, [reference](https://www.ibm.com/support/knowledgecenter/en/SSYKE2_8.0.0/com.ibm.java.vm.80.doc/docs/jni_refs.html)
 /// to a Java object (+ [Env]).  This may refer to a [Local](crate::Local), [Global](crate::Global), local [Argument](crate::Argument), etc.
@@ -49,6 +49,20 @@ impl<'env, T: ReferenceType> Ref<'env, T> {
 
     pub fn as_raw(&self) -> jobject {
         self.oae.object
+    }
+
+    pub fn as_global(&self) -> Global<T> {
+        let env = self.env();
+        let jnienv = env.as_raw();
+        let object = unsafe { ((**jnienv).v1_2.NewGlobalRef)(jnienv, self.as_raw()) };
+        unsafe { Global::from_raw(env.vm(), object) }
+    }
+
+    pub fn as_local(&self) -> Local<'env, T> {
+        let env = self.env();
+        let jnienv = env.as_raw();
+        let object = unsafe { ((**jnienv).v1_2.NewLocalRef)(jnienv, self.as_raw()) };
+        unsafe { Local::from_raw(self.env(), object) }
     }
 
     pub fn cast<U: ReferenceType>(&self) -> Result<Ref<'env, U>, crate::CastError> {

@@ -16,9 +16,9 @@ use crate::{Env, Local, Ref, ReferenceType, VM};
 /// *const JavaVM in static and/or thread local storage instead of lugging it around in every [Local].  Of course, there's
 /// no guarantee that's actually an *optimization*...
 pub struct Global<T: ReferenceType> {
-    pub(crate) object: jobject,
-    pub(crate) vm: VM,
-    pub(crate) pd: PhantomData<T>,
+    object: jobject,
+    vm: VM,
+    pd: PhantomData<T>,
 }
 
 unsafe impl<T: ReferenceType> Send for Global<T> {}
@@ -47,14 +47,38 @@ impl<T: ReferenceType> Global<T> {
         object
     }
 
-    pub fn with<'env>(&'env self, env: Env<'env>) -> Ref<'env, T> {
+    pub fn as_local<'env>(&self, env: Env<'env>) -> Local<'env, T> {
+        let jnienv = env.as_raw();
+        let object = unsafe { ((**jnienv).v1_2.NewLocalRef)(jnienv, self.as_raw()) };
+        unsafe { Local::from_raw(env, object) }
+    }
+
+    pub fn as_ref<'env>(&'env self, env: Env<'env>) -> Ref<'env, T> {
         unsafe { Ref::from_raw(env, self.object) }
     }
 }
 
 impl<'env, T: ReferenceType> From<Local<'env, T>> for Global<T> {
-    fn from(local: Local<'env, T>) -> Global<T> {
-        local.as_global()
+    fn from(x: Local<'env, T>) -> Self {
+        x.as_global()
+    }
+}
+
+impl<'env, T: ReferenceType> From<Ref<'env, T>> for Global<T> {
+    fn from(x: Ref<'env, T>) -> Self {
+        x.as_global()
+    }
+}
+
+impl<'env, T: ReferenceType> From<&Local<'env, T>> for Global<T> {
+    fn from(x: &Local<'env, T>) -> Self {
+        x.as_global()
+    }
+}
+
+impl<'env, T: ReferenceType> From<&Ref<'env, T>> for Global<T> {
+    fn from(x: &Ref<'env, T>) -> Self {
+        x.as_global()
     }
 }
 
