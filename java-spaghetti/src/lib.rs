@@ -12,16 +12,17 @@ pub use ::jni_sys as sys;
 pub use ::std;
 
 mod refs {
-
     mod arg;
     mod global;
     mod local;
     mod ref_;
+    mod return_;
 
     pub use arg::*;
     pub use global::*;
     pub use local::*;
     pub use ref_::*;
+    pub use return_::*;
 }
 
 mod array;
