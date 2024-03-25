@@ -1,6 +1,6 @@
 [package]
 name = "java-spaghetti"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Glue code to accompany the java-spaghetti code generator for binding to JVM APIs from Rust"
 documentation = "https://docs.rs/java-spaghetti/"
