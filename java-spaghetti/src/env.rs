@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 use std::os::raw::c_char;
 use std::ptr::null_mut;
+use std::sync::atomic::{AtomicPtr, Ordering};
 
 use jni_sys::*;
 
@@ -57,6 +58,8 @@ pub struct Env<'env> {
     pd: PhantomData<&'env mut JNIEnv>,
 }
 
+static CLASS_LOADER: AtomicPtr<_jobject> = AtomicPtr::new(null_mut());
+
 impl<'env> Env<'env> {
     pub unsafe fn from_raw(ptr: *mut JNIEnv) -> Self {
         Self {
@@ -98,7 +101,70 @@ impl<'env> Env<'env> {
 
     // Query Methods
 
+    /// Set a custom class loader to use instead of JNI `FindClass` calls.
+    ///
+    /// When calling Java methods, `java-spaghetti` may need to resolve class names (as strings)
+    /// into `jclass` pointers. The JNI API provides `FindClass` to do it. However, it is
+    /// hardcoded to use the class loader for the class that called the currently-running native method.
+    ///
+    /// This works fine most of the time, except:
+    ///
+    /// - On a thread created by native code (such as with `std::thread::spawn()`), there is no
+    ///   "class that called a native method" in the call stack, since the execution already started
+    ///   in native code. In this case, `FindClass` falls back to the system class loader.
+    /// - On Android, the system class loader can't find classes for your application, it can only find
+    ///   classes from the Android frameworks.
+    ///
+    /// `set_class_loader` allows you to set a `ClassLoader` instance that `java-spaghetti` will use to
+    /// resolve class names, by calling the `loadClass` method, instead of doing JNI `FindClass` calls.
+    ///
+    /// Calling this with a null `classloader` reverts back to using JNI `FindClass`.
+    ///
+    /// # Safety
+    ///
+    /// - `classloader` must be a global reference to a `java.lang.ClassLoader` instance.
+    /// - The library does not take ownership of the global reference. I.e. it will not delete it if you
+    ///   call `set_class_loader` with another class loader, or with null.
+    pub unsafe fn set_class_loader(classloader: jobject) {
+        CLASS_LOADER.store(classloader, Ordering::Relaxed);
+    }
+
     pub unsafe fn require_class(self, class: &str) -> jclass {
+        let classloader = CLASS_LOADER.load(Ordering::Relaxed);
+        if !classloader.is_null() {
+            let chars = class
+                .trim_end_matches('\0')
+                .replace('/', ".")
+                .encode_utf16()
+                .collect::<Vec<_>>();
+            let string = unsafe { self.new_string(chars.as_ptr(), chars.len() as jsize) };
+
+            // We still use JNI FindClass for this, to avoid a chicken-and-egg situation.
+            // If the system class loader cannot find java.lang.ClassLoader, things are pretty broken!
+            let cl_class = self.require_class_jni("java/lang/ClassLoader\0");
+            let cl_method = self.require_method(cl_class, "loadClass\0", "(Ljava/lang/String;)Ljava/lang/Class;\0");
+
+            let args = [jvalue { l: string }];
+            let result: *mut _jobject =
+                ((**self.env).v1_2.CallObjectMethodA)(self.env, classloader, cl_method, args.as_ptr());
+            let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
+            if !exception.is_null() {
+                ((**self.env).v1_2.ExceptionClear)(self.env);
+                panic!("exception happened calling loadClass()");
+            } else if result.is_null() {
+                panic!("loadClass() returned null");
+            }
+
+            ((**self.env).v1_2.DeleteLocalRef)(self.env, string);
+
+            return result as jclass;
+        }
+
+        // if no classloader is set, fall back to JNI FindClass.
+        self.require_class_jni(class)
+    }
+
+    unsafe fn require_class_jni(self, class: &str) -> jclass {
         debug_assert!(class.ends_with('\0'));
         let class = ((**self.env).v1_2.FindClass)(self.env, class.as_ptr() as *const c_char);
         assert!(!class.is_null());
