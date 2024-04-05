@@ -123,6 +123,6 @@ impl<'a> Context<'a> {
 
     pub fn write(&self, out: &mut impl io::Write) -> io::Result<()> {
         write_preamble(out)?;
-        self.module.write(self, "", out)
+        self.module.write(self, out)
     }
 }

@@ -42,7 +42,7 @@ impl<'a> Method<'a> {
         };
     }
 
-    pub fn emit(&self, context: &Context, indent: &str, mod_: &str, out: &mut impl io::Write) -> io::Result<()> {
+    pub fn emit(&self, context: &Context, mod_: &str, out: &mut impl io::Write) -> io::Result<()> {
         let mut emit_reject_reasons = Vec::new();
 
         let java_class_method = format!("{}\x1f{}", self.class.path.as_str(), &self.java.name);
@@ -310,12 +310,12 @@ impl<'a> Method<'a> {
 
         let emit_reject_reasons = emit_reject_reasons; // Freeze
         let indent = if emit_reject_reasons.is_empty() {
-            format!("{}        ", indent)
+            ""
         } else {
             if !context.config.codegen.keep_rejected_emits {
                 return Ok(());
             }
-            format!("{}        // ", indent)
+            "// "
         };
         let access = if self.java.is_public() { "pub " } else { "" };
         let attributes = (if self.java.deprecated { "#[deprecated] " } else { "" }).to_string();

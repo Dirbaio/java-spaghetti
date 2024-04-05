@@ -12,19 +12,17 @@ pub(crate) struct Module {
 }
 
 impl Module {
-    pub(crate) fn write(&self, context: &Context, indent: &str, out: &mut impl Write) -> io::Result<()> {
-        let next_indent = format!("{}    ", indent);
-
+    pub(crate) fn write(&self, context: &Context, out: &mut impl Write) -> io::Result<()> {
         for (name, module) in self.modules.iter() {
             writeln!(out)?;
 
-            writeln!(out, "{}pub mod {} {{", indent, name)?;
-            module.write(context, &next_indent[..], out)?;
-            writeln!(out, "{}}}", indent)?;
+            writeln!(out, "pub mod {} {{", name)?;
+            module.write(context, out)?;
+            writeln!(out, "}}")?;
         }
 
         for (_, structure) in self.structs.iter() {
-            structure.write(context, indent, out)?;
+            structure.write(context, out)?;
         }
 
         Ok(())

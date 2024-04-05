@@ -86,7 +86,7 @@ impl Struct {
         Ok(Self { rust, java })
     }
 
-    pub(crate) fn write(&self, context: &Context, indent: &str, out: &mut impl io::Write) -> io::Result<()> {
+    pub(crate) fn write(&self, context: &Context, out: &mut impl io::Write) -> io::Result<()> {
         writeln!(out)?;
 
         // Ignored access_flags: SUPER, SYNTHETIC, ANNOTATION, ABSTRACT
@@ -107,16 +107,9 @@ impl Struct {
         let attributes = (if self.java.deprecated { "#[deprecated] " } else { "" }).to_string();
 
         if let Some(url) = KnownDocsUrl::from_class(context, self.java.path.as_id()) {
-            writeln!(out, "{}    /// {} {} {}", indent, visibility, keyword, url)?;
+            writeln!(out, "/// {} {} {}", visibility, keyword, url)?;
         } else {
-            writeln!(
-                out,
-                "{}    /// {} {} {}",
-                indent,
-                visibility,
-                keyword,
-                self.java.path.as_str()
-            )?;
+            writeln!(out, "/// {} {} {}", visibility, keyword, self.java.path.as_str())?;
         }
 
         let rust_name = &self.rust.struct_name;
@@ -219,14 +212,14 @@ impl Struct {
                 }
             }
 
-            method.emit(context, indent, &self.rust.mod_, out)?;
+            method.emit(context, &self.rust.mod_, out)?;
         }
 
         for field in &mut fields {
-            field.emit(context, indent, &self.rust.mod_, out)?;
+            field.emit(context, &self.rust.mod_, out)?;
         }
 
-        writeln!(out, "{}}}", indent)?;
+        writeln!(out, "}}")?;
         Ok(())
     }
 }

@@ -32,7 +32,7 @@ impl<'a> Field<'a> {
         result
     }
 
-    pub fn emit(&self, context: &Context, indent: &str, mod_: &str, out: &mut impl io::Write) -> io::Result<()> {
+    pub fn emit(&self, context: &Context, mod_: &str, out: &mut impl io::Write) -> io::Result<()> {
         let mut emit_reject_reasons = Vec::new();
 
         if !self.java.is_public() {
@@ -151,12 +151,12 @@ impl<'a> Field<'a> {
 
         let emit_reject_reasons = emit_reject_reasons; // Freeze
         let indent = if emit_reject_reasons.is_empty() {
-            format!("{}        ", indent)
+            ""
         } else {
             if !context.config.codegen.keep_rejected_emits {
                 return Ok(());
             }
-            format!("{}        // ", indent)
+            "// "
         };
 
         let keywords = format!(
