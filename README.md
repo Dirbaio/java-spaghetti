@@ -15,9 +15,13 @@ you then use from your crate. `java-spaghetti` is instead designed to generate "
 The full list of differences are:
 
 - Simplified and more consistent API.
+- Support for casting and upcasting.
+- Added FFI-safe `Return<T>` for returning Java objects from JNI calls.
+- Arguments to method calls use a custom `AsArg` trait to make them more ergonomic (doesn't need stuff like `&**foo` or `Some(foo)`).
 - You can filter which classes are generated in the TOML config.
 - Generated code uses relative paths (`super::...`) instead of absolute paths (`crate::...`), so it works if you place it in a submodule not at the crate root.
 - Generated code is a single `.rs` file, there's no support for spltting it in one file per class. You can still run the output through [form](https://github.com/djmcgill/form), if you want.
+- Generated code doesn't use macros.
 - No support for generating Cargo features per class.
 - Modernized rust, updated dependencies.
 
