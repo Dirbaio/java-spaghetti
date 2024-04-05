@@ -70,7 +70,7 @@ impl<'env, T: ReferenceType> Local<'env, T> {
         self.ref_
     }
 
-    pub fn as_return(self) -> Return<'env, T> {
+    pub fn as_return(&self) -> Return<'env, T> {
         let env: *mut *const JNINativeInterface_ = self.env().as_raw();
         let object = unsafe { ((**env).v1_2.NewLocalRef)(env, self.as_raw()) };
         unsafe { Return::from_raw(object) }
