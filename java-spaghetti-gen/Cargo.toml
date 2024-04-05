@@ -1,6 +1,6 @@
 [package]
 name = "java-spaghetti-gen"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Code generator for binding to JVM APIs from Rust"
 repository = "https://github.com/Dirbaio/java-spaghetti"
