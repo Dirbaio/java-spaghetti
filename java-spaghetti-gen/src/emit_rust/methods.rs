@@ -129,7 +129,7 @@ impl<'a> Method<'a> {
                     }
                     param_is_object = true;
                     match context.java_to_rust_path(class, mod_) {
-                        Ok(path) => format!("impl ::std::convert::Into<::std::option::Option<&'env {}>>", path),
+                        Ok(path) => format!("impl ::java_spaghetti::AsArg<{}>", path),
                         Err(_) => {
                             emit_reject_reasons
                                 .push("ERROR:  Failed to resolve JNI path to Rust path for argument type");
@@ -138,7 +138,7 @@ impl<'a> Method<'a> {
                     }
                 }
                 method::Type::Array { levels, inner } => {
-                    let mut buffer = "impl ::std::convert::Into<::std::option::Option<&'env ".to_owned();
+                    let mut buffer = "impl ::java_spaghetti::AsArg<".to_owned();
                     for _ in 0..(levels - 1) {
                         buffer.push_str("::java_spaghetti::ObjectArray<");
                     }
@@ -179,7 +179,7 @@ impl<'a> Method<'a> {
                         buffer.push_str(&context.throwable_rust_path(mod_));
                         buffer.push('>');
                     }
-                    buffer.push_str(">>"); // Option, Into
+                    buffer.push_str(">"); // AsArg
 
                     param_is_object = true;
                     buffer
@@ -190,13 +190,14 @@ impl<'a> Method<'a> {
                 params_array.push_str(", ");
             }
 
-            params_array.push_str("::java_spaghetti::AsJValue::as_jvalue(");
-            params_array.push('&');
-            params_array.push_str(arg_name.as_str());
             if param_is_object {
-                params_array.push_str(".into()");
+                params_array.push_str(arg_name.as_str());
+                params_array.push_str(".as_arg_jvalue()");
+            } else {
+                params_array.push_str("::java_spaghetti::AsJValue::as_jvalue(&");
+                params_array.push_str(arg_name.as_str());
+                params_array.push(')');
             }
-            params_array.push(')');
 
             if !params_decl.is_empty() {
                 params_decl.push_str(", ");

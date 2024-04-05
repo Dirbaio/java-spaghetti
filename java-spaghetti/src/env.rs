@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicPtr, Ordering};
 
 use jni_sys::*;
 
-use crate::{AsJValue, Local, ReferenceType, ThrowableType, VM};
+use crate::{AsArg, Local, ReferenceType, ThrowableType, VM};
 
 /// FFI:  Use **Env** instead of \*const JNIEnv.  This represents a per-thread Java exection environment.
 ///
@@ -645,14 +645,8 @@ impl<'env> Env<'env> {
         ((**self.env).v1_2.GetDoubleField)(self.env, this, field)
     }
 
-    pub unsafe fn set_object_field<'obj, R: 'obj + ReferenceType>(
-        self,
-        this: jobject,
-        field: jfieldID,
-        value: impl Into<Option<&'obj R>>,
-    ) {
-        let value = value.into().map(|v| AsJValue::as_jvalue(v).l).unwrap_or(null_mut());
-        ((**self.env).v1_2.SetObjectField)(self.env, this, field, value);
+    pub unsafe fn set_object_field<R: ReferenceType>(self, this: jobject, field: jfieldID, value: impl AsArg<R>) {
+        ((**self.env).v1_2.SetObjectField)(self.env, this, field, value.as_arg());
     }
 
     pub unsafe fn set_boolean_field(self, this: jobject, field: jfieldID, value: bool) {
@@ -735,14 +729,13 @@ impl<'env> Env<'env> {
         ((**self.env).v1_2.GetStaticDoubleField)(self.env, class, field)
     }
 
-    pub unsafe fn set_static_object_field<'obj, R: 'obj + ReferenceType>(
+    pub unsafe fn set_static_object_field<R: ReferenceType>(
         self,
         class: jclass,
         field: jfieldID,
-        value: impl Into<Option<&'obj R>>,
+        value: impl AsArg<R>,
     ) {
-        let value = value.into().map(|v| AsJValue::as_jvalue(v).l).unwrap_or(null_mut());
-        ((**self.env).v1_2.SetStaticObjectField)(self.env, class, field, value);
+        ((**self.env).v1_2.SetStaticObjectField)(self.env, class, field, value.as_arg());
     }
 
     pub unsafe fn set_static_boolean_field(self, class: jclass, field: jfieldID, value: bool) {

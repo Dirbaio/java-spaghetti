@@ -120,7 +120,6 @@ impl Struct {
                 out,
                 "#[repr(transparent)] {attributes}{visibility} struct {rust_name}(pub(crate) ::java_spaghetti::ObjectAndEnv);
                 unsafe impl ::java_spaghetti::ReferenceType for {rust_name} {{}}
-                unsafe impl ::java_spaghetti::AsJValue for {rust_name} {{ fn as_jvalue(&self) -> ::java_spaghetti::sys::jvalue {{ ::java_spaghetti::sys::jvalue {{ l: self.0.object }} }} }}
                 ",
             )?;
         }

@@ -4,9 +4,11 @@
 //! [Java Native Interface Specification](https://docs.oracle.com/javase/7/docs/technotes/guides/jni/spec/jniTOC.html).
 
 use std::fmt;
+use std::ptr::null_mut;
 
 /// public jni-sys reexport.
 pub use ::jni_sys as sys;
+use sys::{jobject, jvalue};
 
 mod refs {
     mod arg;
@@ -61,7 +63,7 @@ pub trait ThrowableType: ReferenceType {}
 ///     2.3) Do not allow &mut T access.
 ///     2.4) Only allow &T access, which cannot be moved from.
 #[doc(hidden)]
-pub unsafe trait ReferenceType: AsJValue + JniType + 'static {}
+pub unsafe trait ReferenceType: JniType + 'static {}
 
 /// Marker trait indicating `Self` can be assigned to `T`.
 ///
@@ -77,4 +79,86 @@ unsafe impl<T: ReferenceType> AssignableTo<T> for T {}
 pub struct ObjectAndEnv {
     pub object: jni_sys::jobject,
     pub env: *mut jni_sys::JNIEnv,
+}
+
+pub unsafe trait AsArg<T>: Sized {
+    fn as_arg(&self) -> jobject;
+    fn as_arg_jvalue(&self) -> jvalue {
+        jvalue { l: self.as_arg() }
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub struct Null;
+
+unsafe impl<T: ReferenceType, U: AsArg<T>> AsArg<T> for &U {
+    fn as_arg(&self) -> jobject {
+        U::as_arg(self)
+    }
+}
+
+unsafe impl<T: ReferenceType, U: AsArg<T>> AsArg<T> for &mut U {
+    fn as_arg(&self) -> jobject {
+        U::as_arg(self)
+    }
+}
+
+unsafe impl<T: ReferenceType> AsArg<T> for Null {
+    fn as_arg(&self) -> jobject {
+        null_mut()
+    }
+}
+
+unsafe impl<T: ReferenceType, U: AssignableTo<T>> AsArg<T> for Ref<'_, U> {
+    fn as_arg(&self) -> jobject {
+        self.as_raw()
+    }
+}
+
+unsafe impl<T: ReferenceType, U: AssignableTo<T>> AsArg<T> for Option<Ref<'_, U>> {
+    fn as_arg(&self) -> jobject {
+        self.map(|r| r.as_raw()).unwrap_or(null_mut())
+    }
+}
+
+unsafe impl<T: ReferenceType, U: AssignableTo<T>> AsArg<T> for Option<&Ref<'_, U>> {
+    fn as_arg(&self) -> jobject {
+        self.map(|r| r.as_raw()).unwrap_or(null_mut())
+    }
+}
+
+unsafe impl<T: ReferenceType, U: AssignableTo<T>> AsArg<T> for Local<'_, U> {
+    fn as_arg(&self) -> jobject {
+        self.as_raw()
+    }
+}
+
+unsafe impl<T: ReferenceType, U: AssignableTo<T>> AsArg<T> for Option<Local<'_, U>> {
+    fn as_arg(&self) -> jobject {
+        self.as_ref().map(|r| r.as_raw()).unwrap_or(null_mut())
+    }
+}
+
+unsafe impl<T: ReferenceType, U: AssignableTo<T>> AsArg<T> for Option<&Local<'_, U>> {
+    fn as_arg(&self) -> jobject {
+        self.map(|r| r.as_raw()).unwrap_or(null_mut())
+    }
+}
+
+unsafe impl<T: ReferenceType, U: AssignableTo<T>> AsArg<T> for Global<U> {
+    fn as_arg(&self) -> jobject {
+        self.as_raw()
+    }
+}
+
+unsafe impl<T: ReferenceType, U: AssignableTo<T>> AsArg<T> for Option<Global<U>> {
+    fn as_arg(&self) -> jobject {
+        self.as_ref().map(|r| r.as_raw()).unwrap_or(null_mut())
+    }
+}
+
+unsafe impl<T: ReferenceType, U: AssignableTo<T>> AsArg<T> for Option<&Global<U>> {
+    fn as_arg(&self) -> jobject {
+        self.map(|r| r.as_raw()).unwrap_or(null_mut())
+    }
 }

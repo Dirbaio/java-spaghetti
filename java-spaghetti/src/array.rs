@@ -4,7 +4,7 @@ use std::ptr::null_mut;
 
 use jni_sys::*;
 
-use crate::{AsJValue, Env, JniType, Local, ObjectAndEnv, ReferenceType, ThrowableType};
+use crate::{AsArg, Env, JniType, Local, ObjectAndEnv, ReferenceType, ThrowableType};
 
 /// A Java Array of some POD-like type such as bool, jbyte, jchar, jshort, jint, jlong, jfloat, or jdouble.
 ///
@@ -82,11 +82,6 @@ macro_rules! primitive_array {
         pub struct $name(ObjectAndEnv);
 
         unsafe impl ReferenceType for $name {}
-        unsafe impl AsJValue for $name {
-            fn as_jvalue(&self) -> jni_sys::jvalue {
-                jni_sys::jvalue { l: self.0.object }
-            }
-        }
         unsafe impl JniType for $name {
             fn static_with_jni_type<R>(callback: impl FnOnce(&str) -> R) -> R {
                 callback($type_str)
@@ -191,12 +186,6 @@ unsafe impl<T: ReferenceType, E: ThrowableType> JniType for ObjectArray<T, E> {
     }
 }
 
-unsafe impl<T: ReferenceType, E: ThrowableType> AsJValue for ObjectArray<T, E> {
-    fn as_jvalue(&self) -> jni_sys::jvalue {
-        jni_sys::jvalue { l: self.0.object }
-    }
-}
-
 impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
     pub fn new<'env>(env: Env<'env>, size: usize) -> Local<'env, Self> {
         assert!(size <= std::i32::MAX as usize); // jsize == jint == i32
@@ -222,7 +211,7 @@ impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
 
     pub fn from<'env>(
         env: Env<'env>,
-        elements: impl 'env + ExactSizeIterator + Iterator<Item = impl Into<Option<&'env T>>>,
+        elements: impl ExactSizeIterator + Iterator<Item = impl AsArg<T>>,
     ) -> Local<'env, Self> {
         let size = elements.len();
         let array = Self::new(env, size);
@@ -231,11 +220,7 @@ impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
 
         for (index, element) in elements.enumerate() {
             assert!(index < size); // Should only be violated by an invalid ExactSizeIterator implementation.
-            let value = element
-                .into()
-                .map(|v| unsafe { AsJValue::as_jvalue(v).l })
-                .unwrap_or(null_mut());
-            unsafe { ((**env).v1_2.SetObjectArrayElement)(env, this, index as jsize, value) };
+            unsafe { ((**env).v1_2.SetObjectArrayElement)(env, this, index as jsize, element.as_arg()) };
         }
         array
     }
@@ -265,17 +250,13 @@ impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
     }
 
     /// XXX: I don't think there's a way to expose this via std::ops::IndexMut sadly?
-    pub fn set<'env>(&'env self, index: usize, value: impl Into<Option<&'env T>>) -> Result<(), Local<'env, E>> {
+    pub fn set<'env>(&'env self, index: usize, value: impl AsArg<T>) -> Result<(), Local<'env, E>> {
         assert!(index <= std::i32::MAX as usize); // jsize == jint == i32 XXX: Should maybe be treated as an exception?
-        let value = value
-            .into()
-            .map(|v| unsafe { AsJValue::as_jvalue(v).l })
-            .unwrap_or(null_mut());
         let index = index as jsize;
         let env = self.0.env;
         let this = self.0.object;
         unsafe {
-            ((**env).v1_2.SetObjectArrayElement)(env, this, index, value);
+            ((**env).v1_2.SetObjectArrayElement)(env, this, index, value.as_arg());
             let exception = ((**env).v1_2.ExceptionOccurred)(env);
             if !exception.is_null() {
                 ((**env).v1_2.ExceptionClear)(env);

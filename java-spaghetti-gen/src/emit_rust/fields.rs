@@ -68,7 +68,7 @@ impl<'a> Field<'a> {
                     emit_reject_reasons.push("ERROR:  missing class for field type");
                 }
                 if let Ok(fqn) = context.java_to_rust_path(class, mod_) {
-                    rust_set_type_buffer = format!("impl ::std::convert::Into<::std::option::Option<&'obj {}>>", &fqn);
+                    rust_set_type_buffer = format!("impl ::java_spaghetti::AsArg<{}>", &fqn);
                     rust_get_type_buffer = format!("::std::option::Option<::java_spaghetti::Local<'env, {}>>", &fqn);
                     (rust_set_type_buffer.as_str(), rust_get_type_buffer.as_str())
                 } else {
@@ -120,7 +120,7 @@ impl<'a> Field<'a> {
                     buffer.push('>');
                 }
 
-                rust_set_type_buffer = format!("impl ::std::convert::Into<::std::option::Option<&'obj {}>>", &buffer);
+                rust_set_type_buffer = format!("impl ::java_spaghetti::AsArg<{}>", &buffer);
                 rust_get_type_buffer = format!("::std::option::Option<::java_spaghetti::Local<'env, {}>>", &buffer);
                 (rust_set_type_buffer.as_str(), rust_get_type_buffer.as_str())
             }
