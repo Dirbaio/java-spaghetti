@@ -1,6 +1,7 @@
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::error::Error;
 use std::io;
+use std::rc::Rc;
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -14,7 +15,7 @@ use crate::{config, util};
 pub struct Context<'a> {
     pub(crate) config: &'a config::runtime::Config,
     pub(crate) module: Module,
-    pub(crate) all_classes: HashSet<String>,
+    pub(crate) all_classes: HashMap<String, Rc<Struct>>,
     pub(crate) progress: Mutex<util::Progress>,
 }
 
@@ -23,7 +24,7 @@ impl<'a> Context<'a> {
         Self {
             config,
             module: Default::default(),
-            all_classes: HashSet::new(),
+            all_classes: HashMap::new(),
             progress: Mutex::new(util::Progress::with_duration(Duration::from_millis(
                 if config.logging_verbose { 0 } else { 300 },
             ))),
@@ -102,9 +103,10 @@ impl<'a> Context<'a> {
             return Ok(());
         }
 
-        self.all_classes.insert(class.path.as_str().to_string());
+        let java_path = class.path.as_str().to_string();
+        let s = Rc::new(Struct::new(self, class)?);
 
-        let s = Struct::new(self, class)?;
+        self.all_classes.insert(java_path, s.clone());
 
         let mut rust_mod = &mut self.module;
         for fragment in s.rust.mod_.split("::") {

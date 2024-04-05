@@ -63,6 +63,14 @@ pub trait ThrowableType: ReferenceType {}
 #[doc(hidden)]
 pub unsafe trait ReferenceType: AsJValue + JniType + 'static {}
 
+/// Marker trait indicating `Self` can be assigned to `T`.
+///
+/// This is true when `T` is a superclass or superinterface of `Self`.
+pub unsafe trait AssignableTo<T: ReferenceType>: ReferenceType {}
+
+/// A type is always assignable to itself.
+unsafe impl<T: ReferenceType> AssignableTo<T> for T {}
+
 #[repr(C)] // Given how frequently we transmute to/from this, we'd better keep a consistent layout.
 #[doc(hidden)] // You should generally not be interacting with this type directly, but it must be public for codegen.
 #[derive(Copy, Clone)]

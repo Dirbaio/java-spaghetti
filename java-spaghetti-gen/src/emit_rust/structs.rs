@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fmt::Write;
 use std::io;
@@ -134,6 +134,26 @@ impl Struct {
             self.java.path.as_str().to_string() + "\0",
         )?;
 
+        // recursively visit all superclasses and superinterfaces.
+        let mut queue = Vec::new();
+        let mut visited = HashSet::new();
+        queue.push(self.java.path.clone());
+        visited.insert(self.java.path.clone());
+        while let Some(path) = queue.pop() {
+            let class = context.all_classes.get(path.as_str()).unwrap();
+            for path2 in self.java.interfaces.iter().chain(class.java.super_path.as_ref()) {
+                if context.all_classes.contains_key(path2.as_str()) && !visited.contains(path2) {
+                    let rust_path = context.java_to_rust_path(path2.as_id(), &self.rust.mod_).unwrap();
+                    writeln!(
+                        out,
+                        "unsafe impl ::java_spaghetti::AssignableTo<{rust_path}> for {rust_name} {{}}"
+                    )?;
+                    queue.push(path2.clone());
+                    visited.insert(path2.clone());
+                }
+            }
+        }
+
         if let Some(super_path) = self.java.super_path.as_ref() {
             let super_path = context.java_to_rust_path(super_path.as_id(), &self.rust.mod_).unwrap();
             writeln!(
@@ -148,7 +168,7 @@ impl Struct {
         };
 
         for interface in &self.java.interfaces {
-            if !context.all_classes.contains(interface.as_str()) {
+            if !context.all_classes.contains_key(interface.as_str()) {
                 continue;
             }
             let implements_path = context.java_to_rust_path(interface.as_id(), &self.rust.mod_).unwrap();

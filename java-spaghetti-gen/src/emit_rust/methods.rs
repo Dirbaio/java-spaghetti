@@ -124,7 +124,7 @@ impl<'a> Method<'a> {
                 method::Type::Single(method::BasicType::Float) => "f32".to_owned(),
                 method::Type::Single(method::BasicType::Double) => "f64".to_owned(),
                 method::Type::Single(method::BasicType::Class(class)) => {
-                    if !context.all_classes.contains(class.as_str()) {
+                    if !context.all_classes.contains_key(class.as_str()) {
                         emit_reject_reasons.push("ERROR:  missing class for argument type");
                     }
                     param_is_object = true;
@@ -152,7 +152,7 @@ impl<'a> Method<'a> {
                         method::BasicType::Float => buffer.push_str("::java_spaghetti::FloatArray"),
                         method::BasicType::Double => buffer.push_str("::java_spaghetti::DoubleArray"),
                         method::BasicType::Class(class) => {
-                            if !context.all_classes.contains(class.as_str()) {
+                            if !context.all_classes.contains_key(class.as_str()) {
                                 emit_reject_reasons.push("ERROR:  missing class for argument type");
                             }
                             buffer.push_str("::java_spaghetti::ObjectArray<");
@@ -219,7 +219,7 @@ impl<'a> Method<'a> {
             method::Type::Single(method::BasicType::Float) => "f32".to_owned(),
             method::Type::Single(method::BasicType::Double) => "f64".to_owned(),
             method::Type::Single(method::BasicType::Class(class)) => {
-                if !context.all_classes.contains(class.as_str()) {
+                if !context.all_classes.contains_key(class.as_str()) {
                     emit_reject_reasons.push("ERROR:  missing class for return type");
                 }
                 match context.java_to_rust_path(class, mod_) {
@@ -252,7 +252,7 @@ impl<'a> Method<'a> {
                     method::BasicType::Float => buffer.push_str("::java_spaghetti::FloatArray"),
                     method::BasicType::Double => buffer.push_str("::java_spaghetti::DoubleArray"),
                     method::BasicType::Class(class) => {
-                        if !context.all_classes.contains(class.as_str()) {
+                        if !context.all_classes.contains_key(class.as_str()) {
                             emit_reject_reasons.push("ERROR:  missing class for return type");
                         }
                         buffer.push_str("::java_spaghetti::ObjectArray<");

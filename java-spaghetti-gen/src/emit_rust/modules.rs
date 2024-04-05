@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::io::{self, Write};
+use std::rc::Rc;
 
 use super::structs::Struct;
 use crate::emit_rust::Context;
@@ -7,7 +8,7 @@ use crate::emit_rust::Context;
 #[derive(Debug, Default)]
 pub(crate) struct Module {
     // For consistent diffs / printing order, these should *not* be HashMaps
-    pub(crate) structs: BTreeMap<String, Struct>,
+    pub(crate) structs: BTreeMap<String, Rc<Struct>>,
     pub(crate) modules: BTreeMap<String, Module>,
 }
 

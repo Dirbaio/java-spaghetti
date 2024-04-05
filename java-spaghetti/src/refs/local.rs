@@ -3,7 +3,7 @@ use std::ops::Deref;
 
 use jni_sys::*;
 
-use crate::{Env, Global, Ref, ReferenceType, Return};
+use crate::{AssignableTo, Env, Global, Ref, ReferenceType, Return};
 
 /// A [Local](https://www.ibm.com/support/knowledgecenter/en/SSYKE2_8.0.0/com.ibm.java.vm.80.doc/docs/jni_refs.html),
 /// non-null, reference to a Java object (+ [Env]) limited to the current thread/stack.
@@ -90,6 +90,16 @@ impl<'env, T: ReferenceType> Local<'env, T> {
         }
         let object = unsafe { ((**jnienv).v1_2.NewLocalRef)(jnienv, self.as_raw()) };
         Ok(unsafe { Local::from_raw(env, object) })
+    }
+
+    pub fn upcast<U: ReferenceType>(&self) -> Local<'env, U>
+    where
+        Self: AssignableTo<U>,
+    {
+        let env = self.env();
+        let jnienv = env.as_raw();
+        let object = unsafe { ((**jnienv).v1_2.NewLocalRef)(jnienv, self.as_raw()) };
+        unsafe { Local::from_raw(env, object) }
     }
 }
 

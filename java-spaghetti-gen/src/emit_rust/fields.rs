@@ -64,7 +64,7 @@ impl<'a> Field<'a> {
                 ("()", "()")
             }
             field::Descriptor::Single(field::BasicType::Class(class)) => {
-                if !context.all_classes.contains(class.as_str()) {
+                if !context.all_classes.contains_key(class.as_str()) {
                     emit_reject_reasons.push("ERROR:  missing class for field type");
                 }
                 if let Ok(fqn) = context.java_to_rust_path(class, mod_) {
@@ -91,7 +91,7 @@ impl<'a> Field<'a> {
                     field::BasicType::Float => buffer.push_str("::java_spaghetti::FloatArray"),
                     field::BasicType::Double => buffer.push_str("::java_spaghetti::DoubleArray"),
                     field::BasicType::Class(class) => {
-                        if !context.all_classes.contains(class.as_str()) {
+                        if !context.all_classes.contains_key(class.as_str()) {
                             emit_reject_reasons.push("ERROR:  missing class for field type");
                         }
 
