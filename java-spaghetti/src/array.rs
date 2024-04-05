@@ -37,7 +37,7 @@ where
     fn set_region(&self, start: usize, elements: &[T]);
 
     /// Uses env.New{Type}Array + Set{Type}ArrayRegion to create a new java array containing a copy of "elements".
-    fn from<'env>(env: Env<'env>, elements: &[T]) -> Local<'env, Self> {
+    fn new_from<'env>(env: Env<'env>, elements: &[T]) -> Local<'env, Self> {
         let array = Self::new(env, elements.len());
         array.set_region(0, elements);
         array
@@ -101,7 +101,7 @@ macro_rules! primitive_array {
                 }
             }
 
-            fn from<'env>(env: Env<'env>, elements: &[$type]) -> Local<'env, Self> {
+            fn new_from<'env>(env: Env<'env>, elements: &[$type]) -> Local<'env, Self> {
                 let array = Self::new(env, elements.len());
                 let size = elements.len() as jsize;
                 let env = array.0.env;
@@ -209,7 +209,7 @@ impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
         }
     }
 
-    pub fn from<'env>(
+    pub fn new_from<'env>(
         env: Env<'env>,
         elements: impl ExactSizeIterator + Iterator<Item = impl AsArg<T>>,
     ) -> Local<'env, Self> {
