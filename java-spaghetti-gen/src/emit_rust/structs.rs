@@ -96,24 +96,16 @@ impl Struct {
         } else if self.java.is_enum() {
             "enum"
         } else if self.java.is_static() {
-            "static java"
+            "static class"
         } else if self.java.is_final() {
             "final class"
         } else {
             "class"
         };
 
-        let visibility = if self.java.is_public() { "public" } else { "private" };
-
+        let visibility = if self.java.is_public() { "pub" } else { "" };
         let attributes = (if self.java.deprecated { "#[deprecated] " } else { "" }).to_string();
 
-        let super_path = if let Some(super_path) = self.java.super_path.as_ref() {
-            context.java_to_rust_path(super_path.as_id(), &self.rust.mod_).unwrap()
-        } else {
-            "()".to_owned() // This might only happen for java.lang.Object
-        };
-
-        writeln!(out, "{}::java_spaghetti::class! {{", indent)?;
         if let Some(url) = KnownDocsUrl::from_class(context, self.java.path.as_id()) {
             writeln!(out, "{}    /// {} {} {}", indent, visibility, keyword, url)?;
         } else {
@@ -126,34 +118,57 @@ impl Struct {
                 self.java.path.as_str()
             )?;
         }
-        write!(
+
+        let rust_name = &self.rust.struct_name;
+        if self.java.is_static() {
+            writeln!(out, "{attributes}{visibility} enum {rust_name}{{}}")?;
+        } else {
+            writeln!(
+                out,
+                "#[repr(transparent)] {attributes}{visibility} struct {rust_name}(pub(crate) ::java_spaghetti::ObjectAndEnv);
+                unsafe impl ::java_spaghetti::ReferenceType for {rust_name} {{}}
+                unsafe impl ::java_spaghetti::AsJValue for {rust_name} {{ fn as_jvalue(&self) -> ::java_spaghetti::sys::jvalue {{ ::java_spaghetti::sys::jvalue {{ l: self.0.object }} }} }}
+                ",
+            )?;
+        }
+        writeln!(
             out,
-            "{}    {}{} {} {} ({:?}) extends {}",
-            indent,
-            attributes,
-            visibility,
-            keyword,
-            &self.rust.struct_name,
+            "unsafe impl ::java_spaghetti::JniType for {rust_name} {{
+                fn static_with_jni_type<R>(callback: impl FnOnce(&str) -> R) -> R {{
+                    callback({:?})
+                }}
+            }}",
             self.java.path.as_str().to_string() + "\0",
-            super_path
         )?;
-        let mut implements = false;
+
+        if let Some(super_path) = self.java.super_path.as_ref() {
+            let super_path = context.java_to_rust_path(super_path.as_id(), &self.rust.mod_).unwrap();
+            writeln!(
+                out,
+                "impl ::std::ops::Deref for {rust_name} {{
+                    type Target = {super_path};
+                    fn deref(&self) -> &Self::Target {{
+                        unsafe {{ &*(self as *const Self as *const Self::Target) }}
+                    }}
+                }}"
+            )?;
+        };
+
         for interface in &self.java.interfaces {
             if !context.all_classes.contains(interface.as_str()) {
                 continue;
             }
-            write!(out, ", ")?;
-            if !implements {
-                write!(out, "implements ")?;
-                implements = true;
-            }
-            write!(
+            let implements_path = context.java_to_rust_path(interface.as_id(), &self.rust.mod_).unwrap();
+            writeln!(
                 out,
-                "{}",
-                &context.java_to_rust_path(interface.as_id(), &self.rust.mod_).unwrap()
+                "impl ::std::convert::AsRef<{implements_path}> for {rust_name} {{
+                    fn as_ref(&self) -> &{implements_path} {{
+                        unsafe {{ &*(self as *const Self as *const {implements_path}) }}
+                    }}
+                }}"
             )?;
         }
-        writeln!(out, " {{")?;
+        writeln!(out, "impl {rust_name} {{")?;
 
         let mut id_repeats = HashMap::new();
 
@@ -211,7 +226,6 @@ impl Struct {
             field.emit(context, indent, &self.rust.mod_, out)?;
         }
 
-        writeln!(out, "{}    }}", indent)?;
         writeln!(out, "{}}}", indent)?;
         Ok(())
     }
