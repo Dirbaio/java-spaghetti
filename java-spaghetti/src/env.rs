@@ -148,6 +148,10 @@ impl<'env> Env<'env> {
         // First try with JNI FindClass.
         debug_assert!(class.ends_with('\0'));
         let c = ((**self.env).v1_2.FindClass)(self.env, class.as_ptr() as *const c_char);
+        let exception: *mut _jobject = ((**self.env).v1_2.ExceptionOccurred)(self.env);
+        if !exception.is_null() {
+            ((**self.env).v1_2.ExceptionClear)(self.env);
+        }
         if !c.is_null() {
             return c;
         }
