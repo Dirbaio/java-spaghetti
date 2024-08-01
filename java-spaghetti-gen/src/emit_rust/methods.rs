@@ -3,7 +3,6 @@ use std::io;
 use jreflection::method;
 
 use super::known_docs_url::KnownDocsUrl;
-use crate::config;
 use crate::emit_rust::Context;
 use crate::identifiers::MethodManglingStyle;
 
@@ -94,13 +93,7 @@ impl<'a> Method<'a> {
 
         // Contents of fn name<'env>(...) {
         let mut params_decl = if self.java.is_constructor() || self.java.is_static() {
-            match context.config.codegen.static_env {
-                config::toml::StaticEnvStyle::Explicit => String::from("__jni_env: ::java_spaghetti::Env<'env>"),
-                config::toml::StaticEnvStyle::__NonExhaustive => {
-                    emit_reject_reasons.push("ERROR:  StaticEnvStyle::__NonExhaustive is invalid, silly goose!");
-                    String::new()
-                }
-            }
+            String::from("__jni_env: ::java_spaghetti::Env<'env>")
         } else {
             String::from("&'env self")
         };
@@ -352,12 +345,7 @@ impl<'a> Method<'a> {
         )?;
         writeln!(out, "{}    unsafe {{", indent)?;
         writeln!(out, "{}        let __jni_args = [{}];", indent, params_array)?;
-        if self.java.is_constructor() || self.java.is_static() {
-            match context.config.codegen.static_env {
-                config::toml::StaticEnvStyle::Explicit => {}
-                config::toml::StaticEnvStyle::__NonExhaustive => writeln!(out, "{}    let __jni_env = ...?;", indent)?, // XXX
-            };
-        } else {
+        if !self.java.is_constructor() && !self.java.is_static() {
             writeln!(
                 out,
                 "{}        let __jni_env = ::java_spaghetti::Env::from_raw(self.0.env);",
