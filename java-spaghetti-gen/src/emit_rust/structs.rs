@@ -32,7 +32,7 @@ pub(crate) struct Struct {
     pub java: jreflection::Class,
 }
 
-fn rust_id(id: &str) -> Result<&str, Box<dyn Error>> {
+fn rust_id(id: &str) -> Result<String, Box<dyn Error>> {
     Ok(match RustIdentifier::from_str(id) {
         RustIdentifier::Identifier(id) => id,
         RustIdentifier::KeywordRawSafe(id) => id,
@@ -53,7 +53,7 @@ impl Struct {
                     if !buf.is_empty() {
                         buf.push_str("::");
                     }
-                    buf.push_str(rust_id(id)?);
+                    buf.push_str(&rust_id(id)?);
                 }
                 class::IdPart::ContainingClass(_) => {}
                 class::IdPart::LeafClass(_) => {}
@@ -74,7 +74,11 @@ impl Struct {
             match component {
                 class::IdPart::Namespace(_) => {}
                 class::IdPart::ContainingClass(id) => write!(&mut buf, "{}_", rust_id(id)?)?,
-                class::IdPart::LeafClass(id) => write!(&mut buf, "{}", rename_to.or_else(|_| rust_id(id))?)?,
+                class::IdPart::LeafClass(id) => write!(
+                    &mut buf,
+                    "{}",
+                    rename_to.map(ToString::to_string).or_else(|_| rust_id(id))?
+                )?,
             }
         }
         Ok(buf)
