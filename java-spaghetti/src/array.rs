@@ -182,14 +182,14 @@ unsafe impl<T: ReferenceType, E: ThrowableType> ReferenceType for ObjectArray<T,
 
 unsafe impl<T: ReferenceType, E: ThrowableType> JniType for ObjectArray<T, E> {
     fn static_with_jni_type<R>(callback: impl FnOnce(&str) -> R) -> R {
-        T::static_with_jni_type(|inner| callback(format!("[{}", inner).as_str()))
+        T::static_with_jni_type(|inner| callback(format!("[L{};\0", inner.trim_end_matches("\0")).as_str()))
     }
 }
 
 impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
     pub fn new<'env>(env: Env<'env>, size: usize) -> Local<'env, Self> {
         assert!(size <= std::i32::MAX as usize); // jsize == jint == i32
-        let class = Self::static_with_jni_type(|t| unsafe { env.require_class(t) });
+        let class = T::static_with_jni_type(|t| unsafe { env.require_class(t) });
         let size = size as jsize;
         let jnienv = env.as_raw();
         unsafe {

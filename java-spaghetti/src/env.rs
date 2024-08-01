@@ -1,11 +1,11 @@
 use std::marker::PhantomData;
 use std::os::raw::c_char;
-use std::ptr::null_mut;
+use std::ptr::{self, null_mut};
 use std::sync::atomic::{AtomicPtr, Ordering};
 
 use jni_sys::*;
 
-use crate::{AsArg, Local, ReferenceType, ThrowableType, VM};
+use crate::{AsArg, Local, ReferenceType, StringChars, ThrowableType, VM};
 
 /// FFI:  Use **Env** instead of \*const JNIEnv.  This represents a per-thread Java exection environment.
 ///
@@ -129,7 +129,30 @@ impl<'env> Env<'env> {
         CLASS_LOADER.store(classloader, Ordering::Relaxed);
     }
 
+    unsafe fn exception_to_string(self, exception: jobject) -> String {
+        // use JNI FindClass to avoid infinte recursion.
+        let throwable_class = self.require_class_jni("java/lang/Throwable\0");
+        let throwable_get_message = self.require_method(throwable_class, "getMessage\0", "()Ljava/lang/String;\0");
+        let message =
+            ((**self.env).v1_2.CallObjectMethodA)(self.env, exception, throwable_get_message, ptr::null_mut());
+        let e2: *mut _jobject = ((**self.env).v1_2.ExceptionOccurred)(self.env);
+        if !e2.is_null() {
+            ((**self.env).v1_2.ExceptionClear)(self.env);
+            panic!("exception happened calling Throwable.getMessage()");
+        }
+
+        StringChars::from_env_jstring(self, message).to_string_lossy()
+    }
+
     pub unsafe fn require_class(self, class: &str) -> jclass {
+        // First try with JNI FindClass.
+        debug_assert!(class.ends_with('\0'));
+        let c = ((**self.env).v1_2.FindClass)(self.env, class.as_ptr() as *const c_char);
+        if !c.is_null() {
+            return c;
+        }
+
+        // If class is not found and we have a classloader set, try that.
         let classloader = CLASS_LOADER.load(Ordering::Relaxed);
         if !classloader.is_null() {
             let chars = class
@@ -147,10 +170,13 @@ impl<'env> Env<'env> {
             let args = [jvalue { l: string }];
             let result: *mut _jobject =
                 ((**self.env).v1_2.CallObjectMethodA)(self.env, classloader, cl_method, args.as_ptr());
-            let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
+            let exception: *mut _jobject = ((**self.env).v1_2.ExceptionOccurred)(self.env);
             if !exception.is_null() {
                 ((**self.env).v1_2.ExceptionClear)(self.env);
-                panic!("exception happened calling loadClass()");
+                panic!(
+                    "exception happened calling loadClass(): {}",
+                    self.exception_to_string(exception)
+                );
             } else if result.is_null() {
                 panic!("loadClass() returned null");
             }
@@ -160,8 +186,8 @@ impl<'env> Env<'env> {
             return result as jclass;
         }
 
-        // if no classloader is set, fall back to JNI FindClass.
-        self.require_class_jni(class)
+        // If neither found the class, panic.
+        panic!("couldn't load class {}", class);
     }
 
     unsafe fn require_class_jni(self, class: &str) -> jclass {
