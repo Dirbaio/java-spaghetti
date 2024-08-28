@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicPtr, Ordering};
 
 use jni_sys::*;
 
-use crate::{AsArg, Local, ReferenceType, StringChars, ThrowableType, VM};
+use crate::{AsArg, Local, Ref, ReferenceType, StringChars, ThrowableType, VM};
 
 /// FFI:  Use **Env** instead of \*const JNIEnv.  This represents a per-thread Java exection environment.
 ///
@@ -798,5 +798,10 @@ impl<'env> Env<'env> {
 
     pub unsafe fn set_static_double_field(self, class: jclass, field: jfieldID, value: jdouble) {
         ((**self.env).v1_2.SetStaticDoubleField)(self.env, class, field, value);
+    }
+
+    pub fn throw<T: ReferenceType>(self, throwable: Ref<T>) {
+        let res = unsafe { ((**self.env).v1_2.Throw)(self.env, throwable.as_raw()) };
+        assert_eq!(res, 0);
     }
 }
