@@ -35,3 +35,9 @@ impl<'env, T: ReferenceType> Return<'env, T> {
         self.object
     }
 }
+
+impl<'env, T: ReferenceType> Default for Return<'env, T> {
+    fn default() -> Self {
+        Self::null()
+    }
+}
