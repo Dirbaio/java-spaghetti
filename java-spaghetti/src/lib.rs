@@ -68,11 +68,11 @@ pub unsafe trait AssignableTo<T: ReferenceType>: ReferenceType {}
 unsafe impl<T: ReferenceType> AssignableTo<T> for T {}
 
 pub trait JavaDisplay: ReferenceType {
-    fn fmt(self: Ref<'_, Self>, f: &mut fmt::Formatter<'_>) -> fmt::Result;
+    fn fmt(self: &Ref<'_, Self>, f: &mut fmt::Formatter<'_>) -> fmt::Result;
 }
 
 pub trait JavaDebug: ReferenceType {
-    fn fmt(self: Ref<'_, Self>, f: &mut fmt::Formatter<'_>) -> fmt::Result;
+    fn fmt(self: &Ref<'_, Self>, f: &mut fmt::Formatter<'_>) -> fmt::Result;
 }
 
 pub unsafe trait AsArg<T>: Sized {
@@ -111,7 +111,7 @@ unsafe impl<T: ReferenceType, U: AssignableTo<T>> AsArg<T> for Ref<'_, U> {
 
 unsafe impl<T: ReferenceType, U: AssignableTo<T>> AsArg<T> for Option<Ref<'_, U>> {
     fn as_arg(&self) -> jobject {
-        self.map(|r| r.as_raw()).unwrap_or(null_mut())
+        self.as_ref().map(|r| r.as_raw()).unwrap_or(null_mut())
     }
 }
 

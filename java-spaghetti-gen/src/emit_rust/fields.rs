@@ -177,7 +177,7 @@ impl<'a> Field<'a> {
         let env_param = if self.java.is_static() {
             "env: ::java_spaghetti::Env<'env>"
         } else {
-            "self: ::java_spaghetti::Ref<'env, Self>"
+            "self: &::java_spaghetti::Ref<'env, Self>"
         };
 
         let url = KnownDocsUrl::from_field(

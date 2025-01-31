@@ -95,7 +95,7 @@ impl<'a> Method<'a> {
         let mut params_decl = if self.java.is_constructor() || self.java.is_static() {
             String::from("__jni_env: ::java_spaghetti::Env<'env>")
         } else {
-            String::from("self: ::java_spaghetti::Ref<'env, Self>")
+            String::from("self: &::java_spaghetti::Ref<'env, Self>")
         };
 
         for (arg_idx, arg) in descriptor.arguments().enumerate() {

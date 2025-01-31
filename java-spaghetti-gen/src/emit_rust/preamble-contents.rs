@@ -19,7 +19,7 @@ mod util {
     use super::java::lang::{String as JString, Throwable};
 
     impl JavaDebug for Throwable {
-        fn fmt(self: Ref<'_, Self>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(self: &Ref<'_, Self>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             writeln!(f, "java::lang::Throwable")?;
 
             match self.getMessage() {
@@ -87,7 +87,7 @@ mod util {
             unsafe { Local::from_raw(env, string) }
         }
 
-        fn string_chars<'env>(self: Ref<'env, Self>) -> StringChars<'env> {
+        fn string_chars<'env>(self: &Ref<'env, Self>) -> StringChars<'env> {
             unsafe { StringChars::from_env_jstring(self.env(), self.as_raw()) }
         }
 
@@ -98,7 +98,7 @@ mod util {
         /// [DecodeUtf16Error]:         https://doc.rust-lang.org/std/char/struct.DecodeUtf16Error.html
         /// [String]:                   https://doc.rust-lang.org/std/string/struct.String.html
         /// [REPLACEMENT_CHARACTER]:    https://doc.rust-lang.org/std/char/constant.REPLACEMENT_CHARACTER.html
-        pub fn to_string(self: Ref<'_, Self>) -> Result<String, DecodeUtf16Error> {
+        pub fn to_string(self: &Ref<'_, Self>) -> Result<String, DecodeUtf16Error> {
             self.string_chars().to_string()
         }
 
@@ -106,14 +106,14 @@ mod util {
         ///
         /// [String]:                   https://doc.rust-lang.org/std/string/struct.String.html
         /// [REPLACEMENT_CHARACTER]:    https://doc.rust-lang.org/std/char/constant.REPLACEMENT_CHARACTER.html
-        pub fn to_string_lossy(self: Ref<'_, Self>) -> String {
+        pub fn to_string_lossy(self: &Ref<'_, Self>) -> String {
             self.string_chars().to_string_lossy()
         }
     }
 
     // OsString doesn't implement Display, so neither does java::lang::String.
     impl JavaDebug for JString {
-        fn fmt(self: Ref<'_, Self>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(self: &Ref<'_, Self>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             fmt::Debug::fmt(&self.to_string_lossy(), f) // XXX: Unneccessary alloc?  Shouldn't use lossy here?
         }
     }

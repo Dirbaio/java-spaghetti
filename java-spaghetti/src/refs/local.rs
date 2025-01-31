@@ -53,9 +53,7 @@ impl<'env, T: ReferenceType> Local<'env, T> {
     }
 
     pub fn leak(self) -> Ref<'env, T> {
-        let result = self.ref_;
-        std::mem::forget(self); // Don't allow local to DeleteLocalRef the jobject
-        result
+        unsafe { Ref::from_raw(self.env(), self.into_raw()) }
     }
 
     pub fn as_global(&self) -> Global<T> {
@@ -65,8 +63,8 @@ impl<'env, T: ReferenceType> Local<'env, T> {
         unsafe { Global::from_raw(env.vm(), object) }
     }
 
-    pub fn as_ref(&self) -> Ref<'_, T> {
-        self.ref_
+    pub fn as_ref(&self) -> &Ref<'_, T> {
+        &self.ref_
     }
 
     pub fn as_return(&self) -> Return<'env, T> {
@@ -120,8 +118,6 @@ impl<'env, T: ReferenceType> From<&Ref<'env, T>> for Local<'env, T> {
     }
 }
 
-// TODO this is unsound because `Ref` can be cloned/copied.
-// You can get a Ref out of the Local, copy it, drop the Local, then use-after-free through the Ref.
 impl<'env, T: ReferenceType> Deref for Local<'env, T> {
     type Target = Ref<'env, T>;
     fn deref(&self) -> &Self::Target {
@@ -146,12 +142,12 @@ impl<'env, T: ReferenceType> Drop for Local<'env, T> {
 
 impl<'env, T: JavaDebug> Debug for Local<'env, T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        T::fmt(**self, f)
+        T::fmt(self, f)
     }
 }
 
 impl<'env, T: JavaDisplay> Display for Local<'env, T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        T::fmt(**self, f)
+        T::fmt(self, f)
     }
 }

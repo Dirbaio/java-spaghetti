@@ -28,13 +28,13 @@ where
     fn new<'env>(env: Env<'env>, size: usize) -> Local<'env, Self>;
 
     /// Uses env.GetArrayLength to get the length of the java array.
-    fn len(self: Ref<'_, Self>) -> usize;
+    fn len(self: &Ref<'_, Self>) -> usize;
 
     /// Uses env.Get{Type}ArrayRegion to read the contents of the java array from \[start .. start + elements.len())
-    fn get_region(self: Ref<'_, Self>, start: usize, elements: &mut [T]);
+    fn get_region(self: &Ref<'_, Self>, start: usize, elements: &mut [T]);
 
     /// Uses env.Set{Type}ArrayRegion to set the contents of the java array from \[start .. start + elements.len())
-    fn set_region(self: Ref<'_, Self>, start: usize, elements: &[T]);
+    fn set_region(self: &Ref<'_, Self>, start: usize, elements: &[T]);
 
     /// Uses env.New{Type}Array + Set{Type}ArrayRegion to create a new java array containing a copy of "elements".
     fn new_from<'env>(env: Env<'env>, elements: &[T]) -> Local<'env, Self> {
@@ -44,7 +44,7 @@ where
     }
 
     /// Uses env.GetArrayLength + env.Get{Type}ArrayRegion to read the contents of the java array from range into a new Vec.
-    fn get_region_as_vec(self: Ref<'_, Self>, range: impl RangeBounds<usize>) -> Vec<T> {
+    fn get_region_as_vec(self: &Ref<'_, Self>, range: impl RangeBounds<usize>) -> Vec<T> {
         let len = self.len();
 
         let start = match range.start_bound() {
@@ -70,7 +70,7 @@ where
     }
 
     /// Uses env.GetArrayLength + env.Get{Type}ArrayRegion to read the contents of the entire java array into a new Vec.
-    fn as_vec(self: Ref<'_, Self>) -> Vec<T> {
+    fn as_vec(self: &Ref<'_, Self>) -> Vec<T> {
         self.get_region_as_vec(0..self.len())
     }
 }
@@ -110,12 +110,12 @@ macro_rules! primitive_array {
                 array
             }
 
-            fn len(self: Ref<'_, Self>) -> usize {
+            fn len(self: &Ref<'_, Self>) -> usize {
                 let env = self.env().as_raw();
                 unsafe { ((**env).v1_2.GetArrayLength)(env, self.as_raw()) as usize }
             }
 
-            fn get_region(self: Ref<'_, Self>, start: usize, elements: &mut [$type]) {
+            fn get_region(self: &Ref<'_, Self>, start: usize, elements: &mut [$type]) {
                 assert!(start <= std::i32::MAX as usize); // jsize == jint == i32
                 assert!(elements.len() <= std::i32::MAX as usize); // jsize == jint == i32
                 let self_len = self.len() as jsize;
@@ -138,7 +138,7 @@ macro_rules! primitive_array {
                 };
             }
 
-            fn set_region(self: Ref<'_, Self>, start: usize, elements: &[$type]) {
+            fn set_region(self: &Ref<'_, Self>, start: usize, elements: &[$type]) {
                 assert!(start <= std::i32::MAX as usize); // jsize == jint == i32
                 assert!(elements.len() <= std::i32::MAX as usize); // jsize == jint == i32
                 let self_len = self.len() as jsize;
@@ -201,7 +201,7 @@ impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
         }
     }
 
-    pub fn iter<'env>(self: Ref<'env, Self>) -> ObjectArrayIter<'env, T, E> {
+    pub fn iter<'a, 'env>(self: &'a Ref<'env, Self>) -> ObjectArrayIter<'a, 'env, T, E> {
         ObjectArrayIter {
             array: self,
             index: 0,
@@ -223,13 +223,13 @@ impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
         array
     }
 
-    pub fn len(self: Ref<'_, Self>) -> usize {
+    pub fn len(self: &Ref<'_, Self>) -> usize {
         let env = self.env().as_raw();
         unsafe { ((**env).v1_2.GetArrayLength)(env, self.as_raw()) as usize }
     }
 
     /// XXX: Expose this via std::ops::Index
-    pub fn get<'env>(self: Ref<'env, Self>, index: usize) -> Result<Option<Local<'env, T>>, Local<'env, E>> {
+    pub fn get<'env>(self: &Ref<'env, Self>, index: usize) -> Result<Option<Local<'env, T>>, Local<'env, E>> {
         assert!(index <= std::i32::MAX as usize); // jsize == jint == i32 XXX: Should maybe be treated as an exception?
         let index = index as jsize;
         let env = self.env().as_raw();
@@ -248,7 +248,7 @@ impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
     }
 
     /// XXX: I don't think there's a way to expose this via std::ops::IndexMut sadly?
-    pub fn set<'env>(self: Ref<'env, Self>, index: usize, value: impl AsArg<T>) -> Result<(), Local<'env, E>> {
+    pub fn set<'env>(self: &Ref<'env, Self>, index: usize, value: impl AsArg<T>) -> Result<(), Local<'env, E>> {
         assert!(index <= std::i32::MAX as usize); // jsize == jint == i32 XXX: Should maybe be treated as an exception?
         let index = index as jsize;
         let env = self.env().as_raw();
@@ -265,13 +265,13 @@ impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
     }
 }
 
-pub struct ObjectArrayIter<'env, T: ReferenceType, E: ThrowableType> {
-    array: Ref<'env, ObjectArray<T, E>>,
+pub struct ObjectArrayIter<'a, 'env, T: ReferenceType, E: ThrowableType> {
+    array: &'a Ref<'env, ObjectArray<T, E>>,
     index: usize,
     length: usize,
 }
 
-impl<'env, T: ReferenceType, E: ThrowableType> Iterator for ObjectArrayIter<'env, T, E> {
+impl<'a, 'env, T: ReferenceType, E: ThrowableType> Iterator for ObjectArrayIter<'a, 'env, T, E> {
     type Item = Option<Local<'env, T>>;
     fn next(&mut self) -> Option<Self::Item> {
         let index = self.index;
