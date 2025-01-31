@@ -177,7 +177,7 @@ impl<'a> Field<'a> {
         let env_param = if self.java.is_static() {
             "env: ::java_spaghetti::Env<'env>"
         } else {
-            "&'env self"
+            "self: ::java_spaghetti::Ref<'env, Self>"
         };
 
         let url = KnownDocsUrl::from_field(
@@ -234,11 +234,7 @@ impl<'a> Field<'a> {
                 )?;
                 writeln!(out, "{}    unsafe {{", indent)?;
                 if !self.java.is_static() {
-                    writeln!(
-                        out,
-                        "{}        let env = ::java_spaghetti::Env::from_raw(self.0.env);",
-                        indent
-                    )?;
+                    writeln!(out, "{}        let env = self.env();", indent)?;
                 }
                 writeln!(
                     out,
@@ -258,7 +254,7 @@ impl<'a> Field<'a> {
                 } else {
                     writeln!(
                         out,
-                        "{}        env.get_{}_field(self.0.object, __jni_field)",
+                        "{}        env.get_{}_field(self.as_raw(), __jni_field)",
                         indent, field_fragment
                     )?;
                 }
@@ -286,11 +282,7 @@ impl<'a> Field<'a> {
                     )?;
                     writeln!(out, "{}    unsafe {{", indent)?;
                     if !self.java.is_static() {
-                        writeln!(
-                            out,
-                            "{}        let env = ::java_spaghetti::Env::from_raw(self.0.env);",
-                            indent
-                        )?;
+                        writeln!(out, "{}        let env = self.env();", indent)?;
                     }
                     writeln!(
                         out,
@@ -310,7 +302,7 @@ impl<'a> Field<'a> {
                     } else {
                         writeln!(
                             out,
-                            "{}        env.set_{}_field(self.0.object, __jni_field, value)",
+                            "{}        env.set_{}_field(self.as_raw(), __jni_field, value)",
                             indent, field_fragment
                         )?;
                     }

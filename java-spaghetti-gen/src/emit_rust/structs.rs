@@ -117,15 +117,9 @@ impl Struct {
         }
 
         let rust_name = &self.rust.struct_name;
-        if self.java.is_static() {
-            writeln!(out, "{attributes}{visibility} enum {rust_name}{{}}")?;
-        } else {
-            writeln!(
-                out,
-                "#[repr(transparent)] {attributes}{visibility} struct {rust_name}(pub(crate) ::java_spaghetti::ObjectAndEnv);
-                unsafe impl ::java_spaghetti::ReferenceType for {rust_name} {{}}
-                ",
-            )?;
+        writeln!(out, "{attributes}{visibility} enum {rust_name}{{}}")?;
+        if !self.java.is_static() {
+            writeln!(out, "unsafe impl ::java_spaghetti::ReferenceType for {rust_name} {{}}")?;
         }
         writeln!(
             out,
@@ -157,33 +151,6 @@ impl Struct {
             }
         }
 
-        if let Some(super_path) = self.java.super_path.as_ref() {
-            let super_path = context.java_to_rust_path(super_path.as_id(), &self.rust.mod_).unwrap();
-            writeln!(
-                out,
-                "impl ::std::ops::Deref for {rust_name} {{
-                    type Target = {super_path};
-                    fn deref(&self) -> &Self::Target {{
-                        unsafe {{ &*(self as *const Self as *const Self::Target) }}
-                    }}
-                }}"
-            )?;
-        };
-
-        for interface in &self.java.interfaces {
-            if !context.all_classes.contains_key(interface.as_str()) {
-                continue;
-            }
-            let implements_path = context.java_to_rust_path(interface.as_id(), &self.rust.mod_).unwrap();
-            writeln!(
-                out,
-                "impl ::std::convert::AsRef<{implements_path}> for {rust_name} {{
-                    fn as_ref(&self) -> &{implements_path} {{
-                        unsafe {{ &*(self as *const Self as *const {implements_path}) }}
-                    }}
-                }}"
-            )?;
-        }
         writeln!(out, "impl {rust_name} {{")?;
 
         let mut id_repeats = HashMap::new();

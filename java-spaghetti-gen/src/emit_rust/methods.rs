@@ -95,7 +95,7 @@ impl<'a> Method<'a> {
         let mut params_decl = if self.java.is_constructor() || self.java.is_static() {
             String::from("__jni_env: ::java_spaghetti::Env<'env>")
         } else {
-            String::from("&'env self")
+            String::from("self: ::java_spaghetti::Ref<'env, Self>")
         };
 
         for (arg_idx, arg) in descriptor.arguments().enumerate() {
@@ -346,11 +346,7 @@ impl<'a> Method<'a> {
         writeln!(out, "{}    unsafe {{", indent)?;
         writeln!(out, "{}        let __jni_args = [{}];", indent, params_array)?;
         if !self.java.is_constructor() && !self.java.is_static() {
-            writeln!(
-                out,
-                "{}        let __jni_env = ::java_spaghetti::Env::from_raw(self.0.env);",
-                indent
-            )?;
+            writeln!(out, "{}        let __jni_env = self.env();", indent)?;
         }
 
         writeln!(
@@ -378,7 +374,7 @@ impl<'a> Method<'a> {
         } else {
             writeln!(
                 out,
-                "{}        __jni_env.call_{}_method_a(self.0.object, __jni_method, __jni_args.as_ptr())",
+                "{}        __jni_env.call_{}_method_a(self.as_raw(), __jni_method, __jni_args.as_ptr())",
                 indent, ret_method_fragment
             )?;
         }

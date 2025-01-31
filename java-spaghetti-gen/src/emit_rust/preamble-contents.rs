@@ -14,12 +14,12 @@ mod util {
     use std::fmt;
 
     use java_spaghetti::sys::jsize;
-    use java_spaghetti::{Env, Local, StringChars, ThrowableType};
+    use java_spaghetti::{Env, JavaDebug, Local, Ref, StringChars, ThrowableType};
 
     use super::java::lang::{String as JString, Throwable};
 
-    impl fmt::Debug for Throwable {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    impl JavaDebug for Throwable {
+        fn fmt(self: Ref<'_, Self>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             writeln!(f, "java::lang::Throwable")?;
 
             match self.getMessage() {
@@ -87,11 +87,8 @@ mod util {
             unsafe { Local::from_raw(env, string) }
         }
 
-        fn string_chars(&self) -> StringChars {
-            unsafe {
-                let env = Env::from_raw(self.0.env);
-                StringChars::from_env_jstring(env, self.0.object)
-            }
+        fn string_chars<'env>(self: Ref<'env, Self>) -> StringChars<'env> {
+            unsafe { StringChars::from_env_jstring(self.env(), self.as_raw()) }
         }
 
         /// Returns a new [Ok]\([String]\), or an [Err]\([DecodeUtf16Error]\) if if it contained any invalid UTF16.
@@ -101,7 +98,7 @@ mod util {
         /// [DecodeUtf16Error]:         https://doc.rust-lang.org/std/char/struct.DecodeUtf16Error.html
         /// [String]:                   https://doc.rust-lang.org/std/string/struct.String.html
         /// [REPLACEMENT_CHARACTER]:    https://doc.rust-lang.org/std/char/constant.REPLACEMENT_CHARACTER.html
-        pub fn to_string(&self) -> Result<String, DecodeUtf16Error> {
+        pub fn to_string(self: Ref<'_, Self>) -> Result<String, DecodeUtf16Error> {
             self.string_chars().to_string()
         }
 
@@ -109,14 +106,14 @@ mod util {
         ///
         /// [String]:                   https://doc.rust-lang.org/std/string/struct.String.html
         /// [REPLACEMENT_CHARACTER]:    https://doc.rust-lang.org/std/char/constant.REPLACEMENT_CHARACTER.html
-        pub fn to_string_lossy(&self) -> String {
+        pub fn to_string_lossy(self: Ref<'_, Self>) -> String {
             self.string_chars().to_string_lossy()
         }
     }
 
     // OsString doesn't implement Display, so neither does java::lang::String.
-    impl fmt::Debug for JString {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    impl JavaDebug for JString {
+        fn fmt(self: Ref<'_, Self>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             fmt::Debug::fmt(&self.to_string_lossy(), f) // XXX: Unneccessary alloc?  Shouldn't use lossy here?
         }
     }
