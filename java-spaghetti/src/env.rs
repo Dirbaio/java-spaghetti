@@ -129,6 +129,21 @@ impl<'env> Env<'env> {
         CLASS_LOADER.store(classloader, Ordering::Relaxed);
     }
 
+    /// XXX: Make this method public after making sure that it has a proper name.
+    /// Note that there is `ExceptionCheck` in JNI functions, which does not create a
+    /// local reference to the exception object.
+    pub(crate) fn exception_check<E: ThrowableType>(self) -> Result<(), Local<'env, E>> {
+        unsafe {
+            let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
+            if exception.is_null() {
+                Ok(())
+            } else {
+                ((**self.env).v1_2.ExceptionClear)(self.env);
+                Err(Local::from_raw(self, exception))
+            }
+        }
+    }
+
     unsafe fn exception_to_string(self, exception: jobject) -> String {
         // use JNI FindClass to avoid infinte recursion.
         let throwable_class = self.require_class_jni("java/lang/Throwable\0");
@@ -293,14 +308,9 @@ impl<'env> Env<'env> {
         args: *const jvalue,
     ) -> Result<Local<'env, R>, Local<'env, E>> {
         let result = ((**self.env).v1_2.NewObjectA)(self.env, class, method, args);
-        let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
-        if !exception.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_raw(self, exception))
-        } else {
-            assert!(!result.is_null());
-            Ok(Local::from_raw(self, result))
-        }
+        self.exception_check()?;
+        assert!(!result.is_null());
+        Ok(Local::from_raw(self, result))
     }
 
     // Instance Methods
@@ -312,11 +322,8 @@ impl<'env> Env<'env> {
         args: *const jvalue,
     ) -> Result<Option<Local<'env, R>>, Local<'env, E>> {
         let result = ((**self.env).v1_2.CallObjectMethodA)(self.env, this, method, args);
-        let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
-        if !exception.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_raw(self, exception))
-        } else if result.is_null() {
+        self.exception_check()?;
+        if result.is_null() {
             Ok(None)
         } else {
             Ok(Some(Local::from_raw(self, result)))
@@ -330,13 +337,8 @@ impl<'env> Env<'env> {
         args: *const jvalue,
     ) -> Result<bool, Local<'env, E>> {
         let result = ((**self.env).v1_2.CallBooleanMethodA)(self.env, this, method, args);
-        let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
-        if !exception.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_raw(self, exception))
-        } else {
-            Ok(result != JNI_FALSE)
-        }
+        self.exception_check()?;
+        Ok(result != JNI_FALSE)
     }
 
     pub unsafe fn call_byte_method_a<E: ThrowableType>(
@@ -346,13 +348,8 @@ impl<'env> Env<'env> {
         args: *const jvalue,
     ) -> Result<jbyte, Local<'env, E>> {
         let result = ((**self.env).v1_2.CallByteMethodA)(self.env, this, method, args);
-        let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
-        if !exception.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_raw(self, exception))
-        } else {
-            Ok(result)
-        }
+        self.exception_check()?;
+        Ok(result)
     }
 
     pub unsafe fn call_char_method_a<E: ThrowableType>(
@@ -362,13 +359,8 @@ impl<'env> Env<'env> {
         args: *const jvalue,
     ) -> Result<jchar, Local<'env, E>> {
         let result = ((**self.env).v1_2.CallCharMethodA)(self.env, this, method, args);
-        let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
-        if !exception.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_raw(self, exception))
-        } else {
-            Ok(result)
-        }
+        self.exception_check()?;
+        Ok(result)
     }
 
     pub unsafe fn call_short_method_a<E: ThrowableType>(
@@ -378,13 +370,8 @@ impl<'env> Env<'env> {
         args: *const jvalue,
     ) -> Result<jshort, Local<'env, E>> {
         let result = ((**self.env).v1_2.CallShortMethodA)(self.env, this, method, args);
-        let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
-        if !exception.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_raw(self, exception))
-        } else {
-            Ok(result)
-        }
+        self.exception_check()?;
+        Ok(result)
     }
 
     pub unsafe fn call_int_method_a<E: ThrowableType>(
@@ -394,13 +381,8 @@ impl<'env> Env<'env> {
         args: *const jvalue,
     ) -> Result<jint, Local<'env, E>> {
         let result = ((**self.env).v1_2.CallIntMethodA)(self.env, this, method, args);
-        let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
-        if !exception.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_raw(self, exception))
-        } else {
-            Ok(result)
-        }
+        self.exception_check()?;
+        Ok(result)
     }
 
     pub unsafe fn call_long_method_a<E: ThrowableType>(
@@ -410,13 +392,8 @@ impl<'env> Env<'env> {
         args: *const jvalue,
     ) -> Result<jlong, Local<'env, E>> {
         let result = ((**self.env).v1_2.CallLongMethodA)(self.env, this, method, args);
-        let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
-        if !exception.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_raw(self, exception))
-        } else {
-            Ok(result)
-        }
+        self.exception_check()?;
+        Ok(result)
     }
 
     pub unsafe fn call_float_method_a<E: ThrowableType>(
@@ -426,13 +403,8 @@ impl<'env> Env<'env> {
         args: *const jvalue,
     ) -> Result<jfloat, Local<'env, E>> {
         let result = ((**self.env).v1_2.CallFloatMethodA)(self.env, this, method, args);
-        let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
-        if !exception.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_raw(self, exception))
-        } else {
-            Ok(result)
-        }
+        self.exception_check()?;
+        Ok(result)
     }
 
     pub unsafe fn call_double_method_a<E: ThrowableType>(
@@ -442,13 +414,8 @@ impl<'env> Env<'env> {
         args: *const jvalue,
     ) -> Result<jdouble, Local<'env, E>> {
         let result = ((**self.env).v1_2.CallDoubleMethodA)(self.env, this, method, args);
-        let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
-        if !exception.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_raw(self, exception))
-        } else {
-            Ok(result)
-        }
+        self.exception_check()?;
+        Ok(result)
     }
 
     pub unsafe fn call_void_method_a<E: ThrowableType>(
@@ -458,13 +425,7 @@ impl<'env> Env<'env> {
         args: *const jvalue,
     ) -> Result<(), Local<'env, E>> {
         ((**self.env).v1_2.CallVoidMethodA)(self.env, this, method, args);
-        let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
-        if !exception.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_raw(self, exception))
-        } else {
-            Ok(())
-        }
+        self.exception_check()
     }
 
     // Static Methods
@@ -476,11 +437,8 @@ impl<'env> Env<'env> {
         args: *const jvalue,
     ) -> Result<Option<Local<'env, R>>, Local<'env, E>> {
         let result = ((**self.env).v1_2.CallStaticObjectMethodA)(self.env, class, method, args);
-        let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
-        if !exception.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_raw(self, exception))
-        } else if result.is_null() {
+        self.exception_check()?;
+        if result.is_null() {
             Ok(None)
         } else {
             Ok(Some(Local::from_raw(self, result)))
@@ -494,13 +452,8 @@ impl<'env> Env<'env> {
         args: *const jvalue,
     ) -> Result<bool, Local<'env, E>> {
         let result = ((**self.env).v1_2.CallStaticBooleanMethodA)(self.env, class, method, args);
-        let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
-        if !exception.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_raw(self, exception))
-        } else {
-            Ok(result != JNI_FALSE)
-        }
+        self.exception_check()?;
+        Ok(result != JNI_FALSE)
     }
 
     pub unsafe fn call_static_byte_method_a<E: ThrowableType>(
@@ -510,13 +463,8 @@ impl<'env> Env<'env> {
         args: *const jvalue,
     ) -> Result<jbyte, Local<'env, E>> {
         let result = ((**self.env).v1_2.CallStaticByteMethodA)(self.env, class, method, args);
-        let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
-        if !exception.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_raw(self, exception))
-        } else {
-            Ok(result)
-        }
+        self.exception_check()?;
+        Ok(result)
     }
 
     pub unsafe fn call_static_char_method_a<E: ThrowableType>(
@@ -526,13 +474,8 @@ impl<'env> Env<'env> {
         args: *const jvalue,
     ) -> Result<jchar, Local<'env, E>> {
         let result = ((**self.env).v1_2.CallStaticCharMethodA)(self.env, class, method, args);
-        let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
-        if !exception.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_raw(self, exception))
-        } else {
-            Ok(result)
-        }
+        self.exception_check()?;
+        Ok(result)
     }
 
     pub unsafe fn call_static_short_method_a<E: ThrowableType>(
@@ -542,13 +485,8 @@ impl<'env> Env<'env> {
         args: *const jvalue,
     ) -> Result<jshort, Local<'env, E>> {
         let result = ((**self.env).v1_2.CallStaticShortMethodA)(self.env, class, method, args);
-        let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
-        if !exception.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_raw(self, exception))
-        } else {
-            Ok(result)
-        }
+        self.exception_check()?;
+        Ok(result)
     }
 
     pub unsafe fn call_static_int_method_a<E: ThrowableType>(
@@ -558,13 +496,8 @@ impl<'env> Env<'env> {
         args: *const jvalue,
     ) -> Result<jint, Local<'env, E>> {
         let result = ((**self.env).v1_2.CallStaticIntMethodA)(self.env, class, method, args);
-        let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
-        if !exception.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_raw(self, exception))
-        } else {
-            Ok(result)
-        }
+        self.exception_check()?;
+        Ok(result)
     }
 
     pub unsafe fn call_static_long_method_a<E: ThrowableType>(
@@ -574,13 +507,8 @@ impl<'env> Env<'env> {
         args: *const jvalue,
     ) -> Result<jlong, Local<'env, E>> {
         let result = ((**self.env).v1_2.CallStaticLongMethodA)(self.env, class, method, args);
-        let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
-        if !exception.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_raw(self, exception))
-        } else {
-            Ok(result)
-        }
+        self.exception_check()?;
+        Ok(result)
     }
 
     pub unsafe fn call_static_float_method_a<E: ThrowableType>(
@@ -590,13 +518,8 @@ impl<'env> Env<'env> {
         args: *const jvalue,
     ) -> Result<jfloat, Local<'env, E>> {
         let result = ((**self.env).v1_2.CallStaticFloatMethodA)(self.env, class, method, args);
-        let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
-        if !exception.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_raw(self, exception))
-        } else {
-            Ok(result)
-        }
+        self.exception_check()?;
+        Ok(result)
     }
 
     pub unsafe fn call_static_double_method_a<E: ThrowableType>(
@@ -606,13 +529,8 @@ impl<'env> Env<'env> {
         args: *const jvalue,
     ) -> Result<jdouble, Local<'env, E>> {
         let result = ((**self.env).v1_2.CallStaticDoubleMethodA)(self.env, class, method, args);
-        let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
-        if !exception.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_raw(self, exception))
-        } else {
-            Ok(result)
-        }
+        self.exception_check()?;
+        Ok(result)
     }
 
     pub unsafe fn call_static_void_method_a<E: ThrowableType>(
@@ -622,13 +540,7 @@ impl<'env> Env<'env> {
         args: *const jvalue,
     ) -> Result<(), Local<'env, E>> {
         ((**self.env).v1_2.CallStaticVoidMethodA)(self.env, class, method, args);
-        let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
-        if !exception.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
-            Err(Local::from_raw(self, exception))
-        } else {
-            Ok(())
-        }
+        self.exception_check()
     }
 
     // Instance Fields

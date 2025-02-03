@@ -191,14 +191,15 @@ impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
         assert!(size <= std::i32::MAX as usize); // jsize == jint == i32
         let class = T::static_with_jni_type(|t| unsafe { env.require_class(t) });
         let size = size as jsize;
-        let jnienv = env.as_raw();
-        unsafe {
+
+        let object = unsafe {
+            let env = env.as_raw();
             let fill = null_mut();
-            let object = ((**jnienv).v1_2.NewObjectArray)(jnienv, size, class, fill);
-            let exception = ((**jnienv).v1_2.ExceptionOccurred)(jnienv);
-            assert!(exception.is_null()); // Only sane exception here is an OOM exception
-            Local::from_raw(env, object)
-        }
+            ((**env).v1_2.NewObjectArray)(env, size, class, fill)
+        };
+        // Only sane exception here is an OOM exception
+        env.exception_check::<E>().map_err(|_| "OOM").unwrap();
+        unsafe { Local::from_raw(env, object) }
     }
 
     pub fn iter<'a, 'env>(self: &'a Ref<'env, Self>) -> ObjectArrayIter<'a, 'env, T, E> {
@@ -232,18 +233,16 @@ impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
     pub fn get<'env>(self: &Ref<'env, Self>, index: usize) -> Result<Option<Local<'env, T>>, Local<'env, E>> {
         assert!(index <= std::i32::MAX as usize); // jsize == jint == i32 XXX: Should maybe be treated as an exception?
         let index = index as jsize;
-        let env = self.env().as_raw();
-        unsafe {
-            let result = ((**env).v1_2.GetObjectArrayElement)(env, self.as_raw(), index);
-            let exception = ((**env).v1_2.ExceptionOccurred)(env);
-            if !exception.is_null() {
-                ((**env).v1_2.ExceptionClear)(env);
-                Err(Local::from_raw(Env::from_raw(env), exception))
-            } else if result.is_null() {
-                Ok(None)
-            } else {
-                Ok(Some(Local::from_raw(Env::from_raw(env), result)))
-            }
+        let env = self.env();
+        let result = unsafe {
+            let env = env.as_raw();
+            ((**env).v1_2.GetObjectArrayElement)(env, self.as_raw(), index)
+        };
+        env.exception_check()?;
+        if result.is_null() {
+            Ok(None)
+        } else {
+            Ok(Some(unsafe { Local::from_raw(env, result) }))
         }
     }
 
@@ -251,17 +250,12 @@ impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
     pub fn set<'env>(self: &Ref<'env, Self>, index: usize, value: impl AsArg<T>) -> Result<(), Local<'env, E>> {
         assert!(index <= std::i32::MAX as usize); // jsize == jint == i32 XXX: Should maybe be treated as an exception?
         let index = index as jsize;
-        let env = self.env().as_raw();
+        let env = self.env();
         unsafe {
+            let env = env.as_raw();
             ((**env).v1_2.SetObjectArrayElement)(env, self.as_raw(), index, value.as_arg());
-            let exception = ((**env).v1_2.ExceptionOccurred)(env);
-            if !exception.is_null() {
-                ((**env).v1_2.ExceptionClear)(env);
-                Err(Local::from_raw(Env::from_raw(env), exception))
-            } else {
-                Ok(())
-            }
         }
+        env.exception_check()
     }
 }
 
