@@ -84,7 +84,9 @@ impl<'env> Env<'env> {
     // String methods
 
     pub unsafe fn new_string(self, chars: *const jchar, len: jsize) -> jstring {
-        ((**self.env).v1_2.NewString)(self.env, chars as *const _, len)
+        let result = ((**self.env).v1_2.NewString)(self.env, chars as *const _, len);
+        assert!(!result.is_null());
+        result
     }
 
     pub unsafe fn get_string_length(self, string: jstring) -> jsize {

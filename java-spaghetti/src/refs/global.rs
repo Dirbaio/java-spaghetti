@@ -4,7 +4,7 @@ use jni_sys::*;
 
 use crate::{Env, Local, Ref, ReferenceType, VM};
 
-/// A [Global](https://www.ibm.com/support/knowledgecenter/en/SSYKE2_8.0.0/com.ibm.java.vm.80.doc/docs/jni_refs.html),
+/// A [Global](https://www.ibm.com/docs/en/sdk-java-technology/8?topic=collector-overview-jni-object-references),
 /// non-null, reference to a Java object (+ [VM]).
 ///
 /// Unlike Local, this can be stored statically and shared between threads.  This has a few caveats:
@@ -50,6 +50,7 @@ impl<T: ReferenceType> Global<T> {
     pub fn as_local<'env>(&self, env: Env<'env>) -> Local<'env, T> {
         let jnienv = env.as_raw();
         let object = unsafe { ((**jnienv).v1_2.NewLocalRef)(jnienv, self.as_raw()) };
+        assert!(!object.is_null());
         unsafe { Local::from_raw(env, object) }
     }
 
@@ -87,6 +88,7 @@ impl<T: ReferenceType> Clone for Global<T> {
         self.vm.with_env(|env| {
             let env = env.as_raw();
             let object = unsafe { ((**env).v1_2.NewGlobalRef)(env, self.object) };
+            assert!(!object.is_null());
             Self {
                 object,
                 vm: self.vm,

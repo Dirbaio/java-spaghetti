@@ -61,6 +61,7 @@ impl<T: ReferenceType> Arg<T> {
         } else {
             let jnienv = env.as_raw();
             let object = ((**jnienv).v1_2.NewGlobalRef)(jnienv, self.object);
+            assert!(!object.is_null());
             Some(Global::from_raw(env.vm(), object))
         }
     }
