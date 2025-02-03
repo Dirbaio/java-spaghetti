@@ -81,7 +81,7 @@ impl Drop for AttachFlag {
     fn drop(&mut self) {
         // avoids the fatal error "Native thread exiting without having called DetachCurrentThread"
         unsafe { ((**self.raw_vm).v1_2.DetachCurrentThread)(self.raw_vm) };
-        let _ = THREAD_EXIT_FLAG.with(|flag| flag.set(()));
+        let _ = THREAD_EXIT_FLAG.try_with(|flag| flag.set(()));
     }
 }
 
@@ -90,5 +90,5 @@ fn set_thread_attach_flag(raw_vm: *mut JavaVM) {
 }
 
 fn get_thread_exit_flag() -> bool {
-    THREAD_EXIT_FLAG.with(|flag| flag.get().is_some())
+    THREAD_EXIT_FLAG.try_with(|flag| flag.get().is_some()).unwrap_or(true)
 }

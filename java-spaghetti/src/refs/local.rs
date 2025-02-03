@@ -5,7 +5,7 @@ use jni_sys::*;
 
 use crate::{AssignableTo, Env, Global, JavaDebug, JavaDisplay, Ref, ReferenceType, Return};
 
-/// A [Local](https://www.ibm.com/support/knowledgecenter/en/SSYKE2_8.0.0/com.ibm.java.vm.80.doc/docs/jni_refs.html),
+/// A [Local](https://www.ibm.com/docs/en/sdk-java-technology/8?topic=collector-overview-jni-object-references),
 /// non-null, reference to a Java object (+ [Env]) limited to the current thread/stack.
 ///
 /// Including the env allows for the convenient execution of methods without having to individually pass the env as an
@@ -60,6 +60,7 @@ impl<'env, T: ReferenceType> Local<'env, T> {
         let env = self.env();
         let jnienv = env.as_raw();
         let object = unsafe { ((**jnienv).v1_2.NewGlobalRef)(jnienv, self.as_raw()) };
+        assert!(!object.is_null());
         unsafe { Global::from_raw(env.vm(), object) }
     }
 
@@ -70,6 +71,7 @@ impl<'env, T: ReferenceType> Local<'env, T> {
     pub fn as_return(&self) -> Return<'env, T> {
         let env: *mut *const JNINativeInterface_ = self.env().as_raw();
         let object = unsafe { ((**env).v1_2.NewLocalRef)(env, self.as_raw()) };
+        assert!(!object.is_null());
         unsafe { Return::from_raw(object) }
     }
 
@@ -86,6 +88,7 @@ impl<'env, T: ReferenceType> Local<'env, T> {
             return Err(crate::CastError);
         }
         let object = unsafe { ((**jnienv).v1_2.NewLocalRef)(jnienv, self.as_raw()) };
+        assert!(!object.is_null());
         Ok(unsafe { Local::from_raw(env, object) })
     }
 
@@ -96,6 +99,7 @@ impl<'env, T: ReferenceType> Local<'env, T> {
         let env = self.env();
         let jnienv = env.as_raw();
         let object = unsafe { ((**jnienv).v1_2.NewLocalRef)(jnienv, self.as_raw()) };
+        assert!(!object.is_null());
         unsafe { Local::from_raw(env, object) }
     }
 }
@@ -129,6 +133,7 @@ impl<'env, T: ReferenceType> Clone for Local<'env, T> {
     fn clone(&self) -> Self {
         let env = self.env().as_raw();
         let object = unsafe { ((**env).v1_2.NewLocalRef)(env, self.as_raw()) };
+        assert!(!object.is_null());
         unsafe { Self::from_raw(self.env(), object) }
     }
 }

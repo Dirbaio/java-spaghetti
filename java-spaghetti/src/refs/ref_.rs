@@ -6,7 +6,7 @@ use jni_sys::jobject;
 
 use crate::{AssignableTo, Env, Global, JavaDebug, JavaDisplay, Local, ReferenceType};
 
-/// A non-null, [reference](https://www.ibm.com/support/knowledgecenter/en/SSYKE2_8.0.0/com.ibm.java.vm.80.doc/docs/jni_refs.html)
+/// A non-null, [reference](https://www.ibm.com/docs/en/sdk-java-technology/8?topic=collector-overview-jni-object-references)
 /// to a Java object (+ [Env]).  This may refer to a [Local](crate::Local), [Global](crate::Global), local [Arg](crate::Arg), etc.
 ///
 /// **Not FFI Safe:**  #\[repr(rust)\], and exact layout is likely to change - depending on exact features used - in the
@@ -45,6 +45,7 @@ impl<'env, T: ReferenceType> Ref<'env, T> {
         let env = self.env();
         let jnienv = env.as_raw();
         let object = unsafe { ((**jnienv).v1_2.NewGlobalRef)(jnienv, self.as_raw()) };
+        assert!(!object.is_null());
         unsafe { Global::from_raw(env.vm(), object) }
     }
 
@@ -52,6 +53,7 @@ impl<'env, T: ReferenceType> Ref<'env, T> {
         let env = self.env();
         let jnienv = env.as_raw();
         let object = unsafe { ((**jnienv).v1_2.NewLocalRef)(jnienv, self.as_raw()) };
+        assert!(!object.is_null());
         unsafe { Local::from_raw(self.env(), object) }
     }
 
