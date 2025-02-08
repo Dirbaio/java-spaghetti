@@ -1,11 +1,10 @@
 use std::error::Error;
 use std::fs::File;
-use std::io;
+use std::io::{self, Read};
 use std::path::Path;
 
-use jreflection::Class;
-
 use crate::config::runtime::Config;
+use crate::parser_util::Class;
 use crate::{emit_rust, util};
 
 /// The core function of this library: Generate Rust code to access Java APIs.
@@ -28,6 +27,8 @@ pub fn run(config: impl Into<Config>) -> Result<(), Box<dyn Error>> {
 }
 
 fn gather_file(context: &mut emit_rust::Context, path: &Path) -> Result<(), Box<dyn Error>> {
+    let verbose = context.config.logging_verbose;
+
     context
         .progress
         .lock()
@@ -45,8 +46,7 @@ fn gather_file(context: &mut emit_rust::Context, path: &Path) -> Result<(), Box<
 
     match ext.to_string_lossy().to_ascii_lowercase().as_str() {
         "class" => {
-            let mut file = io::BufReader::new(File::open(path)?);
-            let class = Class::read(&mut file)?;
+            let class = Class::read(std::fs::read(path)?)?;
             context.add_struct(class)?;
         }
         "jar" => {
@@ -58,12 +58,18 @@ fn gather_file(context: &mut emit_rust::Context, path: &Path) -> Result<(), Box<
                 if !file.name().ends_with(".class") {
                     continue;
                 }
-                context
-                    .progress
-                    .lock()
-                    .unwrap()
-                    .update(format!("  reading {:3}/{}: {}...", i, n, file.name()).as_str());
-                let class = Class::read(&mut file)?;
+
+                if verbose {
+                    context
+                        .progress
+                        .lock()
+                        .unwrap()
+                        .update(format!("  reading {:3}/{}: {}...", i, n, file.name()).as_str());
+                }
+
+                let mut buf = Vec::new();
+                file.read_to_end(&mut buf)?;
+                let class = Class::read(buf)?;
                 context.add_struct(class)?;
             }
         }

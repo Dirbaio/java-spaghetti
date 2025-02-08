@@ -1,10 +1,10 @@
-use jreflection::{field, Field};
 use serde_derive::Deserialize;
 
 use crate::identifiers::{constify_identifier, javaify_identifier, rustify_identifier, IdentifierManglingError};
+use crate::parser_util::JavaField;
 
 pub enum FieldMangling<'a> {
-    ConstValue(String, &'a field::Constant),
+    ConstValue(String, cafebabe::constant_pool::LiteralConstant<'a>),
     GetSet(String, String),
 }
 
@@ -30,11 +30,11 @@ impl Default for FieldManglingStyle {
 impl FieldManglingStyle {
     pub fn mangle<'a>(
         &self,
-        field: &'a Field,
+        field: JavaField<'a>,
         renamed_to: Option<&str>,
     ) -> Result<FieldMangling<'a>, IdentifierManglingError> {
-        let field_name = renamed_to.unwrap_or(field.name.as_str());
-        if let (Some(value), true, true) = (field.constant.as_ref(), field.is_constant(), self.const_finals) {
+        let field_name = renamed_to.unwrap_or(field.name());
+        if let (Some(value), true) = (field.constant().as_ref(), self.const_finals) {
             let name = if renamed_to.is_some() {
                 Ok(field_name.to_owned()) // Don't remangle renames
             } else if self.rustify_names {
@@ -43,7 +43,7 @@ impl FieldManglingStyle {
                 javaify_identifier(field_name)
             }?;
 
-            Ok(FieldMangling::ConstValue(name, value))
+            Ok(FieldMangling::ConstValue(name, value.clone()))
         } else {
             Ok(FieldMangling::GetSet(
                 self.mangle_identifier(self.getter_pattern.replace("{NAME}", field_name).as_str())?,

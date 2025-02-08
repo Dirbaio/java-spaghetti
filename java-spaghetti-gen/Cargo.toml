@@ -9,13 +9,13 @@ categories = ["development-tools::ffi"]
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-jreflection             = "0.0.11"
-clap                    = { version = "4", features = ["derive"] }
-bitflags                = "2.4.2"
-serde                   = "1.0.197"
-serde_derive            = "1.0.197"
-toml                    = "0.8.10"
-zip                     = "0.6.6"
+cafebabe = "0.8.0"
+clap = { version = "4", features = ["derive"] }
+bitflags = "2.8.0"
+serde = "1.0.197"
+serde_derive = "1.0.197"
+toml = "0.8.10"
+zip = "2.2.2"
 
 [dev-dependencies]
-jni-sys                 = "0.4.0"
+jni-sys  = "0.4.0"

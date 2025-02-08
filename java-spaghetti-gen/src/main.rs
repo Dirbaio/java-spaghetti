@@ -1,9 +1,10 @@
-// must go first because macros.
+// this must go first because of macros.
 mod util;
 
 mod config;
 mod emit_rust;
 mod identifiers;
+mod parser_util;
 mod run;
 
 fn main() {
@@ -18,7 +19,7 @@ mod entry {
     use crate::config;
     use crate::run::run;
 
-    /// Autogenerate jni-android-sys, glue code for access Android JVM APIs from Rust
+    /// Autogenerate glue code for access Android JVM APIs from Rust
     #[derive(Parser, Debug)]
     #[command(version, about)]
     struct Cli {
@@ -49,7 +50,11 @@ mod entry {
         match cli.cmd {
             Cmd::Generate(cmd) => {
                 let config_file = config::toml::File::from_directory(&cmd.directory).unwrap();
-                run(config_file).unwrap();
+                let mut config: config::runtime::Config = config_file.into();
+                if cmd.verbose {
+                    config.logging_verbose = true;
+                }
+                run(config).unwrap();
             }
         }
     }
