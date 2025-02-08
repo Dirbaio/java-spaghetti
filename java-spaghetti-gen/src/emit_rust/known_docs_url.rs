@@ -131,7 +131,7 @@ impl KnownDocsUrl {
         for arg in method.java.descriptor().parameters.iter() {
             if prev_was_array {
                 prev_was_array = false;
-                java_args.push_str("%5B%5D"); // []
+                java_args.push_str("[]");
             }
 
             if !java_args.is_empty() {
@@ -159,7 +159,7 @@ impl KnownDocsUrl {
             });
             if arg.dimensions > 0 {
                 for _ in 1..arg.dimensions {
-                    java_args.push_str("%5B%5D"); // []
+                    java_args.push_str("[]");
                 }
                 prev_was_array = true; // level 0
             }
@@ -169,7 +169,7 @@ impl KnownDocsUrl {
             if method.java.is_varargs() {
                 java_args.push_str("...");
             } else {
-                java_args.push_str("%5B%5D"); // []
+                java_args.push_str("[]");
             }
         }
 
