@@ -6,6 +6,7 @@ use std::io;
 use super::fields::Field;
 use super::known_docs_url::KnownDocsUrl;
 use super::methods::Method;
+use super::StrEmitter;
 use crate::emit_rust::Context;
 use crate::identifiers::{FieldMangling, RustIdentifier};
 use crate::parser_util::{Class, Id, IdPart};
@@ -122,12 +123,12 @@ impl Struct {
         }
         writeln!(
             out,
-            "unsafe impl ::java_spaghetti::JniType for {rust_name} {{
-                fn static_with_jni_type<R>(callback: impl FnOnce(&str) -> R) -> R {{
-                    callback({:?})
-                }}
-            }}",
-            self.java.path().as_str().to_string() + "\0",
+            "unsafe impl ::java_spaghetti::JniType for {rust_name} {{\
+          \n    fn static_with_jni_type<R>(callback: impl FnOnce(&str) -> R) -> R {{\
+          \n        callback({})\
+          \n    }}\
+          \n}}",
+            StrEmitter(self.java.path().as_str()),
         )?;
 
         // recursively visit all superclasses and superinterfaces.
@@ -151,6 +152,21 @@ impl Struct {
         }
 
         writeln!(out, "impl {rust_name} {{")?;
+
+        writeln!(
+            out,
+            "\
+          \nfn __class_global_ref(__jni_env: ::java_spaghetti::Env) -> ::java_spaghetti::sys::jobject {{\
+          \n    static __CLASS: ::std::sync::OnceLock<::java_spaghetti::Global<{}>> = ::std::sync::OnceLock::new();\
+          \n    __CLASS.get_or_init(|| unsafe {{\
+          \n        ::java_spaghetti::Local::from_raw(__jni_env, __jni_env.require_class({})).as_global()\
+          \n    }}).as_raw()\
+          \n}}",
+            context
+                .java_to_rust_path(Id("java/lang/Object"), &self.rust.mod_)
+                .unwrap(),
+            StrEmitter(self.java.path().as_str()),
+        )?;
 
         let mut id_repeats = HashMap::new();
 

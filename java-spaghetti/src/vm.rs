@@ -29,6 +29,12 @@ impl VM {
         self.0
     }
 
+    /// Constructs `VM` with a valid `jni_sys::JavaVM` raw pointer.
+    ///
+    /// # Safety
+    ///
+    /// - Make sure the corresponding JVM will keep alive within the lifetime of current native library or application.
+    /// - Do not use any class redefinition feature, which may break the validity of method/field IDs to be cached.
     pub unsafe fn from_raw(vm: *mut JavaVM) -> Self {
         Self(vm)
     }

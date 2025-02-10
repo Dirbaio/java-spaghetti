@@ -184,22 +184,17 @@ impl<'a> Method<'a> {
 
         writeln!(out)?;
         for reason in &emit_reject_reasons {
-            writeln!(out, "{}// Not emitting: {}", indent, reason)?;
+            writeln!(out, "{indent}// Not emitting: {reason}")?;
         }
         if let Some(url) = KnownDocsUrl::from_method(context, self) {
-            writeln!(out, "{}/// {}", indent, url)?;
+            writeln!(out, "{indent}/// {url}")?;
         } else {
-            writeln!(out, "{}/// {}", indent, self.java.name())?;
+            writeln!(out, "{indent}/// {}", self.java.name())?;
         }
         writeln!(
             out,
-            "{}{}{}fn {}<'env>({}) -> ::std::result::Result<{}, ::java_spaghetti::Local<'env, {}>> {{",
-            indent,
-            attributes,
-            access,
-            method_name,
-            params_decl,
-            ret_decl,
+            "{indent}{attributes}{access}fn {method_name}<'env>({params_decl}) -> \
+            ::std::result::Result<{ret_decl}, ::java_spaghetti::Local<'env, {}>> {{",
             context.throwable_rust_path(mod_)
         )?;
         writeln!(
@@ -211,18 +206,27 @@ impl<'a> Method<'a> {
             self.java.name(),
             MethodSigWriter(self.java.descriptor())
         )?;
-        writeln!(out, "{}    unsafe {{", indent)?;
-        writeln!(out, "{}        let __jni_args = [{}];", indent, params_array)?;
-        if !self.java.is_constructor() && !self.java.is_static() {
-            writeln!(out, "{}        let __jni_env = self.env();", indent)?;
-        }
 
         writeln!(
             out,
-            "{}        let (__jni_class, __jni_method) = __jni_env.require_class_{}method({}, {}, {});",
-            indent,
+            "{indent}    static __METHOD: ::std::sync::OnceLock<usize> = ::std::sync::OnceLock::new();"
+        )?;
+        writeln!(out, "{indent}    unsafe {{")?;
+        writeln!(out, "{indent}        let __jni_args = [{params_array}];")?;
+        if !self.java.is_constructor() && !self.java.is_static() {
+            writeln!(out, "{indent}        let __jni_env = self.env();")?;
+        }
+        writeln!(
+            out,
+            "{indent}        let __jni_class = Self::__class_global_ref(__jni_env);"
+        )?;
+        writeln!(
+            out,
+            "{indent}        \
+            let __jni_method = *__METHOD.get_or_init(|| \
+                __jni_env.require_{}method(__jni_class, {}, {}).addr()\
+            ) as ::java_spaghetti::sys::jmethodID;",
             if self.java.is_static() { "static_" } else { "" },
-            StrEmitter(self.class.path().as_str()),
             StrEmitter(self.java.name()),
             StrEmitter(MethodSigWriter(self.java.descriptor()))
         )?;
@@ -230,24 +234,26 @@ impl<'a> Method<'a> {
         if self.java.is_constructor() {
             writeln!(
                 out,
-                "{}        __jni_env.new_object_a(__jni_class, __jni_method, __jni_args.as_ptr())",
-                indent
+                "{indent}        \
+                __jni_env.new_object_a(__jni_class, __jni_method, __jni_args.as_ptr())",
             )?;
         } else if self.java.is_static() {
             writeln!(
                 out,
-                "{}        __jni_env.call_static_{}_method_a(__jni_class, __jni_method, __jni_args.as_ptr())",
-                indent, ret_method_fragment
+                "{indent}        \
+                __jni_env.call_static_{}_method_a(__jni_class, __jni_method, __jni_args.as_ptr())",
+                ret_method_fragment
             )?;
         } else {
             writeln!(
                 out,
-                "{}        __jni_env.call_{}_method_a(self.as_raw(), __jni_method, __jni_args.as_ptr())",
-                indent, ret_method_fragment
+                "{indent}        \
+                __jni_env.call_{}_method_a(self.as_raw(), __jni_method, __jni_args.as_ptr())",
+                ret_method_fragment
             )?;
         }
-        writeln!(out, "{}    }}", indent)?;
-        writeln!(out, "{}}}", indent)?;
+        writeln!(out, "{indent}    }}")?;
+        writeln!(out, "{indent}}}")?;
         Ok(())
     }
 }

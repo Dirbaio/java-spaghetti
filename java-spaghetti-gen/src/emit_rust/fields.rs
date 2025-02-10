@@ -107,7 +107,7 @@ impl<'a> Field<'a> {
         }
 
         let env_param = if self.java.is_static() {
-            "env: ::java_spaghetti::Env<'env>"
+            "__jni_env: ::java_spaghetti::Env<'env>"
         } else {
             "self: &::java_spaghetti::Ref<'env, Self>"
         };
@@ -157,28 +157,37 @@ impl<'a> Field<'a> {
                     out,
                     "{indent}{attributes}pub fn {get}<'env>({env_param}) -> {rust_get_type} {{",
                 )?;
+                writeln!(
+                    out,
+                    "{indent}    static __FIELD: ::std::sync::OnceLock<usize> = ::std::sync::OnceLock::new();"
+                )?;
                 writeln!(out, "{indent}    unsafe {{")?;
                 if !self.java.is_static() {
-                    writeln!(out, "{indent}        let env = self.env();")?;
+                    writeln!(out, "{indent}        let __jni_env = self.env();")?;
                 }
                 writeln!(
                     out,
-                    "{}        let (__jni_class, __jni_field) = env.require_class_{}field({}, {}, {});",
-                    indent,
+                    "{indent}        let __jni_class = Self::__class_global_ref(__jni_env);"
+                )?;
+                writeln!(
+                    out,
+                    "{indent}        \
+                    let __jni_field = *__FIELD.get_or_init(|| \
+                        __jni_env.require_{}field(__jni_class, {}, {}).addr()\
+                    ) as ::java_spaghetti::sys::jfieldID;",
                     if self.java.is_static() { "static_" } else { "" },
-                    StrEmitter(self.class.path().as_str()),
                     StrEmitter(self.java.name()),
                     StrEmitter(FieldSigWriter(self.java.descriptor()))
                 )?;
                 if self.java.is_static() {
                     writeln!(
                         out,
-                        "{indent}        env.get_static_{field_fragment}_field(__jni_class, __jni_field)",
+                        "{indent}        __jni_env.get_static_{field_fragment}_field(__jni_class, __jni_field)",
                     )?;
                 } else {
                     writeln!(
                         out,
-                        "{indent}        env.get_{field_fragment}_field(self.as_raw(), __jni_field)",
+                        "{indent}        __jni_env.get_{field_fragment}_field(self.as_raw(), __jni_field)",
                     )?;
                 }
                 writeln!(out, "{indent}    }}")?;
@@ -202,28 +211,39 @@ impl<'a> Field<'a> {
                         out,
                         "{indent}{attributes}pub fn {set}<{lifetimes}>({env_param}, value: {rust_set_type}) {{",
                     )?;
+                    writeln!(
+                        out,
+                        "{indent}    static __FIELD: ::std::sync::OnceLock<usize> = ::std::sync::OnceLock::new();"
+                    )?;
                     writeln!(out, "{indent}    unsafe {{")?;
                     if !self.java.is_static() {
-                        writeln!(out, "{indent}        let env = self.env();")?;
+                        writeln!(out, "{indent}        let __jni_env = self.env();")?;
                     }
                     writeln!(
                         out,
-                        "{}        let (__jni_class, __jni_field) = env.require_class_{}field({}, {}, {});",
-                        indent,
+                        "{indent}        let __jni_class = Self::__class_global_ref(__jni_env);"
+                    )?;
+                    writeln!(
+                        out,
+                        "{indent}        \
+                        let __jni_field = *__FIELD.get_or_init(|| \
+                            __jni_env.require_{}field(__jni_class, {}, {}).addr()\
+                        ) as ::java_spaghetti::sys::jfieldID;",
                         if self.java.is_static() { "static_" } else { "" },
-                        StrEmitter(self.class.path().as_str()),
                         StrEmitter(self.java.name()),
                         StrEmitter(FieldSigWriter(self.java.descriptor()))
                     )?;
                     if self.java.is_static() {
                         writeln!(
                             out,
-                            "{indent}        env.set_static_{field_fragment}_field(__jni_class, __jni_field, value)",
+                            "{indent}        \
+                            __jni_env.set_static_{field_fragment}_field(__jni_class, __jni_field, value)",
                         )?;
                     } else {
                         writeln!(
                             out,
-                            "{indent}        env.set_{field_fragment}_field(self.as_raw(), __jni_field, value)",
+                            "{indent}        \
+                            __jni_env.set_{field_fragment}_field(self.as_raw(), __jni_field, value)",
                         )?;
                     }
                     writeln!(out, "{indent}    }}")?;
