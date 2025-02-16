@@ -129,7 +129,7 @@ impl<'a> Field<'a> {
                 match descriptor.field_type {
                     FieldType::Char if descriptor.dimensions == 0 => writeln!(
                         out,
-                        "{indent}{attributes}pub const {constant} : {rust_get_type} = {rust_get_type}({value_writer});",
+                        "{indent}{attributes}pub const {constant} : u16 = {value_writer}u16;",
                     )?,
                     FieldType::Boolean if descriptor.dimensions == 0 => writeln!(
                         out,
