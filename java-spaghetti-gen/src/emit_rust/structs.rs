@@ -3,13 +3,13 @@ use std::error::Error;
 use std::fmt::Write;
 use std::io;
 
-use jreflection::class;
-
 use super::fields::Field;
 use super::known_docs_url::KnownDocsUrl;
 use super::methods::Method;
+use super::StrEmitter;
 use crate::emit_rust::Context;
 use crate::identifiers::{FieldMangling, RustIdentifier};
+use crate::parser_util::{Class, Id, IdPart};
 
 #[derive(Debug, Default)]
 pub(crate) struct StructPaths {
@@ -18,7 +18,7 @@ pub(crate) struct StructPaths {
 }
 
 impl StructPaths {
-    pub(crate) fn new(context: &Context, class: class::Id) -> Result<Self, Box<dyn Error>> {
+    pub(crate) fn new(context: &Context, class: Id) -> Result<Self, Box<dyn Error>> {
         Ok(Self {
             mod_: Struct::mod_for(context, class)?,
             struct_name: Struct::name_for(context, class)?,
@@ -26,10 +26,10 @@ impl StructPaths {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(crate) struct Struct {
     pub rust: StructPaths,
-    pub java: jreflection::Class,
+    pub java: Class,
 }
 
 fn rust_id(id: &str) -> Result<String, Box<dyn Error>> {
@@ -45,24 +45,24 @@ fn rust_id(id: &str) -> Result<String, Box<dyn Error>> {
 }
 
 impl Struct {
-    pub(crate) fn mod_for(_context: &Context, class: class::Id) -> Result<String, Box<dyn Error>> {
+    pub(crate) fn mod_for(_context: &Context, class: Id) -> Result<String, Box<dyn Error>> {
         let mut buf = String::new();
-        for component in class.iter() {
+        for component in class {
             match component {
-                class::IdPart::Namespace(id) => {
+                IdPart::Namespace(id) => {
                     if !buf.is_empty() {
                         buf.push_str("::");
                     }
                     buf.push_str(&rust_id(id)?);
                 }
-                class::IdPart::ContainingClass(_) => {}
-                class::IdPart::LeafClass(_) => {}
+                IdPart::ContainingClass(_) => {}
+                IdPart::LeafClass(_) => {}
             }
         }
         Ok(buf)
     }
 
-    pub(crate) fn name_for(context: &Context, class: class::Id) -> Result<String, Box<dyn Error>> {
+    pub(crate) fn name_for(context: &Context, class: Id) -> Result<String, Box<dyn Error>> {
         let rename_to = context
             .config
             .rename_classes
@@ -72,9 +72,9 @@ impl Struct {
         let mut buf = String::new();
         for component in class.iter() {
             match component {
-                class::IdPart::Namespace(_) => {}
-                class::IdPart::ContainingClass(id) => write!(&mut buf, "{}_", rust_id(id)?)?,
-                class::IdPart::LeafClass(id) => write!(
+                IdPart::Namespace(_) => {}
+                IdPart::ContainingClass(id) => write!(&mut buf, "{}_", rust_id(id)?)?,
+                IdPart::LeafClass(id) => write!(
                     &mut buf,
                     "{}",
                     rename_to.map(ToString::to_string).or_else(|_| rust_id(id))?
@@ -84,8 +84,8 @@ impl Struct {
         Ok(buf)
     }
 
-    pub(crate) fn new(context: &mut Context, java: jreflection::Class) -> Result<Self, Box<dyn Error>> {
-        let rust = StructPaths::new(context, java.path.as_id())?;
+    pub(crate) fn new(context: &mut Context, java: Class) -> Result<Self, Box<dyn Error>> {
+        let rust = StructPaths::new(context, java.path())?;
 
         Ok(Self { rust, java })
     }
@@ -108,12 +108,12 @@ impl Struct {
         };
 
         let visibility = if self.java.is_public() { "pub" } else { "" };
-        let attributes = (if self.java.deprecated { "#[deprecated] " } else { "" }).to_string();
+        let attributes = (if self.java.deprecated() { "#[deprecated] " } else { "" }).to_string();
 
-        if let Some(url) = KnownDocsUrl::from_class(context, self.java.path.as_id()) {
+        if let Some(url) = KnownDocsUrl::from_class(context, self.java.path()) {
             writeln!(out, "/// {} {} {}", visibility, keyword, url)?;
         } else {
-            writeln!(out, "/// {} {} {}", visibility, keyword, self.java.path.as_str())?;
+            writeln!(out, "/// {} {} {}", visibility, keyword, self.java.path().as_str())?;
         }
 
         let rust_name = &self.rust.struct_name;
@@ -123,50 +123,59 @@ impl Struct {
         }
         writeln!(
             out,
-            "unsafe impl ::java_spaghetti::JniType for {rust_name} {{
-                fn static_with_jni_type<R>(callback: impl FnOnce(&str) -> R) -> R {{
-                    callback({:?})
-                }}
-            }}",
-            self.java.path.as_str().to_string() + "\0",
+            "unsafe impl ::java_spaghetti::JniType for {rust_name} {{\
+          \n    fn static_with_jni_type<R>(callback: impl FnOnce(&str) -> R) -> R {{\
+          \n        callback({})\
+          \n    }}\
+          \n}}",
+            StrEmitter(self.java.path().as_str()),
         )?;
 
         // recursively visit all superclasses and superinterfaces.
         let mut queue = Vec::new();
         let mut visited = HashSet::new();
-        queue.push(self.java.path.clone());
-        visited.insert(self.java.path.clone());
+        queue.push(self.java.path());
+        visited.insert(self.java.path());
         while let Some(path) = queue.pop() {
             let class = context.all_classes.get(path.as_str()).unwrap();
-            for path2 in self.java.interfaces.iter().chain(class.java.super_path.as_ref()) {
-                if context.all_classes.contains_key(path2.as_str()) && !visited.contains(path2) {
-                    let rust_path = context.java_to_rust_path(path2.as_id(), &self.rust.mod_).unwrap();
+            for path2 in self.java.interfaces().map(|i| Id(i)).chain(class.java.super_path()) {
+                if context.all_classes.contains_key(path2.as_str()) && !visited.contains(&path2) {
+                    let rust_path = context.java_to_rust_path(path2, &self.rust.mod_).unwrap();
                     writeln!(
                         out,
                         "unsafe impl ::java_spaghetti::AssignableTo<{rust_path}> for {rust_name} {{}}"
                     )?;
-                    queue.push(path2.clone());
-                    visited.insert(path2.clone());
+                    queue.push(path2);
+                    visited.insert(path2);
                 }
             }
         }
 
         writeln!(out, "impl {rust_name} {{")?;
 
+        writeln!(
+            out,
+            "\
+          \nfn __class_global_ref(__jni_env: ::java_spaghetti::Env) -> ::java_spaghetti::sys::jobject {{\
+          \n    static __CLASS: ::std::sync::OnceLock<::java_spaghetti::Global<{}>> = ::std::sync::OnceLock::new();\
+          \n    __CLASS.get_or_init(|| unsafe {{\
+          \n        ::java_spaghetti::Local::from_raw(__jni_env, __jni_env.require_class({})).as_global()\
+          \n    }}).as_raw()\
+          \n}}",
+            context
+                .java_to_rust_path(Id("java/lang/Object"), &self.rust.mod_)
+                .unwrap(),
+            StrEmitter(self.java.path().as_str()),
+        )?;
+
         let mut id_repeats = HashMap::new();
 
         let mut methods: Vec<Method> = self
             .java
-            .methods
-            .iter()
+            .methods()
             .map(|m| Method::new(context, &self.java, m))
             .collect();
-        let mut fields: Vec<Field> = self
-            .java
-            .fields
-            .iter()
-            .map(|f| Field::new(context, &self.java, f))
-            .collect();
+        let mut fields: Vec<Field> = self.java.fields().map(|f| Field::new(context, &self.java, f)).collect();
 
         for method in &methods {
             if !method.java.is_public() {

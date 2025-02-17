@@ -1,8 +1,12 @@
 use std::io::{self, *};
 
 pub struct Difference {
+    // XXX: should they exist here?
+    #[allow(unused)]
     pub line_no: u32,
+    #[allow(unused)]
     pub original: String,
+    #[allow(unused)]
     pub rewrite: String,
 }
 

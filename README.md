@@ -21,6 +21,7 @@ The full list of differences are:
 - You can filter which classes are generated in the TOML config.
 - Generated code uses relative paths (`super::...`) instead of absolute paths (`crate::...`), so it works if you place it in a submodule not at the crate root.
 - Generated code is a single `.rs` file, there's no support for spltting it in one file per class. You can still run the output through [form](https://github.com/djmcgill/form), if you want.
+- Generated code uses cached method IDs and field IDs stored in `OnceLock` to speed up invocations by several times. Used classes are also stored as JNI global references in order to keep the validity of cached IDs. This may not ensure memory safety when class redefinition features (e.g. `java.lang.instrument` which is unavailable on Android) of the JVM is being used.
 - Generated code doesn't use macros.
 - No support for generating Cargo features per class.
 - Modernized rust, updated dependencies.

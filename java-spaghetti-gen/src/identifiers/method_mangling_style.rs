@@ -1,8 +1,8 @@
-use jreflection::class::IdPart;
-use jreflection::method;
+use cafebabe::descriptors::{FieldType, MethodDescriptor};
 use serde_derive::Deserialize;
 
 use super::rust_identifier::{javaify_identifier, rustify_identifier, IdentifierManglingError};
+use crate::parser_util::{ClassName, IdPart};
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
@@ -73,13 +73,57 @@ pub enum MethodManglingStyle {
 
 #[test]
 fn method_mangling_style_mangle_test() {
+    use std::borrow::Cow;
+
+    use cafebabe::descriptors::{FieldDescriptor, ReturnDescriptor, UnqualifiedSegment};
+
+    let desc_no_arg_ret_v = MethodDescriptor {
+        parameters: Vec::new(),
+        return_type: ReturnDescriptor::Void,
+    };
+
+    let desc_arg_i_ret_v = MethodDescriptor {
+        parameters: vec![FieldDescriptor {
+            dimensions: 0,
+            field_type: FieldType::Integer,
+        }],
+        return_type: ReturnDescriptor::Void,
+    };
+
+    let desc_arg_obj_ret_v = MethodDescriptor {
+        parameters: vec![FieldDescriptor {
+            dimensions: 0,
+            field_type: FieldType::Object(cafebabe::descriptors::ClassName {
+                segments: vec![
+                    UnqualifiedSegment {
+                        name: Cow::Borrowed("java"),
+                    },
+                    UnqualifiedSegment {
+                        name: Cow::Borrowed("lang"),
+                    },
+                    UnqualifiedSegment {
+                        name: Cow::Borrowed("Object"),
+                    },
+                ],
+            }),
+        }],
+        return_type: ReturnDescriptor::Void,
+    };
+
     for &(name, sig, java, java_short, java_long, rust, rust_short, rust_long) in &[
         (
-            "getFoo", "()V", "getFoo", "getFoo", "getFoo", "get_foo", "get_foo", "get_foo",
+            "getFoo",
+            &desc_no_arg_ret_v,
+            "getFoo",
+            "getFoo",
+            "getFoo",
+            "get_foo",
+            "get_foo",
+            "get_foo",
         ),
         (
             "getFoo",
-            "(I)V",
+            &desc_arg_i_ret_v,
             "getFoo",
             "getFoo_int",
             "getFoo_int",
@@ -89,7 +133,7 @@ fn method_mangling_style_mangle_test() {
         ),
         (
             "getFoo",
-            "(Ljava/lang/Object;)V",
+            &desc_arg_obj_ret_v,
             "getFoo",
             "getFoo_Object",
             "getFoo_java_lang_Object",
@@ -97,13 +141,20 @@ fn method_mangling_style_mangle_test() {
             "get_foo_object",
             "get_foo_java_lang_object",
         ),
-        ("<init>", "()V", "new", "new", "new", "new", "new", "new"),
+        ("<init>", &desc_no_arg_ret_v, "new", "new", "new", "new", "new", "new"),
         (
-            "<init>", "(I)V", "new", "new_int", "new_int", "new", "new_int", "new_int",
+            "<init>",
+            &desc_arg_i_ret_v,
+            "new",
+            "new_int",
+            "new_int",
+            "new",
+            "new_int",
+            "new_int",
         ),
         (
             "<init>",
-            "(Ljava/lang/Object;)V",
+            &desc_arg_obj_ret_v,
             "new",
             "new_Object",
             "new_java_lang_Object",
@@ -114,8 +165,6 @@ fn method_mangling_style_mangle_test() {
         // TODO: get1DFoo
         // TODO: array types (primitive + non-primitive)
     ] {
-        let sig = method::Descriptor::new(sig).unwrap();
-
         assert_eq!(MethodManglingStyle::Java.mangle(name, sig).unwrap(), java);
         assert_eq!(
             MethodManglingStyle::JavaShortSignature.mangle(name, sig).unwrap(),
@@ -140,28 +189,29 @@ fn method_mangling_style_mangle_test() {
 
 #[test]
 fn mangle_method_name_test() {
+    use cafebabe::descriptors::{MethodDescriptor, ReturnDescriptor};
+
+    let desc = MethodDescriptor {
+        parameters: Vec::new(),
+        return_type: ReturnDescriptor::Void,
+    };
+
     assert_eq!(
-        MethodManglingStyle::Rustify
-            .mangle("isFooBar", method::Descriptor::new("()V").unwrap())
-            .unwrap(),
+        MethodManglingStyle::Rustify.mangle("isFooBar", &desc).unwrap(),
         "is_foo_bar"
     );
     assert_eq!(
-        MethodManglingStyle::Rustify
-            .mangle("XMLHttpRequest", method::Descriptor::new("()V").unwrap())
-            .unwrap(),
+        MethodManglingStyle::Rustify.mangle("XMLHttpRequest", &desc).unwrap(),
         "xml_http_request"
     );
     assert_eq!(
-        MethodManglingStyle::Rustify
-            .mangle("getFieldID_Input", method::Descriptor::new("()V").unwrap())
-            .unwrap(),
+        MethodManglingStyle::Rustify.mangle("getFieldID_Input", &desc).unwrap(),
         "get_field_id_input"
     );
 }
 
 impl MethodManglingStyle {
-    pub fn mangle(&self, name: &str, descriptor: method::Descriptor) -> Result<String, IdentifierManglingError> {
+    pub fn mangle(&self, name: &str, descriptor: &MethodDescriptor) -> Result<String, IdentifierManglingError> {
         let name = match name {
             "" => {
                 return Err(IdentifierManglingError::EmptyString);
@@ -173,201 +223,31 @@ impl MethodManglingStyle {
             name => name,
         };
 
-        match self {
-            MethodManglingStyle::Java => Ok(javaify_identifier(name)?),
-            MethodManglingStyle::JavaShortSignature => {
-                Ok(javaify_identifier(&format!("{}{}", name, short_sig(descriptor))[..])?)
-            }
-            MethodManglingStyle::JavaLongSignature => {
-                Ok(javaify_identifier(&format!("{}{}", name, long_sig(descriptor))[..])?)
-            }
+        let (rustify, long_sig) = match self {
+            MethodManglingStyle::Java => return javaify_identifier(name),
+            MethodManglingStyle::Rustify => return rustify_identifier(name),
+            MethodManglingStyle::JavaShortSignature => (false, false),
+            MethodManglingStyle::JavaLongSignature => (false, true),
+            MethodManglingStyle::RustifyShortSignature => (true, false),
+            MethodManglingStyle::RustifyLongSignature => (true, true),
+        };
 
-            MethodManglingStyle::Rustify => Ok(rustify_identifier(name)?),
-            MethodManglingStyle::RustifyShortSignature => {
-                Ok(rustify_identifier(&format!("{}{}", name, short_sig(descriptor))[..])?)
-            }
-            MethodManglingStyle::RustifyLongSignature => {
-                Ok(rustify_identifier(&format!("{}{}", name, long_sig(descriptor))[..])?)
-            }
-        }
-    }
-}
+        let mut buffer = name.to_string();
 
-fn short_sig(descriptor: method::Descriptor) -> String {
-    use method::{BasicType, Type};
+        for arg in descriptor.parameters.iter() {
+            match &arg.field_type {
+                FieldType::Boolean => buffer.push_str("_boolean"),
+                FieldType::Byte => buffer.push_str("_byte"),
+                FieldType::Char => buffer.push_str("_char"),
+                FieldType::Short => buffer.push_str("_short"),
+                FieldType::Integer => buffer.push_str("_int"),
+                FieldType::Long => buffer.push_str("_long"),
+                FieldType::Float => buffer.push_str("_float"),
+                FieldType::Double => buffer.push_str("_double"),
+                FieldType::Object(class_name) => {
+                    let class = ClassName::from(class_name);
 
-    let mut buffer = String::new();
-
-    for arg in descriptor.arguments() {
-        match arg {
-            Type::Single(BasicType::Boolean) => {
-                buffer.push_str("_boolean");
-            }
-            Type::Single(BasicType::Byte) => {
-                buffer.push_str("_byte");
-            }
-            Type::Single(BasicType::Char) => {
-                buffer.push_str("_char");
-            }
-            Type::Single(BasicType::Double) => {
-                buffer.push_str("_double");
-            }
-            Type::Single(BasicType::Float) => {
-                buffer.push_str("_float");
-            }
-            Type::Single(BasicType::Int) => {
-                buffer.push_str("_int");
-            }
-            Type::Single(BasicType::Long) => {
-                buffer.push_str("_long");
-            }
-            Type::Single(BasicType::Short) => {
-                buffer.push_str("_short");
-            }
-            Type::Single(BasicType::Void) => {
-                buffer.push_str("_void");
-            }
-            Type::Single(BasicType::Class(class)) => {
-                if let Some(IdPart::LeafClass(leaf)) = class.iter().last() {
-                    buffer.push('_');
-                    buffer.push_str(leaf);
-                } else {
-                    buffer.push_str("_unknown");
-                }
-            }
-            Type::Array { levels, inner } => {
-                match inner {
-                    BasicType::Boolean => {
-                        buffer.push_str("_boolean");
-                    }
-                    BasicType::Byte => {
-                        buffer.push_str("_byte");
-                    }
-                    BasicType::Char => {
-                        buffer.push_str("_char");
-                    }
-                    BasicType::Double => {
-                        buffer.push_str("_double");
-                    }
-                    BasicType::Float => {
-                        buffer.push_str("_float");
-                    }
-                    BasicType::Int => {
-                        buffer.push_str("_int");
-                    }
-                    BasicType::Long => {
-                        buffer.push_str("_long");
-                    }
-                    BasicType::Short => {
-                        buffer.push_str("_short");
-                    }
-                    BasicType::Void => {
-                        buffer.push_str("_void");
-                    }
-                    BasicType::Class(class) => {
-                        for component in class.iter() {
-                            match component {
-                                IdPart::Namespace(_) => {}
-                                IdPart::ContainingClass(_) => {}
-                                IdPart::LeafClass(cls) => {
-                                    buffer.push('_');
-                                    buffer.push_str(cls);
-                                }
-                            }
-                        }
-                    }
-                }
-
-                for _ in 0..levels {
-                    buffer.push_str("_array");
-                }
-            }
-        }
-    }
-
-    buffer
-}
-
-fn long_sig(descriptor: method::Descriptor) -> String {
-    use method::{BasicType, Type};
-
-    let mut buffer = String::new();
-
-    for arg in descriptor.arguments() {
-        match arg {
-            Type::Single(BasicType::Boolean) => {
-                buffer.push_str("_boolean");
-            }
-            Type::Single(BasicType::Byte) => {
-                buffer.push_str("_byte");
-            }
-            Type::Single(BasicType::Char) => {
-                buffer.push_str("_char");
-            }
-            Type::Single(BasicType::Double) => {
-                buffer.push_str("_double");
-            }
-            Type::Single(BasicType::Float) => {
-                buffer.push_str("_float");
-            }
-            Type::Single(BasicType::Int) => {
-                buffer.push_str("_int");
-            }
-            Type::Single(BasicType::Long) => {
-                buffer.push_str("_long");
-            }
-            Type::Single(BasicType::Short) => {
-                buffer.push_str("_short");
-            }
-            Type::Single(BasicType::Void) => {
-                buffer.push_str("_void");
-            }
-            Type::Single(BasicType::Class(class)) => {
-                for component in class.iter() {
-                    buffer.push('_');
-                    match component {
-                        IdPart::Namespace(namespace) => {
-                            buffer.push_str(namespace);
-                        }
-                        IdPart::ContainingClass(cls) => {
-                            buffer.push_str(cls);
-                        }
-                        IdPart::LeafClass(cls) => {
-                            buffer.push_str(cls);
-                        }
-                    }
-                }
-            }
-            Type::Array { levels, inner } => {
-                match inner {
-                    BasicType::Boolean => {
-                        buffer.push_str("_boolean");
-                    }
-                    BasicType::Byte => {
-                        buffer.push_str("_byte");
-                    }
-                    BasicType::Char => {
-                        buffer.push_str("_char");
-                    }
-                    BasicType::Double => {
-                        buffer.push_str("_double");
-                    }
-                    BasicType::Float => {
-                        buffer.push_str("_float");
-                    }
-                    BasicType::Int => {
-                        buffer.push_str("_int");
-                    }
-                    BasicType::Long => {
-                        buffer.push_str("_long");
-                    }
-                    BasicType::Short => {
-                        buffer.push_str("_short");
-                    }
-                    BasicType::Void => {
-                        buffer.push_str("_void");
-                    }
-                    BasicType::Class(class) => {
+                    if long_sig {
                         for component in class.iter() {
                             buffer.push('_');
                             match component {
@@ -382,15 +262,28 @@ fn long_sig(descriptor: method::Descriptor) -> String {
                                 }
                             }
                         }
+                    } else {
+                        // short style
+                        if let Some(IdPart::LeafClass(leaf)) = class.iter().last() {
+                            buffer.push('_');
+                            buffer.push_str(leaf);
+                        } else if arg.dimensions == 0 {
+                            // XXX: `if arg.dimensions == 0` is just keeping the behaviour
+                            // before porting to cafebabe, is it a bug?
+                            buffer.push_str("_unknown");
+                        }
                     }
                 }
-
-                for _ in 0..levels {
-                    buffer.push_str("_array");
-                }
+            };
+            for _ in 0..arg.dimensions {
+                buffer.push_str("_array");
             }
         }
-    }
 
-    buffer
+        if rustify {
+            rustify_identifier(&buffer)
+        } else {
+            javaify_identifier(&buffer)
+        }
+    }
 }

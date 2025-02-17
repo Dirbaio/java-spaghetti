@@ -1,9 +1,10 @@
 use std::fmt::{self, Display, Formatter};
 
-use jreflection::{field, method};
+use cafebabe::descriptors::{FieldDescriptor, FieldType};
 
 use super::methods::Method;
 use crate::emit_rust::Context;
+use crate::parser_util::{Id, IdBuf};
 
 pub(crate) struct KnownDocsUrl {
     pub(crate) label: String,
@@ -17,7 +18,7 @@ impl Display for KnownDocsUrl {
 }
 
 impl KnownDocsUrl {
-    pub(crate) fn from_class(context: &Context, java_class: jreflection::class::Id) -> Option<KnownDocsUrl> {
+    pub(crate) fn from_class(context: &Context, java_class: Id) -> Option<KnownDocsUrl> {
         let java_class = java_class.as_str();
         let pattern = context
             .config
@@ -35,7 +36,7 @@ impl KnownDocsUrl {
             }
         }
 
-        let last_slash = java_class.rfind(|ch| ch == '/');
+        let last_slash = java_class.rfind('/');
         let no_namespace = if let Some(last_slash) = last_slash {
             &java_class[(last_slash + 1)..]
         } else {
@@ -56,15 +57,13 @@ impl KnownDocsUrl {
     }
 
     pub(crate) fn from_method(context: &Context, method: &Method) -> Option<KnownDocsUrl> {
-        use method::{BasicType, Type};
-
         let is_constructor = method.java.is_constructor();
 
         let pattern = context
             .config
             .doc_patterns
             .iter()
-            .find(|pattern| method.class.path.as_str().starts_with(pattern.jni_prefix.as_str()))?;
+            .find(|pattern| method.class.path().as_str().starts_with(pattern.jni_prefix.as_str()))?;
         let url_pattern = if is_constructor {
             pattern
                 .constructor_url_pattern
@@ -74,7 +73,7 @@ impl KnownDocsUrl {
             pattern.method_url_pattern.as_ref()?
         };
 
-        for ch in method.class.path.as_str().chars() {
+        for ch in method.class.path().as_str().chars() {
             match ch {
                 'a'..='z' => {}
                 'A'..='Z' => {}
@@ -86,14 +85,14 @@ impl KnownDocsUrl {
 
         let java_class = method
             .class
-            .path
+            .path()
             .as_str()
             .replace('/', pattern.class_namespace_separator.as_str())
             .replace('$', pattern.class_inner_class_seperator.as_str());
 
         let java_outer_class = method
             .class
-            .path
+            .path()
             .as_str()
             .rsplit('/')
             .next()
@@ -102,7 +101,7 @@ impl KnownDocsUrl {
 
         let java_inner_class = method
             .class
-            .path
+            .path()
             .as_str()
             .rsplit('/')
             .next()
@@ -114,7 +113,7 @@ impl KnownDocsUrl {
         let label = if is_constructor {
             java_inner_class
         } else {
-            for ch in method.java.name.as_str().chars() {
+            for ch in method.java.name().chars() {
                 match ch {
                     'a'..='z' => {}
                     'A'..='Z' => {}
@@ -123,83 +122,46 @@ impl KnownDocsUrl {
                     _ch => return None,
                 }
             }
-            method.java.name.as_str()
+            method.java.name()
         };
 
         let mut java_args = String::new();
 
         let mut prev_was_array = false;
-        for arg in method.java.descriptor().arguments() {
+        for arg in method.java.descriptor().parameters.iter() {
             if prev_was_array {
                 prev_was_array = false;
-                java_args.push_str("%5B%5D"); // []
+                java_args.push_str("[]");
             }
 
             if !java_args.is_empty() {
                 java_args.push_str(&pattern.argument_seperator[..]);
             }
 
-            match arg {
-                Type::Single(BasicType::Void) => {
-                    java_args.push_str("void");
-                }
-                Type::Single(BasicType::Boolean) => {
-                    java_args.push_str("boolean");
-                }
-                Type::Single(BasicType::Byte) => {
-                    java_args.push_str("byte");
-                }
-                Type::Single(BasicType::Char) => {
-                    java_args.push_str("char");
-                }
-                Type::Single(BasicType::Short) => {
-                    java_args.push_str("short");
-                }
-                Type::Single(BasicType::Int) => {
-                    java_args.push_str("int");
-                }
-                Type::Single(BasicType::Long) => {
-                    java_args.push_str("long");
-                }
-                Type::Single(BasicType::Float) => {
-                    java_args.push_str("float");
-                }
-                Type::Single(BasicType::Double) => {
-                    java_args.push_str("double");
-                }
-                Type::Single(BasicType::Class(class)) => {
-                    let class = class
+            let obj_arg;
+            java_args.push_str(match arg.field_type {
+                FieldType::Boolean => "boolean",
+                FieldType::Byte => "byte",
+                FieldType::Char => "char",
+                FieldType::Short => "short",
+                FieldType::Integer => "int",
+                FieldType::Long => "long",
+                FieldType::Float => "float",
+                FieldType::Double => "double",
+                FieldType::Object(ref class_name) => {
+                    let class = IdBuf::from(class_name);
+                    obj_arg = class
                         .as_str()
                         .replace('/', pattern.argument_namespace_separator.as_str())
                         .replace('$', pattern.argument_inner_class_seperator.as_str());
-                    java_args.push_str(&class);
+                    obj_arg.as_str()
                 }
-                Type::Array { levels, inner } => {
-                    match inner {
-                        BasicType::Void => {
-                            return None;
-                        }
-                        BasicType::Boolean => java_args.push_str("bool"),
-                        BasicType::Byte => java_args.push_str("byte"),
-                        BasicType::Char => java_args.push_str("char"),
-                        BasicType::Short => java_args.push_str("short"),
-                        BasicType::Int => java_args.push_str("int"),
-                        BasicType::Long => java_args.push_str("long"),
-                        BasicType::Float => java_args.push_str("float"),
-                        BasicType::Double => java_args.push_str("double"),
-                        BasicType::Class(class) => {
-                            let class = class
-                                .as_str()
-                                .replace('/', pattern.argument_namespace_separator.as_str())
-                                .replace('$', pattern.argument_inner_class_seperator.as_str());
-                            java_args.push_str(&class);
-                        }
-                    }
-                    for _ in 1..levels {
-                        java_args.push_str("%5B%5D"); // []
-                    }
-                    prev_was_array = true; // level 0
+            });
+            if arg.dimensions > 0 {
+                for _ in 1..arg.dimensions {
+                    java_args.push_str("[]");
                 }
+                prev_was_array = true; // level 0
             }
         }
 
@@ -207,7 +169,7 @@ impl KnownDocsUrl {
             if method.java.is_varargs() {
                 java_args.push_str("...");
             } else {
-                java_args.push_str("%5B%5D"); // []
+                java_args.push_str("[]");
             }
         }
 
@@ -229,7 +191,7 @@ impl KnownDocsUrl {
         context: &Context,
         java_class: &str,
         java_field: &str,
-        _java_descriptor: field::Descriptor,
+        _java_descriptor: FieldDescriptor,
     ) -> Option<KnownDocsUrl> {
         let pattern = context
             .config

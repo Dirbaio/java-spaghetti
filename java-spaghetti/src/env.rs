@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 use std::os::raw::c_char;
 use std::ptr::{self, null_mut};
 use std::sync::atomic::{AtomicPtr, Ordering};
+use std::sync::OnceLock;
 
 use jni_sys::*;
 
@@ -147,9 +148,15 @@ impl<'env> Env<'env> {
     }
 
     unsafe fn exception_to_string(self, exception: jobject) -> String {
-        // use JNI FindClass to avoid infinte recursion.
-        let throwable_class = self.require_class_jni("java/lang/Throwable\0");
-        let throwable_get_message = self.require_method(throwable_class, "getMessage\0", "()Ljava/lang/String;\0");
+        static METHOD_GET_MESSAGE: OnceLock<usize> = OnceLock::new();
+        let throwable_get_message = *METHOD_GET_MESSAGE.get_or_init(|| {
+            // use JNI FindClass to avoid infinte recursion.
+            let throwable_class = self.require_class_jni("java/lang/Throwable\0");
+            let method = self.require_method(throwable_class, "getMessage\0", "()Ljava/lang/String;\0");
+            ((**self.env).v1_2.DeleteLocalRef)(self.env, throwable_class);
+            method.addr()
+        }) as jmethodID; // it is a global ID
+
         let message =
             ((**self.env).v1_2.CallObjectMethodA)(self.env, exception, throwable_get_message, ptr::null_mut());
         let e2: *mut _jobject = ((**self.env).v1_2.ExceptionOccurred)(self.env);
@@ -161,6 +168,7 @@ impl<'env> Env<'env> {
         StringChars::from_env_jstring(self, message).to_string_lossy()
     }
 
+    /// Note: the returned `jclass` is actually a new local reference of the class object.
     pub unsafe fn require_class(self, class: &str) -> jclass {
         // First try with JNI FindClass.
         debug_assert!(class.ends_with('\0'));
@@ -183,10 +191,15 @@ impl<'env> Env<'env> {
                 .collect::<Vec<_>>();
             let string = unsafe { self.new_string(chars.as_ptr(), chars.len() as jsize) };
 
-            // We still use JNI FindClass for this, to avoid a chicken-and-egg situation.
-            // If the system class loader cannot find java.lang.ClassLoader, things are pretty broken!
-            let cl_class = self.require_class_jni("java/lang/ClassLoader\0");
-            let cl_method = self.require_method(cl_class, "loadClass\0", "(Ljava/lang/String;)Ljava/lang/Class;\0");
+            static CL_METHOD: OnceLock<usize> = OnceLock::new();
+            let cl_method = *CL_METHOD.get_or_init(|| {
+                // We still use JNI FindClass for this, to avoid a chicken-and-egg situation.
+                // If the system class loader cannot find java.lang.ClassLoader, things are pretty broken!
+                let cl_class = self.require_class_jni("java/lang/ClassLoader\0");
+                let cl_method = self.require_method(cl_class, "loadClass\0", "(Ljava/lang/String;)Ljava/lang/Class;\0");
+                ((**self.env).v1_2.DeleteLocalRef)(self.env, cl_class);
+                cl_method.addr()
+            }) as jmethodID; // it is a global ID
 
             let args = [jvalue { l: string }];
             let result: *mut _jobject =
@@ -275,6 +288,7 @@ impl<'env> Env<'env> {
     }
 
     // Multi-Query Methods
+    // XXX: Remove these unused functions.
 
     pub unsafe fn require_class_method(self, class: &str, method: &str, descriptor: &str) -> (jclass, jmethodID) {
         let class = self.require_class(class);

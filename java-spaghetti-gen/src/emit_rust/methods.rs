@@ -1,25 +1,28 @@
 use std::io;
 
-use jreflection::method;
+use cafebabe::descriptors::{FieldType, ReturnDescriptor};
 
+use super::fields::FieldTypeEmitter;
 use super::known_docs_url::KnownDocsUrl;
+use super::StrEmitter;
 use crate::emit_rust::Context;
 use crate::identifiers::MethodManglingStyle;
+use crate::parser_util::{Class, JavaMethod, MethodSigWriter};
 
 pub struct Method<'a> {
-    pub class: &'a jreflection::Class,
-    pub java: &'a jreflection::Method,
+    pub class: &'a Class,
+    pub java: JavaMethod<'a>,
     rust_name: Option<String>,
     mangling_style: MethodManglingStyle,
 }
 
 impl<'a> Method<'a> {
-    pub fn new(context: &Context, class: &'a jreflection::Class, java: &'a jreflection::Method) -> Self {
+    pub fn new(context: &Context, class: &'a Class, java: &'a cafebabe::MethodInfo<'a>) -> Self {
         let mut result = Self {
             class,
-            java,
+            java: JavaMethod::from(java),
             rust_name: None,
-            mangling_style: MethodManglingStyle::Java, // Immediately overwritten bellow
+            mangling_style: MethodManglingStyle::Java, // Immediately overwritten below
         };
         result.set_mangling_style(context.config.codegen.method_naming_style); // rust_name + mangling_style
         result
@@ -31,25 +34,21 @@ impl<'a> Method<'a> {
 
     pub fn set_mangling_style(&mut self, style: MethodManglingStyle) {
         self.mangling_style = style;
-        self.rust_name = if let Ok(name) = self
+        self.rust_name = self
             .mangling_style
-            .mangle(self.java.name.as_str(), self.java.descriptor())
-        {
-            Some(name)
-        } else {
-            None // Failed to mangle
-        };
+            .mangle(self.java.name(), self.java.descriptor())
+            .ok()
     }
 
     pub fn emit(&self, context: &Context, mod_: &str, out: &mut impl io::Write) -> io::Result<()> {
         let mut emit_reject_reasons = Vec::new();
 
-        let java_class_method = format!("{}\x1f{}", self.class.path.as_str(), &self.java.name);
+        let java_class_method = format!("{}\x1f{}", self.class.path().as_str(), self.java.name());
         let java_class_method_sig = format!(
             "{}\x1f{}\x1f{}",
-            self.class.path.as_str(),
-            &self.java.name,
-            self.java.descriptor_str()
+            self.class.path().as_str(),
+            self.java.name(),
+            MethodSigWriter(self.java.descriptor())
         );
 
         let ignored = context.config.ignore_class_methods.contains(&java_class_method)
@@ -69,7 +68,7 @@ impl<'a> Method<'a> {
             name.to_owned()
         } else {
             emit_reject_reasons.push("ERROR:  Failed to mangle method name");
-            self.java.name.to_owned()
+            self.java.name().to_owned()
         };
 
         if !self.java.is_public() {
@@ -98,85 +97,22 @@ impl<'a> Method<'a> {
             String::from("self: &::java_spaghetti::Ref<'env, Self>")
         };
 
-        for (arg_idx, arg) in descriptor.arguments().enumerate() {
+        for (arg_idx, arg) in descriptor.parameters.iter().enumerate() {
             let arg_name = format!("arg{}", arg_idx);
 
-            let mut param_is_object = false; // XXX
+            let param_is_object = matches!(arg.field_type, FieldType::Object(_)) || arg.dimensions > 0;
 
-            let arg_type = match arg {
-                method::Type::Single(method::BasicType::Void) => {
-                    emit_reject_reasons.push("ERROR:  Void arguments aren't a thing");
-                    "()".to_owned()
-                }
-                method::Type::Single(method::BasicType::Boolean) => "bool".to_owned(),
-                method::Type::Single(method::BasicType::Byte) => "i8".to_owned(),
-                method::Type::Single(method::BasicType::Char) => "u16".to_owned(),
-                method::Type::Single(method::BasicType::Short) => "i16".to_owned(),
-                method::Type::Single(method::BasicType::Int) => "i32".to_owned(),
-                method::Type::Single(method::BasicType::Long) => "i64".to_owned(),
-                method::Type::Single(method::BasicType::Float) => "f32".to_owned(),
-                method::Type::Single(method::BasicType::Double) => "f64".to_owned(),
-                method::Type::Single(method::BasicType::Class(class)) => {
-                    if !context.all_classes.contains_key(class.as_str()) {
-                        emit_reject_reasons.push("ERROR:  missing class for argument type");
-                    }
-                    param_is_object = true;
-                    match context.java_to_rust_path(class, mod_) {
-                        Ok(path) => format!("impl ::java_spaghetti::AsArg<{}>", path),
-                        Err(_) => {
-                            emit_reject_reasons
-                                .push("ERROR:  Failed to resolve JNI path to Rust path for argument type");
-                            format!("{:?}", class)
-                        }
-                    }
-                }
-                method::Type::Array { levels, inner } => {
-                    let mut buffer = "impl ::java_spaghetti::AsArg<".to_owned();
-                    for _ in 0..(levels - 1) {
-                        buffer.push_str("::java_spaghetti::ObjectArray<");
-                    }
-                    match inner {
-                        method::BasicType::Boolean => buffer.push_str("::java_spaghetti::BooleanArray"),
-                        method::BasicType::Byte => buffer.push_str("::java_spaghetti::ByteArray"),
-                        method::BasicType::Char => buffer.push_str("::java_spaghetti::CharArray"),
-                        method::BasicType::Short => buffer.push_str("::java_spaghetti::ShortArray"),
-                        method::BasicType::Int => buffer.push_str("::java_spaghetti::IntArray"),
-                        method::BasicType::Long => buffer.push_str("::java_spaghetti::LongArray"),
-                        method::BasicType::Float => buffer.push_str("::java_spaghetti::FloatArray"),
-                        method::BasicType::Double => buffer.push_str("::java_spaghetti::DoubleArray"),
-                        method::BasicType::Class(class) => {
-                            if !context.all_classes.contains_key(class.as_str()) {
-                                emit_reject_reasons.push("ERROR:  missing class for argument type");
-                            }
-                            buffer.push_str("::java_spaghetti::ObjectArray<");
-                            match context.java_to_rust_path(class, mod_) {
-                                Ok(path) => buffer.push_str(path.as_str()),
-                                Err(_) => {
-                                    emit_reject_reasons
-                                        .push("ERROR:  Failed to resolve JNI path to Rust path for argument type");
-                                    buffer.push_str("???");
-                                }
-                            }
-                            buffer.push_str(", ");
-                            buffer.push_str(&context.throwable_rust_path(mod_));
-                            buffer.push('>');
-                        }
-                        method::BasicType::Void => {
-                            emit_reject_reasons.push("ERROR:  Arrays of void isn't a thing");
-                            buffer.push_str("[()]");
-                        }
-                    }
-                    for _ in 0..(levels - 1) {
-                        // ObjectArray s
-                        buffer.push_str(", ");
-                        buffer.push_str(&context.throwable_rust_path(mod_));
-                        buffer.push('>');
-                    }
-                    buffer.push_str(">"); // AsArg
+            let rust_type = FieldTypeEmitter(arg)
+                .emit_rust_type(context, mod_, &mut emit_reject_reasons)
+                .map_err(|_| io::Error::other("std::fmt::Error"))?;
 
-                    param_is_object = true;
-                    buffer
-                }
+            let arg_type = if arg.dimensions == 0 && !param_is_object {
+                rust_type.into_owned()
+            } else {
+                let mut rust_type = rust_type.into_owned();
+                rust_type.insert_str(0, "impl ::java_spaghetti::AsArg<");
+                rust_type.push('>');
+                rust_type
             };
 
             if !params_array.is_empty() {
@@ -201,102 +137,34 @@ impl<'a> Method<'a> {
             params_decl.push_str(arg_type.as_str());
         }
 
-        let mut ret_decl = match descriptor.return_type() {
-            // Contents of fn name<'env>() -> Result<...> {
-            method::Type::Single(method::BasicType::Void) => "()".to_owned(),
-            method::Type::Single(method::BasicType::Boolean) => "bool".to_owned(),
-            method::Type::Single(method::BasicType::Byte) => "i8".to_owned(),
-            method::Type::Single(method::BasicType::Char) => "u16".to_owned(),
-            method::Type::Single(method::BasicType::Short) => "i16".to_owned(),
-            method::Type::Single(method::BasicType::Int) => "i32".to_owned(),
-            method::Type::Single(method::BasicType::Long) => "i64".to_owned(),
-            method::Type::Single(method::BasicType::Float) => "f32".to_owned(),
-            method::Type::Single(method::BasicType::Double) => "f64".to_owned(),
-            method::Type::Single(method::BasicType::Class(class)) => {
-                if !context.all_classes.contains_key(class.as_str()) {
-                    emit_reject_reasons.push("ERROR:  missing class for return type");
-                }
-                match context.java_to_rust_path(class, mod_) {
-                    Ok(path) => format!("::std::option::Option<::java_spaghetti::Local<'env, {}>>", path),
-                    Err(_) => {
-                        emit_reject_reasons.push("ERROR:  Failed to resolve JNI path to Rust path for return type");
-                        format!("{:?}", class)
-                    }
-                }
+        let mut ret_decl = if let ReturnDescriptor::Return(desc) = &descriptor.return_type {
+            let rust_type = FieldTypeEmitter(desc)
+                .emit_rust_type(context, mod_, &mut emit_reject_reasons)
+                .map_err(|_| io::Error::other("std::fmt::Error"))?;
+
+            let param_is_object = matches!(desc.field_type, FieldType::Object(_));
+            if desc.dimensions == 0 && !param_is_object {
+                rust_type
+            } else {
+                let mut rust_type = rust_type.into_owned();
+                rust_type.insert_str(0, "::std::option::Option<::java_spaghetti::Local<'env, ");
+                rust_type.push_str(">>");
+                rust_type.into()
             }
-            method::Type::Array {
-                levels: 1,
-                inner: method::BasicType::Void,
-            } => {
-                emit_reject_reasons.push("ERROR:  Returning arrays of void isn't a thing");
-                "???".to_owned()
-            }
-            method::Type::Array { levels, inner } => {
-                let mut buffer = "::std::option::Option<::java_spaghetti::Local<'env, ".to_owned();
-                for _ in 0..(levels - 1) {
-                    buffer.push_str("::java_spaghetti::ObjectArray<");
-                }
-                match inner {
-                    method::BasicType::Boolean => buffer.push_str("::java_spaghetti::BooleanArray"),
-                    method::BasicType::Byte => buffer.push_str("::java_spaghetti::ByteArray"),
-                    method::BasicType::Char => buffer.push_str("::java_spaghetti::CharArray"),
-                    method::BasicType::Short => buffer.push_str("::java_spaghetti::ShortArray"),
-                    method::BasicType::Int => buffer.push_str("::java_spaghetti::IntArray"),
-                    method::BasicType::Long => buffer.push_str("::java_spaghetti::LongArray"),
-                    method::BasicType::Float => buffer.push_str("::java_spaghetti::FloatArray"),
-                    method::BasicType::Double => buffer.push_str("::java_spaghetti::DoubleArray"),
-                    method::BasicType::Class(class) => {
-                        if !context.all_classes.contains_key(class.as_str()) {
-                            emit_reject_reasons.push("ERROR:  missing class for return type");
-                        }
-                        buffer.push_str("::java_spaghetti::ObjectArray<");
-                        match context.java_to_rust_path(class, mod_) {
-                            Ok(path) => buffer.push_str(path.as_str()),
-                            Err(_) => {
-                                emit_reject_reasons
-                                    .push("ERROR:  Failed to resolve JNI path to Rust path for return type");
-                                buffer.push_str("???");
-                            }
-                        }
-                        buffer.push_str(", ");
-                        buffer.push_str(&context.throwable_rust_path(mod_));
-                        buffer.push('>');
-                    }
-                    method::BasicType::Void => {
-                        emit_reject_reasons.push("ERROR:  Arrays of void isn't a thing");
-                        buffer.push_str("[()]");
-                    }
-                }
-                for _ in 0..(levels - 1) {
-                    // ObjectArray s
-                    buffer.push_str(", ");
-                    buffer.push_str(&context.throwable_rust_path(mod_));
-                    buffer.push('>');
-                }
-                buffer.push_str(">>"); // Local, Option
-                buffer
-            }
+        } else {
+            "()".into()
         };
 
-        let mut ret_method_fragment = match descriptor.return_type() {
-            // Contents of call_..._method_a
-            method::Type::Single(method::BasicType::Void) => "void",
-            method::Type::Single(method::BasicType::Boolean) => "boolean",
-            method::Type::Single(method::BasicType::Byte) => "byte",
-            method::Type::Single(method::BasicType::Char) => "char",
-            method::Type::Single(method::BasicType::Short) => "short",
-            method::Type::Single(method::BasicType::Int) => "int",
-            method::Type::Single(method::BasicType::Long) => "long",
-            method::Type::Single(method::BasicType::Float) => "float",
-            method::Type::Single(method::BasicType::Double) => "double",
-            method::Type::Single(method::BasicType::Class(_)) => "object",
-            method::Type::Array { .. } => "object",
+        let mut ret_method_fragment = if let ReturnDescriptor::Return(desc) = &descriptor.return_type {
+            FieldTypeEmitter(desc).emit_fragment_type()
+        } else {
+            "void"
         };
 
         if self.java.is_constructor() {
-            if descriptor.return_type() == method::Type::Single(method::BasicType::Void) {
+            if descriptor.return_type == ReturnDescriptor::Void {
                 ret_method_fragment = "object";
-                ret_decl = "::java_spaghetti::Local<'env, Self>".to_string();
+                ret_decl = "::java_spaghetti::Local<'env, Self>".into();
             } else {
                 emit_reject_reasons.push("ERROR:  Constructor should've returned void");
             }
@@ -312,80 +180,81 @@ impl<'a> Method<'a> {
             "// "
         };
         let access = if self.java.is_public() { "pub " } else { "" };
-        let attributes = (if self.java.deprecated { "#[deprecated] " } else { "" }).to_string();
+        let attributes = if self.java.deprecated() { "#[deprecated] " } else { "" };
 
         writeln!(out)?;
         for reason in &emit_reject_reasons {
-            writeln!(out, "{}// Not emitting: {}", indent, reason)?;
+            writeln!(out, "{indent}// Not emitting: {reason}")?;
         }
         if let Some(url) = KnownDocsUrl::from_method(context, self) {
-            writeln!(out, "{}/// {}", indent, url)?;
+            writeln!(out, "{indent}/// {url}")?;
         } else {
-            writeln!(out, "{}/// {}", indent, self.java.name.as_str())?;
+            writeln!(out, "{indent}/// {}", self.java.name())?;
         }
         writeln!(
             out,
-            "{}{}{}fn {}<'env>({}) -> ::std::result::Result<{}, ::java_spaghetti::Local<'env, {}>> {{",
-            indent,
-            attributes,
-            access,
-            method_name,
-            params_decl,
-            ret_decl,
+            "{indent}{attributes}{access}fn {method_name}<'env>({params_decl}) -> \
+            ::std::result::Result<{ret_decl}, ::java_spaghetti::Local<'env, {}>> {{",
             context.throwable_rust_path(mod_)
         )?;
         writeln!(
             out,
-            "{}    // class.path == {:?}, java.flags == {:?}, .name == {:?}, .descriptor == {:?}",
+            "{}    // class.path == {:?}, java.flags == {:?}, .name == {:?}, .descriptor == \"{}\"",
             indent,
-            &self.class.path.as_str(),
-            self.java.flags,
-            &self.java.name,
-            &self.java.descriptor_str()
+            self.class.path().as_str(),
+            self.java.access_flags,
+            self.java.name(),
+            MethodSigWriter(self.java.descriptor())
         )?;
-        writeln!(out, "{}    unsafe {{", indent)?;
-        writeln!(out, "{}        let __jni_args = [{}];", indent, params_array)?;
-        if !self.java.is_constructor() && !self.java.is_static() {
-            writeln!(out, "{}        let __jni_env = self.env();", indent)?;
-        }
 
         writeln!(
             out,
-            "{}        let (__jni_class, __jni_method) = __jni_env.require_class_{}method({}, {}, {});",
-            indent,
+            "{indent}    static __METHOD: ::std::sync::OnceLock<::java_spaghetti::JMethodID> \
+                = ::std::sync::OnceLock::new();"
+        )?;
+        writeln!(out, "{indent}    unsafe {{")?;
+        writeln!(out, "{indent}        let __jni_args = [{params_array}];")?;
+        if !self.java.is_constructor() && !self.java.is_static() {
+            writeln!(out, "{indent}        let __jni_env = self.env();")?;
+        }
+        writeln!(
+            out,
+            "{indent}        let __jni_class = Self::__class_global_ref(__jni_env);"
+        )?;
+        writeln!(
+            out,
+            "{indent}        \
+            let __jni_method = __METHOD.get_or_init(|| \
+                ::java_spaghetti::JMethodID::from_raw(__jni_env.require_{}method(__jni_class, {}, {}))\
+            ).as_raw();",
             if self.java.is_static() { "static_" } else { "" },
-            emit_cstr(self.class.path.as_str()),
-            emit_cstr(self.java.name.as_str()),
-            emit_cstr(self.java.descriptor_str())
+            StrEmitter(self.java.name()),
+            StrEmitter(MethodSigWriter(self.java.descriptor()))
         )?;
 
         if self.java.is_constructor() {
             writeln!(
                 out,
-                "{}        __jni_env.new_object_a(__jni_class, __jni_method, __jni_args.as_ptr())",
-                indent
+                "{indent}        \
+                __jni_env.new_object_a(__jni_class, __jni_method, __jni_args.as_ptr())",
             )?;
         } else if self.java.is_static() {
             writeln!(
                 out,
-                "{}        __jni_env.call_static_{}_method_a(__jni_class, __jni_method, __jni_args.as_ptr())",
-                indent, ret_method_fragment
+                "{indent}        \
+                __jni_env.call_static_{}_method_a(__jni_class, __jni_method, __jni_args.as_ptr())",
+                ret_method_fragment
             )?;
         } else {
             writeln!(
                 out,
-                "{}        __jni_env.call_{}_method_a(self.as_raw(), __jni_method, __jni_args.as_ptr())",
-                indent, ret_method_fragment
+                "{indent}        \
+                __jni_env.call_{}_method_a(self.as_raw(), __jni_method, __jni_args.as_ptr())",
+                ret_method_fragment
             )?;
         }
-        writeln!(out, "{}    }}", indent)?;
-        writeln!(out, "{}}}", indent)?;
+        writeln!(out, "{indent}    }}")?;
+        writeln!(out, "{indent}}}")?;
         Ok(())
     }
-}
-
-fn emit_cstr(s: &str) -> String {
-    let mut s = format!("{:?}", s); // XXX
-    s.insert_str(s.len() - 1, "\\0");
-    s
 }
