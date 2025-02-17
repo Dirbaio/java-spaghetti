@@ -209,7 +209,8 @@ impl<'a> Method<'a> {
 
         writeln!(
             out,
-            "{indent}    static __METHOD: ::std::sync::OnceLock<usize> = ::std::sync::OnceLock::new();"
+            "{indent}    static __METHOD: ::std::sync::OnceLock<::java_spaghetti::JMethodID> \
+                = ::std::sync::OnceLock::new();"
         )?;
         writeln!(out, "{indent}    unsafe {{")?;
         writeln!(out, "{indent}        let __jni_args = [{params_array}];")?;
@@ -223,9 +224,9 @@ impl<'a> Method<'a> {
         writeln!(
             out,
             "{indent}        \
-            let __jni_method = *__METHOD.get_or_init(|| \
-                __jni_env.require_{}method(__jni_class, {}, {}).addr()\
-            ) as ::java_spaghetti::sys::jmethodID;",
+            let __jni_method = __METHOD.get_or_init(|| \
+                ::java_spaghetti::JMethodID::from_raw(__jni_env.require_{}method(__jni_class, {}, {}))\
+            ).as_raw();",
             if self.java.is_static() { "static_" } else { "" },
             StrEmitter(self.java.name()),
             StrEmitter(MethodSigWriter(self.java.descriptor()))

@@ -29,6 +29,7 @@ mod refs {
 mod array;
 mod as_jvalue;
 mod env;
+mod id_cache;
 mod jni_type;
 mod string_chars;
 mod vm;
@@ -36,6 +37,7 @@ mod vm;
 pub use array::*;
 pub use as_jvalue::*;
 pub use env::*;
+pub use id_cache::*;
 pub use jni_type::JniType;
 pub use refs::*;
 pub use string_chars::*;
