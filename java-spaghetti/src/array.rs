@@ -1,7 +1,8 @@
+use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::ops::{Bound, RangeBounds};
 use std::ptr::null_mut;
-use std::sync::OnceLock;
+use std::sync::{LazyLock, OnceLock, RwLock};
 
 use jni_sys::*;
 
@@ -189,10 +190,24 @@ primitive_array! { DoubleArray,  "[D\0", jdouble { NewDoubleArray  SetDoubleArra
 /// See also [PrimitiveArray] for arrays of reference types.
 pub struct ObjectArray<T: ReferenceType, E: ThrowableType>(core::convert::Infallible, PhantomData<(T, E)>);
 
+// NOTE: This is a performance compromise for returning `&'static JClass`,
+// still faster than non-cached `require_class`.
+static OBJ_ARR_CLASSES: LazyLock<RwLock<HashMap<String, &'static JClass>>> =
+    LazyLock::new(|| RwLock::new(HashMap::new()));
+
 unsafe impl<T: ReferenceType, E: ThrowableType> ReferenceType for ObjectArray<T, E> {
     fn jni_get_class(env: Env) -> &'static JClass {
-        static CLASS_CACHE: OnceLock<JClass> = OnceLock::new();
-        CLASS_CACHE.get_or_init(|| Self::static_with_jni_type(|t| unsafe { env.require_class(t) }))
+        Self::static_with_jni_type(|t| {
+            let class_map_reader = OBJ_ARR_CLASSES.read().unwrap();
+            if let Some(&class) = class_map_reader.get(t) {
+                class
+            } else {
+                drop(class_map_reader);
+                let class: &'static JClass = Box::leak(Box::new(unsafe { env.require_class(t) }));
+                let _ = OBJ_ARR_CLASSES.write().unwrap().insert(t.to_string(), class);
+                class
+            }
+        })
     }
 }
 
