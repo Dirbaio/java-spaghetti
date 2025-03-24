@@ -59,7 +59,11 @@ pub trait ThrowableType: ReferenceType {}
 
 /// You should generally not be interacting with this type directly, but it must be public for codegen.
 #[doc(hidden)]
-pub unsafe trait ReferenceType: JniType + Sized + 'static {}
+pub unsafe trait ReferenceType: JniType + Sized + 'static {
+    // There couldn't be a default impl holding a static `OnceLock`: the compiler may not generate
+    // an independent static item for each generated struct that implements `ReferenceType`.
+    fn jni_get_class<'env>(env: Env<'env>) -> &'static JClass;
+}
 
 /// Marker trait indicating `Self` can be assigned to `T`.
 ///

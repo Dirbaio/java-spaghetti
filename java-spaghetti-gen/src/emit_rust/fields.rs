@@ -173,9 +173,7 @@ impl<'a> Field<'a> {
                 writeln!(
                     out,
                     "{indent}        \
-                    let __jni_field = __FIELD.get_or_init(|| \
-                        ::java_spaghetti::JFieldID::from_raw(__jni_env.require_{}field(__jni_class, {}, {}))\
-                    ).as_raw();",
+                    let __jni_field = *__FIELD.get_or_init(|| __jni_env.require_{}field(__jni_class, {}, {}));",
                     if self.java.is_static() { "static_" } else { "" },
                     StrEmitter(self.java.name()),
                     StrEmitter(FieldSigWriter(self.java.descriptor()))
@@ -228,9 +226,7 @@ impl<'a> Field<'a> {
                     writeln!(
                         out,
                         "{indent}        \
-                        let __jni_field = __FIELD.get_or_init(|| \
-                            ::java_spaghetti::JFieldID::from_raw(__jni_env.require_{}field(__jni_class, {}, {}))\
-                        ).as_raw();",
+                        let __jni_field = *__FIELD.get_or_init(|| __jni_env.require_{}field(__jni_class, {}, {}));",
                         if self.java.is_static() { "static_" } else { "" },
                         StrEmitter(self.java.name()),
                         StrEmitter(FieldSigWriter(self.java.descriptor()))

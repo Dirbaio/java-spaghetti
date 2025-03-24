@@ -224,9 +224,7 @@ impl<'a> Method<'a> {
         writeln!(
             out,
             "{indent}        \
-            let __jni_method = __METHOD.get_or_init(|| \
-                ::java_spaghetti::JMethodID::from_raw(__jni_env.require_{}method(__jni_class, {}, {}))\
-            ).as_raw();",
+            let __jni_method = *__METHOD.get_or_init(|| __jni_env.require_{}method(__jni_class, {}, {}));",
             if self.java.is_static() { "static_" } else { "" },
             StrEmitter(self.java.name()),
             StrEmitter(MethodSigWriter(self.java.descriptor()))

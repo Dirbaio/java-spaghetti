@@ -119,15 +119,22 @@ impl Struct {
         let rust_name = &self.rust.struct_name;
         writeln!(out, "{attributes}{visibility} enum {rust_name}{{}}")?;
         if !self.java.is_static() {
-            writeln!(out, "unsafe impl ::java_spaghetti::ReferenceType for {rust_name} {{}}")?;
+            writeln!(
+                out,
+                "unsafe impl ::java_spaghetti::ReferenceType for {rust_name} {{\
+               \n    fn jni_get_class(__jni_env: ::java_spaghetti::Env) -> &'static ::java_spaghetti::JClass {{\
+               \n        Self::__class_global_ref(__jni_env)\
+               \n    }}\
+               \n}}",
+            )?;
         }
         writeln!(
             out,
             "unsafe impl ::java_spaghetti::JniType for {rust_name} {{\
-          \n    fn static_with_jni_type<R>(callback: impl FnOnce(&str) -> R) -> R {{\
-          \n        callback({})\
-          \n    }}\
-          \n}}",
+           \n    fn static_with_jni_type<R>(callback: impl FnOnce(&str) -> R) -> R {{\
+           \n        callback({})\
+           \n    }}\
+           \n}}",
             StrEmitter(self.java.path().as_str()),
         )?;
 
@@ -156,15 +163,10 @@ impl Struct {
         writeln!(
             out,
             "\
-          \nfn __class_global_ref(__jni_env: ::java_spaghetti::Env) -> ::java_spaghetti::sys::jobject {{\
-          \n    static __CLASS: ::std::sync::OnceLock<::java_spaghetti::Global<{}>> = ::std::sync::OnceLock::new();\
-          \n    __CLASS.get_or_init(|| unsafe {{\
-          \n        ::java_spaghetti::Local::from_raw(__jni_env, __jni_env.require_class({})).as_global()\
-          \n    }}).as_raw()\
+          \nfn __class_global_ref(__jni_env: ::java_spaghetti::Env) -> &'static ::java_spaghetti::JClass {{\
+          \n    static _CLASS: ::std::sync::OnceLock<::java_spaghetti::JClass> = ::std::sync::OnceLock::new();\
+          \n    _CLASS.get_or_init(|| unsafe {{ __jni_env.require_class({}) }})\
           \n}}",
-            context
-                .java_to_rust_path(Id("java/lang/Object"), &self.rust.mod_)
-                .unwrap(),
             StrEmitter(self.java.path().as_str()),
         )?;
 

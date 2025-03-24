@@ -1,10 +1,11 @@
 use std::marker::PhantomData;
 use std::ops::{Bound, RangeBounds};
 use std::ptr::null_mut;
+use std::sync::OnceLock;
 
 use jni_sys::*;
 
-use crate::{AsArg, Env, JniType, Local, Ref, ReferenceType, ThrowableType};
+use crate::{AsArg, Env, JClass, JniType, Local, Ref, ReferenceType, ThrowableType};
 
 /// A Java Array of some POD-like type such as bool, jbyte, jchar, jshort, jint, jlong, jfloat, or jdouble.
 ///
@@ -41,6 +42,11 @@ where
         let array = Self::new(env, elements.len());
         array.set_region(0, elements);
         array
+    }
+
+    /// Uses env.GetArrayLength to get the length of the java array, returns true if it is 0.
+    fn is_empty(self: &Ref<'_, Self>) -> bool {
+        self.len() == 0
     }
 
     /// Uses env.GetArrayLength + env.Get{Type}ArrayRegion to read the contents of the java array from range into a new Vec.
@@ -80,7 +86,12 @@ macro_rules! primitive_array {
         /// A [PrimitiveArray] implementation.
         pub enum $name {}
 
-        unsafe impl ReferenceType for $name {}
+        unsafe impl ReferenceType for $name {
+            fn jni_get_class(env: Env) -> &'static JClass {
+                static CLASS_CACHE: OnceLock<JClass> = OnceLock::new();
+                CLASS_CACHE.get_or_init(|| Self::static_with_jni_type(|t| unsafe { env.require_class(t) }))
+            }
+        }
         unsafe impl JniType for $name {
             fn static_with_jni_type<R>(callback: impl FnOnce(&str) -> R) -> R {
                 callback($type_str)
@@ -89,7 +100,7 @@ macro_rules! primitive_array {
 
         impl PrimitiveArray<$type> for $name {
             fn new<'env>(env: Env<'env>, size: usize) -> Local<'env, Self> {
-                assert!(size <= std::i32::MAX as usize); // jsize == jint == i32
+                assert!(size <= i32::MAX as usize); // jsize == jint == i32
                 let size = size as jsize;
                 let jnienv = env.as_raw();
                 unsafe {
@@ -116,8 +127,8 @@ macro_rules! primitive_array {
             }
 
             fn get_region(self: &Ref<'_, Self>, start: usize, elements: &mut [$type]) {
-                assert!(start <= std::i32::MAX as usize); // jsize == jint == i32
-                assert!(elements.len() <= std::i32::MAX as usize); // jsize == jint == i32
+                assert!(start <= i32::MAX as usize); // jsize == jint == i32
+                assert!(elements.len() <= i32::MAX as usize); // jsize == jint == i32
                 let self_len = self.len() as jsize;
                 let elements_len = elements.len() as jsize;
 
@@ -139,8 +150,8 @@ macro_rules! primitive_array {
             }
 
             fn set_region(self: &Ref<'_, Self>, start: usize, elements: &[$type]) {
-                assert!(start <= std::i32::MAX as usize); // jsize == jint == i32
-                assert!(elements.len() <= std::i32::MAX as usize); // jsize == jint == i32
+                assert!(start <= i32::MAX as usize); // jsize == jint == i32
+                assert!(elements.len() <= i32::MAX as usize); // jsize == jint == i32
                 let self_len = self.len() as jsize;
                 let elements_len = elements.len() as jsize;
 
@@ -178,7 +189,12 @@ primitive_array! { DoubleArray,  "[D\0", jdouble { NewDoubleArray  SetDoubleArra
 /// See also [PrimitiveArray] for arrays of reference types.
 pub struct ObjectArray<T: ReferenceType, E: ThrowableType>(core::convert::Infallible, PhantomData<(T, E)>);
 
-unsafe impl<T: ReferenceType, E: ThrowableType> ReferenceType for ObjectArray<T, E> {}
+unsafe impl<T: ReferenceType, E: ThrowableType> ReferenceType for ObjectArray<T, E> {
+    fn jni_get_class(env: Env) -> &'static JClass {
+        static CLASS_CACHE: OnceLock<JClass> = OnceLock::new();
+        CLASS_CACHE.get_or_init(|| Self::static_with_jni_type(|t| unsafe { env.require_class(t) }))
+    }
+}
 
 unsafe impl<T: ReferenceType, E: ThrowableType> JniType for ObjectArray<T, E> {
     fn static_with_jni_type<R>(callback: impl FnOnce(&str) -> R) -> R {
@@ -188,8 +204,8 @@ unsafe impl<T: ReferenceType, E: ThrowableType> JniType for ObjectArray<T, E> {
 
 impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
     pub fn new<'env>(env: Env<'env>, size: usize) -> Local<'env, Self> {
-        assert!(size <= std::i32::MAX as usize); // jsize == jint == i32
-        let class = T::static_with_jni_type(|t| unsafe { env.require_class(t) });
+        assert!(size <= i32::MAX as usize); // jsize == jint == i32
+        let class = T::jni_get_class(env).as_raw();
         let size = size as jsize;
 
         let object = unsafe {
@@ -210,10 +226,7 @@ impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
         }
     }
 
-    pub fn new_from<'env>(
-        env: Env<'env>,
-        elements: impl ExactSizeIterator + Iterator<Item = impl AsArg<T>>,
-    ) -> Local<'env, Self> {
+    pub fn new_from<'env>(env: Env<'env>, elements: impl ExactSizeIterator<Item = impl AsArg<T>>) -> Local<'env, Self> {
         let size = elements.len();
         let array = Self::new(env, size);
         let env = array.env().as_raw();
@@ -229,9 +242,13 @@ impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
         unsafe { ((**env).v1_2.GetArrayLength)(env, self.as_raw()) as usize }
     }
 
+    pub fn is_empty(self: &Ref<'_, Self>) -> bool {
+        self.len() == 0
+    }
+
     /// XXX: Expose this via std::ops::Index
     pub fn get<'env>(self: &Ref<'env, Self>, index: usize) -> Result<Option<Local<'env, T>>, Local<'env, E>> {
-        assert!(index <= std::i32::MAX as usize); // jsize == jint == i32 XXX: Should maybe be treated as an exception?
+        assert!(index <= i32::MAX as usize); // jsize == jint == i32 XXX: Should maybe be treated as an exception?
         let index = index as jsize;
         let env = self.env();
         let result = unsafe {
@@ -248,7 +265,7 @@ impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
 
     /// XXX: I don't think there's a way to expose this via std::ops::IndexMut sadly?
     pub fn set<'env>(self: &Ref<'env, Self>, index: usize, value: impl AsArg<T>) -> Result<(), Local<'env, E>> {
-        assert!(index <= std::i32::MAX as usize); // jsize == jint == i32 XXX: Should maybe be treated as an exception?
+        assert!(index <= i32::MAX as usize); // jsize == jint == i32 XXX: Should maybe be treated as an exception?
         let index = index as jsize;
         let env = self.env();
         unsafe {

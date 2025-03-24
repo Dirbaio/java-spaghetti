@@ -57,12 +57,11 @@ impl<'env, T: ReferenceType> Ref<'env, T> {
         unsafe { Local::from_raw(self.env(), object) }
     }
 
-    fn check_assignable<U: ReferenceType>(&self) -> Result<(), crate::CastError> {
+    pub(crate) fn check_assignable<U: ReferenceType>(&self) -> Result<(), crate::CastError> {
         let env = self.env();
         let jnienv = env.as_raw();
-        let class1 = unsafe { ((**jnienv).v1_2.GetObjectClass)(jnienv, self.as_raw()) };
-        let class2 = U::static_with_jni_type(|t| unsafe { env.require_class(t) });
-        if !unsafe { ((**jnienv).v1_2.IsAssignableFrom)(jnienv, class1, class2) } {
+        let class = U::jni_get_class(env).as_raw();
+        if !unsafe { ((**jnienv).v1_2.IsInstanceOf)(jnienv, self.as_raw(), class) } {
             return Err(crate::CastError);
         }
         Ok(())
