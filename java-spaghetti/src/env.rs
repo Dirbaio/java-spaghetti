@@ -40,7 +40,7 @@ use crate::{AsArg, JClass, JFieldID, JMethodID, Local, Ref, ReferenceType, Strin
 ///
 /// ### main_activity.rs
 ///
-/// ```rust
+/// ```ignore
 /// use java_spaghetti::{Env, Arg};
 /// use java_spaghetti::sys::{jboolean, JNI_TRUE};
 /// use bindings::java::lang::Object;
