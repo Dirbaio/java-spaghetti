@@ -5,7 +5,7 @@ use jni_sys::*;
 
 use crate::Env;
 
-/// FFI: Use **&VM** instead of *const JavaVM.  This represents a global, process-wide Java exection environment.
+/// FFI: Use **&VM** instead of `*const JavaVM`.  This represents a global, process-wide Java exection environment.
 ///
 /// On Android, there is only one VM per-process, although on desktop it's possible (if rare) to have multiple VMs
 /// within the same process.  This library does not support having multiple VMs active simultaniously.

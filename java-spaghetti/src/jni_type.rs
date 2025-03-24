@@ -2,10 +2,6 @@ use jni_sys::*;
 
 /// JNI bindings rely on this type being accurate.
 ///
-/// **unsafe**:  static_with_jni_type must pass a string terminated by '\0'.  Failing to do so is a soundness bug, as
-/// the string is passed directly to JNI as a raw pointer!  Additionally, passing the wrong type may be a soundness bug
-/// as although the Android JVM will simply panic and abort, I've no idea if that's a guarantee or not.
-///
 /// Why the awkward callback style instead of returning `&'static str`?  Arrays of arrays may need to dynamically
 /// construct their type strings, which would need to leak.  Worse, we can't easily intern those strings via
 /// lazy_static without running into:
@@ -13,6 +9,12 @@ use jni_sys::*;
 /// ```text
 /// error[E0401]: can't use generic parameters from outer function
 /// ```
+///
+/// # Safety
+///
+/// **unsafe**:  static_with_jni_type must pass a string terminated by '\0'.  Failing to do so is a soundness bug, as
+/// the string is passed directly to JNI as a raw pointer!  Additionally, passing the wrong type may be a soundness bug
+/// as although the Android JVM will simply panic and abort, I've no idea if that's a guarantee or not.
 pub unsafe trait JniType {
     fn static_with_jni_type<R>(callback: impl FnOnce(&str) -> R) -> R;
 }

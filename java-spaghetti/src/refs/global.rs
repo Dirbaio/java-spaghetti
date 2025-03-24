@@ -11,9 +11,9 @@ use crate::{Env, Local, Ref, ReferenceType, VM};
 /// * You must create a [Ref] before use.
 /// * The [Global] can be invalidated if the [VM] is unloaded.
 ///
-/// **Not FFI Safe:**  #\[repr(rust)\], and exact layout is likely to change - depending on exact features used - in the
-/// future.  Specifically, on Android, since we're guaranteed to only have a single ambient [VM], we can likely store the
-/// *const JavaVM in static and/or thread local storage instead of lugging it around in every [Local].  Of course, there's
+/// **Not FFI Safe:**  `#[repr(rust)]`, and exact layout is likely to change - depending on exact features used - in the
+/// future.  Specifically, on Android, since we're guaranteed to only have a single ambient VM, we can likely store the
+/// `*const JavaVM` in static and/or thread local storage instead of lugging it around in every [Global].  Of course, there's
 /// no guarantee that's actually an *optimization*...
 pub struct Global<T: ReferenceType> {
     object: jobject,
@@ -25,6 +25,11 @@ unsafe impl<T: ReferenceType> Send for Global<T> {}
 unsafe impl<T: ReferenceType> Sync for Global<T> {}
 
 impl<T: ReferenceType> Global<T> {
+    /// Wraps an owned raw JNI global reference.
+    ///
+    /// # Safety
+    ///
+    /// `object` must be an owned non-null JNI global reference that references an instance of type `T`.
     pub unsafe fn from_raw(vm: VM, object: jobject) -> Self {
         Self {
             object,
@@ -41,9 +46,11 @@ impl<T: ReferenceType> Global<T> {
         self.object
     }
 
+    /// Leaks the `Global` and turns it into a raw pointer, preserving the ownership of
+    /// one JNI global reference; prevents `DeleteGlobalRef` from being called on dropping.
     pub fn into_raw(self) -> jobject {
         let object = self.object;
-        std::mem::forget(self); // Don't delete the object.
+        std::mem::forget(self);
         object
     }
 

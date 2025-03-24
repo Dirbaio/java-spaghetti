@@ -23,15 +23,21 @@ use crate::{AssignableTo, Env, Global, JavaDebug, JavaDisplay, Ref, ReferenceTyp
 /// # }
 /// ```
 ///
-/// **Not FFI Safe:**  #\[repr(rust)\], and exact layout is likely to change - depending on exact features used - in the
+/// **Not FFI Safe:**  `#[repr(rust)]`, and exact layout is likely to change - depending on exact features used - in the
 /// future.  Specifically, on Android, since we're guaranteed to only have a single ambient VM, we can likely store the
-/// \*const JNIEnv in thread local storage instead of lugging it around in every Local.  Of course, there's no
+/// `*const JNIEnv` in thread local storage instead of lugging it around in every [Local].  Of course, there's no
 /// guarantee that's actually an *optimization*...
 pub struct Local<'env, T: ReferenceType> {
     ref_: Ref<'env, T>,
 }
 
 impl<'env, T: ReferenceType> Local<'env, T> {
+    /// Wraps an owned raw JNI local reference.
+    ///
+    /// # Safety
+    ///
+    /// - `object` must be an owned non-null JNI local reference that belongs to `env`;
+    /// - `object` references an instance of type `T`.
     pub unsafe fn from_raw(env: Env<'env>, object: jobject) -> Self {
         Self {
             ref_: Ref::from_raw(env, object),
@@ -46,9 +52,11 @@ impl<'env, T: ReferenceType> Local<'env, T> {
         self.ref_.as_raw()
     }
 
+    /// Leaks the `Local` and turns it into a raw pointer, preserving the ownership of
+    /// one JNI local reference; prevents `DeleteLocalRef` from being called on dropping.
     pub fn into_raw(self) -> jobject {
         let object = self.ref_.as_raw();
-        std::mem::forget(self); // Don't allow local to DeleteLocalRef the jobject
+        std::mem::forget(self);
         object
     }
 
@@ -64,6 +72,7 @@ impl<'env, T: ReferenceType> Local<'env, T> {
         unsafe { Global::from_raw(env.vm(), object) }
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn as_ref(&self) -> &Ref<'_, T> {
         &self.ref_
     }

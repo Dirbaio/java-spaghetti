@@ -9,9 +9,9 @@ use crate::{AssignableTo, Env, Global, JavaDebug, JavaDisplay, Local, ReferenceT
 /// A non-null, [reference](https://www.ibm.com/docs/en/sdk-java-technology/8?topic=collector-overview-jni-object-references)
 /// to a Java object (+ [Env]).  This may refer to a [Local](crate::Local), [Global](crate::Global), local [Arg](crate::Arg), etc.
 ///
-/// **Not FFI Safe:**  #\[repr(rust)\], and exact layout is likely to change - depending on exact features used - in the
+/// **Not FFI Safe:**  `#[repr(rust)]`, and exact layout is likely to change - depending on exact features used - in the
 /// future.  Specifically, on Android, since we're guaranteed to only have a single ambient VM, we can likely store the
-/// \*const JNIEnv in thread local storage instead of lugging it around in every Local.  Of course, there's no
+/// `*const JNIEnv` in thread local storage instead of lugging it around in every [Ref].  Of course, there's no
 /// guarantee that's actually an *optimization*...
 #[repr(C)] // this is NOT for FFI-safety, this is to ensure `cast` methods are sound.
 pub struct Ref<'env, T: ReferenceType> {
@@ -25,6 +25,12 @@ impl<'env, T: ReferenceType> std::ops::Receiver for Ref<'env, T> {
 }
 
 impl<'env, T: ReferenceType> Ref<'env, T> {
+    /// Wraps an raw JNI reference.
+    ///
+    /// # Safety
+    ///
+    /// - `object` is a non-null JNI reference, and it must keep valid for `'env` lifetime;
+    /// - `object` references an instance of type `T`.
     pub unsafe fn from_raw(env: Env<'env>, object: jobject) -> Self {
         Self {
             object,
@@ -67,6 +73,7 @@ impl<'env, T: ReferenceType> Ref<'env, T> {
         Ok(())
     }
 
+    #[allow(clippy::missing_safety_doc)]
     pub unsafe fn cast_unchecked<U: ReferenceType>(self) -> Ref<'env, U> {
         transmute(self)
     }
@@ -83,6 +90,7 @@ impl<'env, T: ReferenceType> Ref<'env, T> {
         unsafe { self.cast_unchecked() }
     }
 
+    #[allow(clippy::missing_safety_doc)]
     pub unsafe fn cast_ref_unchecked<U: ReferenceType>(&self) -> &Ref<'env, U> {
         transmute(self)
     }

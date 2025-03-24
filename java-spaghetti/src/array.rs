@@ -8,7 +8,10 @@ use jni_sys::*;
 
 use crate::{AsArg, Env, JClass, JniType, Local, Ref, ReferenceType, ThrowableType};
 
-/// A Java Array of some POD-like type such as bool, jbyte, jchar, jshort, jint, jlong, jfloat, or jdouble.
+/// A Java Array of some POD-like type such as `bool`, `jbyte`, `jchar`, `jshort`, `jint`, `jlong`, `jfloat`, or `jdouble`.
+///
+/// Thread safety of avoiding [race conditions](https://www.ibm.com/docs/en/sdk-java-technology/8?topic=jni-synchronization)
+/// is not guaranteed.
 ///
 /// See also [ObjectArray] for arrays of reference types.
 ///
@@ -26,31 +29,38 @@ pub trait PrimitiveArray<T>: Sized + ReferenceType
 where
     T: Clone + Default,
 {
-    /// Uses env.New{Type}Array to create a new java array containing "size" elements.
+    /// Uses JNI `New{Type}Array` to create a new java array containing "size" elements.
     fn new<'env>(env: Env<'env>, size: usize) -> Local<'env, Self>;
 
-    /// Uses env.GetArrayLength to get the length of the java array.
+    /// Uses JNI `GetArrayLength` to get the length of the java array.
     fn len(self: &Ref<'_, Self>) -> usize;
 
-    /// Uses env.Get{Type}ArrayRegion to read the contents of the java array from \[start .. start + elements.len())
+    /// Uses JNI `Get{Type}ArrayRegion` to read the contents of the java array within `[start .. start + elements.len()]`.
+    ///
+    /// Panics if the index is out of bound.
     fn get_region(self: &Ref<'_, Self>, start: usize, elements: &mut [T]);
 
-    /// Uses env.Set{Type}ArrayRegion to set the contents of the java array from \[start .. start + elements.len())
+    /// Uses JNI `Set{Type}ArrayRegion` to set the contents of the java array within `[start .. start + elements.len()]`.
+    ///
+    /// Panics if the index is out of bound.
     fn set_region(self: &Ref<'_, Self>, start: usize, elements: &[T]);
 
-    /// Uses env.New{Type}Array + Set{Type}ArrayRegion to create a new java array containing a copy of "elements".
+    /// Uses JNI `New{Type}Array` + `Set{Type}ArrayRegion` to create a new java array containing a copy of "elements".
     fn new_from<'env>(env: Env<'env>, elements: &[T]) -> Local<'env, Self> {
         let array = Self::new(env, elements.len());
         array.set_region(0, elements);
         array
     }
 
-    /// Uses env.GetArrayLength to get the length of the java array, returns true if it is 0.
+    /// Uses JNI `GetArrayLength` to get the length of the java array, returns `true` if it is 0.
     fn is_empty(self: &Ref<'_, Self>) -> bool {
         self.len() == 0
     }
 
-    /// Uses env.GetArrayLength + env.Get{Type}ArrayRegion to read the contents of the java array from range into a new Vec.
+    /// Uses JNI `GetArrayLength` + `Get{Type}ArrayRegion` to read the contents of the java array within given range
+    /// into a new `Vec`.
+    ///
+    /// Panics if the index is out of bound.
     fn get_region_as_vec(self: &Ref<'_, Self>, range: impl RangeBounds<usize>) -> Vec<T> {
         let len = self.len();
 
@@ -76,7 +86,7 @@ where
         vec
     }
 
-    /// Uses env.GetArrayLength + env.Get{Type}ArrayRegion to read the contents of the entire java array into a new Vec.
+    /// Uses JNI `GetArrayLength` + `Get{Type}ArrayRegion` to read the contents of the entire java array into a new `Vec`.
     fn as_vec(self: &Ref<'_, Self>) -> Vec<T> {
         self.get_region_as_vec(0..self.len())
     }
@@ -187,6 +197,9 @@ primitive_array! { DoubleArray,  "[D\0", jdouble { NewDoubleArray  SetDoubleArra
 
 /// A Java Array of reference types (classes, interfaces, other arrays, etc.)
 ///
+/// Thread safety of avoiding [race conditions](https://www.ibm.com/docs/en/sdk-java-technology/8?topic=jni-synchronization)
+/// is not guaranteed.
+///
 /// See also [PrimitiveArray] for arrays of reference types.
 pub struct ObjectArray<T: ReferenceType, E: ThrowableType>(core::convert::Infallible, PhantomData<(T, E)>);
 
@@ -218,6 +231,7 @@ unsafe impl<T: ReferenceType, E: ThrowableType> JniType for ObjectArray<T, E> {
 }
 
 impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
+    /// Uses JNI `NewObjectArray` to create a new java object array.
     pub fn new<'env>(env: Env<'env>, size: usize) -> Local<'env, Self> {
         assert!(size <= i32::MAX as usize); // jsize == jint == i32
         let class = T::jni_get_class(env).as_raw();
@@ -233,6 +247,7 @@ impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
         unsafe { Local::from_raw(env, object) }
     }
 
+    /// Iterates through object items of the array. See [ObjectArrayIter].
     pub fn iter<'a, 'env>(self: &'a Ref<'env, Self>) -> ObjectArrayIter<'a, 'env, T, E> {
         ObjectArrayIter {
             array: self,
@@ -241,6 +256,8 @@ impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
         }
     }
 
+    /// Uses JNI `NewObjectArray` to create a new java object array of the exact size, then sets its items
+    /// with the iterator of JNI (null?) references.
     pub fn new_from<'env>(env: Env<'env>, elements: impl ExactSizeIterator<Item = impl AsArg<T>>) -> Local<'env, Self> {
         let size = elements.len();
         let array = Self::new(env, size);
@@ -252,16 +269,21 @@ impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
         array
     }
 
+    /// Uses JNI `GetArrayLength` to get the length of the java array.
     pub fn len(self: &Ref<'_, Self>) -> usize {
         let env = self.env().as_raw();
         unsafe { ((**env).v1_2.GetArrayLength)(env, self.as_raw()) as usize }
     }
 
+    /// Uses JNI `GetArrayLength` to get the length of the java array, returns `true` if it is 0.
     pub fn is_empty(self: &Ref<'_, Self>) -> bool {
         self.len() == 0
     }
 
-    /// XXX: Expose this via std::ops::Index
+    /// Gets a local reference of the object item at given `index` in the array.
+    /// Returns `None` if it is null; returns an exception if the index is invalid.
+    ///
+    /// XXX: Expose this via `std::ops::Index`.
     pub fn get<'env>(self: &Ref<'env, Self>, index: usize) -> Result<Option<Local<'env, T>>, Local<'env, E>> {
         assert!(index <= i32::MAX as usize); // jsize == jint == i32 XXX: Should maybe be treated as an exception?
         let index = index as jsize;
@@ -278,7 +300,9 @@ impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
         }
     }
 
-    /// XXX: I don't think there's a way to expose this via std::ops::IndexMut sadly?
+    /// Sets an element at the given `index` in the array. Returns an exception if the index is invalid.
+    ///
+    /// XXX: I don't think there's a way to expose this via `std::ops::IndexMut` sadly?
     pub fn set<'env>(self: &Ref<'env, Self>, index: usize, value: impl AsArg<T>) -> Result<(), Local<'env, E>> {
         assert!(index <= i32::MAX as usize); // jsize == jint == i32 XXX: Should maybe be treated as an exception?
         let index = index as jsize;
@@ -291,6 +315,8 @@ impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
     }
 }
 
+/// An iterator over object items of an [ObjectArray]. Local references of object items
+/// will be created automatically.
 pub struct ObjectArrayIter<'a, 'env, T: ReferenceType, E: ThrowableType> {
     array: &'a Ref<'env, ObjectArray<T, E>>,
     index: usize,

@@ -4,7 +4,7 @@ use jni_sys::*;
 
 use crate::{Env, Global, Local, Ref, ReferenceType};
 
-/// FFI: Use **Arg\<java::lang::Object\>** instead of jobject.  This represents a (null?) function argument.
+/// FFI: Use **Arg\<java::lang::Object\>** instead of `jobject`.  This represents a (null?) function argument.
 ///
 /// Unlike most Java reference types from this library, this *can* be null.
 ///
@@ -18,6 +18,8 @@ pub struct Arg<T: ReferenceType> {
 }
 
 impl<T: ReferenceType> Arg<T> {
+    /// # Safety
+    ///
     /// **unsafe**:  There's no guarantee the jobject being passed is valid or null, nor any means of checking it.
     pub unsafe fn from_raw(object: jobject) -> Self {
         Self {
@@ -30,6 +32,8 @@ impl<T: ReferenceType> Arg<T> {
         self.object
     }
 
+    /// # Safety
+    ///
     /// **unsafe**:  This assumes the argument belongs to the given Env/VM, which is technically unsound.  However, the
     /// intended use case of immediately converting any Arg s into ArgRef s at the start of a JNI callback,
     /// where Java directly invoked your function with an Env + arguments, is sound.
@@ -41,6 +45,8 @@ impl<T: ReferenceType> Arg<T> {
         }
     }
 
+    /// # Safety
+    ///
     /// **unsafe**:  This assumes the argument belongs to the given Env/VM, which is technically unsound.  However, the
     /// intended use case of immediately converting any Arg s into ArgRef s at the start of a JNI callback,
     /// where Java directly invoked your function with an Env + arguments, is sound.
@@ -52,6 +58,8 @@ impl<T: ReferenceType> Arg<T> {
         }
     }
 
+    /// # Safety
+    ///
     /// **unsafe**:  This assumes the argument belongs to the given Env/VM, which is technically unsound.  However, the
     /// intended use case of immediately converting any Arg s into ArgRef s at the start of a JNI callback,
     /// where Java directly invoked your function with an Env + arguments, is sound.

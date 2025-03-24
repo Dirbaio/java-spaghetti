@@ -8,9 +8,9 @@ use jni_sys::*;
 
 use crate::{AsArg, JClass, JFieldID, JMethodID, Local, Ref, ReferenceType, StringChars, ThrowableType, VM};
 
-/// FFI:  Use **Env** instead of \*const JNIEnv.  This represents a per-thread Java exection environment.
+/// FFI:  Use **Env** instead of `*const JNIEnv`.  This represents a per-thread Java exection environment.
 ///
-/// A "safe" alternative to jni_sys::JNIEnv raw pointers, with the following caveats:
+/// A "safe" alternative to `jni_sys::JNIEnv` raw pointers, with the following caveats:
 ///
 /// 1)  A null env will result in **undefined behavior**.  Java should not be invoking your native functions with a null
 ///     *mut JNIEnv, however, so I don't believe this is a problem in practice unless you've bindgened the C header
@@ -68,6 +68,7 @@ pub struct Env<'env> {
 
 static CLASS_LOADER: AtomicPtr<_jobject> = AtomicPtr::new(null_mut());
 
+#[allow(clippy::missing_safety_doc)]
 impl<'env> Env<'env> {
     pub unsafe fn from_raw(ptr: *mut JNIEnv) -> Self {
         Self {
@@ -221,7 +222,7 @@ impl<'env> Env<'env> {
     }
 
     unsafe fn require_class_jni(self, class: &str) -> Option<JClass> {
-        debug_assert!(class.ends_with('\0'));
+        assert!(class.ends_with('\0'));
         let cls = ((**self.env).v1_2.FindClass)(self.env, class.as_ptr() as *const c_char);
         let exception: *mut _jobject = ((**self.env).v1_2.ExceptionOccurred)(self.env);
         if !exception.is_null() {
@@ -235,8 +236,8 @@ impl<'env> Env<'env> {
     }
 
     pub unsafe fn require_method(self, class: &JClass, method: &str, descriptor: &str) -> JMethodID {
-        debug_assert!(method.ends_with('\0'));
-        debug_assert!(descriptor.ends_with('\0'));
+        assert!(method.ends_with('\0'));
+        assert!(descriptor.ends_with('\0'));
 
         let method = ((**self.env).v1_2.GetMethodID)(
             self.env,
@@ -248,8 +249,8 @@ impl<'env> Env<'env> {
     }
 
     pub unsafe fn require_static_method(self, class: &JClass, method: &str, descriptor: &str) -> JMethodID {
-        debug_assert!(method.ends_with('\0'));
-        debug_assert!(descriptor.ends_with('\0'));
+        assert!(method.ends_with('\0'));
+        assert!(descriptor.ends_with('\0'));
 
         let method = ((**self.env).v1_2.GetStaticMethodID)(
             self.env,
@@ -261,8 +262,8 @@ impl<'env> Env<'env> {
     }
 
     pub unsafe fn require_field(self, class: &JClass, field: &str, descriptor: &str) -> JFieldID {
-        debug_assert!(field.ends_with('\0'));
-        debug_assert!(field.ends_with('\0'));
+        assert!(field.ends_with('\0'));
+        assert!(field.ends_with('\0'));
 
         let field = ((**self.env).v1_2.GetFieldID)(
             self.env,
@@ -274,8 +275,8 @@ impl<'env> Env<'env> {
     }
 
     pub unsafe fn require_static_field(self, class: &JClass, field: &str, descriptor: &str) -> JFieldID {
-        debug_assert!(field.ends_with('\0'));
-        debug_assert!(field.ends_with('\0'));
+        assert!(field.ends_with('\0'));
+        assert!(field.ends_with('\0'));
 
         let field = ((**self.env).v1_2.GetStaticFieldID)(
             self.env,
