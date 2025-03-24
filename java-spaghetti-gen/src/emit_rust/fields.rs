@@ -186,7 +186,7 @@ impl<'a> Field<'a> {
                 } else {
                     writeln!(
                         out,
-                        "{indent}        __jni_env.get_{field_fragment}_field(self.as_raw(), __jni_field)",
+                        "{indent}        __jni_env.get_{field_fragment}_field(self, __jni_field)",
                     )?;
                 }
                 writeln!(out, "{indent}    }}")?;
@@ -241,7 +241,7 @@ impl<'a> Field<'a> {
                         writeln!(
                             out,
                             "{indent}        \
-                            __jni_env.set_{field_fragment}_field(self.as_raw(), __jni_field, value)",
+                            __jni_env.set_{field_fragment}_field(self, __jni_field, value)",
                         )?;
                     }
                     writeln!(out, "{indent}    }}")?;
@@ -279,17 +279,17 @@ impl std::fmt::Display for ConstantWriter<'_> {
             LiteralConstant::Long(value) => write!(f, "{}i64", value),
 
             LiteralConstant::Float(value) if value.is_infinite() && *value < 0.0 => {
-                write!(f, "::std::f32::NEG_INFINITY")
+                write!(f, "f32::NEG_INFINITY")
             }
-            LiteralConstant::Float(value) if value.is_infinite() => write!(f, "::std::f32::INFINITY"),
-            LiteralConstant::Float(value) if value.is_nan() => write!(f, "::std::f32::NAN"),
+            LiteralConstant::Float(value) if value.is_infinite() => write!(f, "f32::INFINITY"),
+            LiteralConstant::Float(value) if value.is_nan() => write!(f, "f32::NAN"),
             LiteralConstant::Float(value) => write!(f, "{}f32", value),
 
             LiteralConstant::Double(value) if value.is_infinite() && *value < 0.0 => {
-                write!(f, "::std::f64::NEG_INFINITY")
+                write!(f, "f64::NEG_INFINITY")
             }
-            LiteralConstant::Double(value) if value.is_infinite() => write!(f, "::std::f64::INFINITY"),
-            LiteralConstant::Double(value) if value.is_nan() => write!(f, "::std::f64::NAN"),
+            LiteralConstant::Double(value) if value.is_infinite() => write!(f, "f64::INFINITY"),
+            LiteralConstant::Double(value) if value.is_nan() => write!(f, "f64::NAN"),
             LiteralConstant::Double(value) => write!(f, "{}f64", value),
 
             LiteralConstant::String(value) => std::fmt::Debug::fmt(value, f),

@@ -234,20 +234,20 @@ impl<'a> Method<'a> {
             writeln!(
                 out,
                 "{indent}        \
-                __jni_env.new_object_a(__jni_class, __jni_method, __jni_args.as_ptr())",
+                __jni_env.new_object_a(__jni_class, __jni_method, &__jni_args)",
             )?;
         } else if self.java.is_static() {
             writeln!(
                 out,
                 "{indent}        \
-                __jni_env.call_static_{}_method_a(__jni_class, __jni_method, __jni_args.as_ptr())",
+                __jni_env.call_static_{}_method_a(__jni_class, __jni_method, &__jni_args)",
                 ret_method_fragment
             )?;
         } else {
             writeln!(
                 out,
                 "{indent}        \
-                __jni_env.call_{}_method_a(self.as_raw(), __jni_method, __jni_args.as_ptr())",
+                __jni_env.call_{}_method_a(self, __jni_method, &__jni_args)",
                 ret_method_fragment
             )?;
         }
