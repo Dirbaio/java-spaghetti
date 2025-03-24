@@ -18,26 +18,30 @@ unsafe impl Send for JClass {}
 unsafe impl Sync for JClass {}
 
 impl JClass {
-    /// Creates a `JClass` from a raw JNI local reference of a class object.
+    /// Creates a `JClass` from an owned JNI local reference of a class object and deletes the
+    /// local reference.
     ///
     /// # Safety
     ///
     /// `class` must be a valid JNI local reference to a `java.lang.Class` object.
+    /// Do not use the passed `class` local reference after calling this function.
+    ///
     /// It is safe to pass the returned value of JNI `FindClass` to it if no exeception occurred.
     pub unsafe fn from_raw<'env>(env: Env<'env>, class: jclass) -> Self {
         assert!(!class.is_null(), "from_raw jclass argument");
         let jnienv = env.as_raw();
         let class_global = unsafe { ((**jnienv).v1_2.NewGlobalRef)(jnienv, class) };
+        unsafe { ((**jnienv).v1_2.DeleteLocalRef)(jnienv, class) }
         Self::from_raw_global(env.vm(), class_global)
     }
 
-    /// Creates a `JClass` from a raw JNI global reference of a class object.
+    /// Wraps an owned raw JNI global reference of a class object.
     ///
     /// # Safety
     ///
     /// `class` must be a valid JNI global reference to a `java.lang.Class` object.
     pub unsafe fn from_raw_global(vm: VM, class: jobject) -> Self {
-        assert!(!class.is_null(), "from_raw_global jclass argument");
+        assert!(!class.is_null(), "from_raw_global class argument");
         Self {
             class: class as jclass,
             vm,
@@ -87,11 +91,11 @@ unsafe impl Send for JFieldID {}
 unsafe impl Sync for JFieldID {}
 
 impl JFieldID {
-    /// Creates a [`JFieldID`] that wraps the given `raw` [`jfieldID`].
+    /// Creates a [`JFieldID`] that wraps the given raw [`jfieldID`].
     ///
     /// # Safety
     ///
-    /// Expects a valid, non-`null` ID.
+    /// Expects a valid, non-null ID.
     pub unsafe fn from_raw(raw: jfieldID) -> Self {
         assert!(!raw.is_null(), "from_raw fieldID argument");
         Self { internal: raw }
@@ -121,7 +125,7 @@ impl JMethodID {
     ///
     /// # Safety
     ///
-    /// Expects a valid, non-`null` ID.
+    /// Expects a valid, non-null ID.
     pub unsafe fn from_raw(raw: jmethodID) -> Self {
         assert!(!raw.is_null(), "from_raw methodID argument");
         Self { internal: raw }
