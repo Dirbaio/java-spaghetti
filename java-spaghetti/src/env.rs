@@ -292,9 +292,9 @@ impl<'env> Env<'env> {
         self,
         class: &JClass,
         method: JMethodID,
-        args: *const jvalue,
+        args: &[jvalue],
     ) -> Result<Local<'env, R>, Local<'env, E>> {
-        let result = ((**self.env).v1_2.NewObjectA)(self.env, class.as_raw(), method.as_raw(), args);
+        let result = ((**self.env).v1_2.NewObjectA)(self.env, class.as_raw(), method.as_raw(), args.as_ptr());
         self.exception_check()?;
         assert!(!result.is_null());
         Ok(Local::from_raw(self, result))
@@ -302,13 +302,13 @@ impl<'env> Env<'env> {
 
     // Instance Methods
 
-    pub unsafe fn call_object_method_a<R: ReferenceType, E: ThrowableType>(
+    pub unsafe fn call_object_method_a<T: ReferenceType, R: ReferenceType, E: ThrowableType>(
         self,
-        this: jobject,
+        this: &Ref<'env, T>,
         method: JMethodID,
-        args: *const jvalue,
+        args: &[jvalue],
     ) -> Result<Option<Local<'env, R>>, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallObjectMethodA)(self.env, this, method.as_raw(), args);
+        let result = ((**self.env).v1_2.CallObjectMethodA)(self.env, this.as_raw(), method.as_raw(), args.as_ptr());
         self.exception_check()?;
         if result.is_null() {
             Ok(None)
@@ -317,101 +317,101 @@ impl<'env> Env<'env> {
         }
     }
 
-    pub unsafe fn call_boolean_method_a<E: ThrowableType>(
+    pub unsafe fn call_boolean_method_a<T: ReferenceType, E: ThrowableType>(
         self,
-        this: jobject,
+        this: &Ref<'env, T>,
         method: JMethodID,
-        args: *const jvalue,
+        args: &[jvalue],
     ) -> Result<bool, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallBooleanMethodA)(self.env, this, method.as_raw(), args);
+        let result = ((**self.env).v1_2.CallBooleanMethodA)(self.env, this.as_raw(), method.as_raw(), args.as_ptr());
         self.exception_check()?;
         Ok(result != JNI_FALSE)
     }
 
-    pub unsafe fn call_byte_method_a<E: ThrowableType>(
+    pub unsafe fn call_byte_method_a<T: ReferenceType, E: ThrowableType>(
         self,
-        this: jobject,
+        this: &Ref<'env, T>,
         method: JMethodID,
-        args: *const jvalue,
+        args: &[jvalue],
     ) -> Result<jbyte, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallByteMethodA)(self.env, this, method.as_raw(), args);
+        let result = ((**self.env).v1_2.CallByteMethodA)(self.env, this.as_raw(), method.as_raw(), args.as_ptr());
         self.exception_check()?;
         Ok(result)
     }
 
-    pub unsafe fn call_char_method_a<E: ThrowableType>(
+    pub unsafe fn call_char_method_a<T: ReferenceType, E: ThrowableType>(
         self,
-        this: jobject,
+        this: &Ref<'env, T>,
         method: JMethodID,
-        args: *const jvalue,
+        args: &[jvalue],
     ) -> Result<jchar, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallCharMethodA)(self.env, this, method.as_raw(), args);
+        let result = ((**self.env).v1_2.CallCharMethodA)(self.env, this.as_raw(), method.as_raw(), args.as_ptr());
         self.exception_check()?;
         Ok(result)
     }
 
-    pub unsafe fn call_short_method_a<E: ThrowableType>(
+    pub unsafe fn call_short_method_a<T: ReferenceType, E: ThrowableType>(
         self,
-        this: jobject,
+        this: &Ref<'env, T>,
         method: JMethodID,
-        args: *const jvalue,
+        args: &[jvalue],
     ) -> Result<jshort, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallShortMethodA)(self.env, this, method.as_raw(), args);
+        let result = ((**self.env).v1_2.CallShortMethodA)(self.env, this.as_raw(), method.as_raw(), args.as_ptr());
         self.exception_check()?;
         Ok(result)
     }
 
-    pub unsafe fn call_int_method_a<E: ThrowableType>(
+    pub unsafe fn call_int_method_a<T: ReferenceType, E: ThrowableType>(
         self,
-        this: jobject,
+        this: &Ref<'env, T>,
         method: JMethodID,
-        args: *const jvalue,
+        args: &[jvalue],
     ) -> Result<jint, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallIntMethodA)(self.env, this, method.as_raw(), args);
+        let result = ((**self.env).v1_2.CallIntMethodA)(self.env, this.as_raw(), method.as_raw(), args.as_ptr());
         self.exception_check()?;
         Ok(result)
     }
 
-    pub unsafe fn call_long_method_a<E: ThrowableType>(
+    pub unsafe fn call_long_method_a<T: ReferenceType, E: ThrowableType>(
         self,
-        this: jobject,
+        this: &Ref<'env, T>,
         method: JMethodID,
-        args: *const jvalue,
+        args: &[jvalue],
     ) -> Result<jlong, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallLongMethodA)(self.env, this, method.as_raw(), args);
+        let result = ((**self.env).v1_2.CallLongMethodA)(self.env, this.as_raw(), method.as_raw(), args.as_ptr());
         self.exception_check()?;
         Ok(result)
     }
 
-    pub unsafe fn call_float_method_a<E: ThrowableType>(
+    pub unsafe fn call_float_method_a<T: ReferenceType, E: ThrowableType>(
         self,
-        this: jobject,
+        this: &Ref<'env, T>,
         method: JMethodID,
-        args: *const jvalue,
+        args: &[jvalue],
     ) -> Result<jfloat, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallFloatMethodA)(self.env, this, method.as_raw(), args);
+        let result = ((**self.env).v1_2.CallFloatMethodA)(self.env, this.as_raw(), method.as_raw(), args.as_ptr());
         self.exception_check()?;
         Ok(result)
     }
 
-    pub unsafe fn call_double_method_a<E: ThrowableType>(
+    pub unsafe fn call_double_method_a<T: ReferenceType, E: ThrowableType>(
         self,
-        this: jobject,
+        this: &Ref<'env, T>,
         method: JMethodID,
-        args: *const jvalue,
+        args: &[jvalue],
     ) -> Result<jdouble, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallDoubleMethodA)(self.env, this, method.as_raw(), args);
+        let result = ((**self.env).v1_2.CallDoubleMethodA)(self.env, this.as_raw(), method.as_raw(), args.as_ptr());
         self.exception_check()?;
         Ok(result)
     }
 
-    pub unsafe fn call_void_method_a<E: ThrowableType>(
+    pub unsafe fn call_void_method_a<T: ReferenceType, E: ThrowableType>(
         self,
-        this: jobject,
+        this: &Ref<'env, T>,
         method: JMethodID,
-        args: *const jvalue,
+        args: &[jvalue],
     ) -> Result<(), Local<'env, E>> {
-        ((**self.env).v1_2.CallVoidMethodA)(self.env, this, method.as_raw(), args);
+        ((**self.env).v1_2.CallVoidMethodA)(self.env, this.as_raw(), method.as_raw(), args.as_ptr());
         self.exception_check()
     }
 
@@ -421,9 +421,10 @@ impl<'env> Env<'env> {
         self,
         class: &JClass,
         method: JMethodID,
-        args: *const jvalue,
+        args: &[jvalue],
     ) -> Result<Option<Local<'env, R>>, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallStaticObjectMethodA)(self.env, class.as_raw(), method.as_raw(), args);
+        let result =
+            ((**self.env).v1_2.CallStaticObjectMethodA)(self.env, class.as_raw(), method.as_raw(), args.as_ptr());
         self.exception_check()?;
         if result.is_null() {
             Ok(None)
@@ -436,9 +437,10 @@ impl<'env> Env<'env> {
         self,
         class: &JClass,
         method: JMethodID,
-        args: *const jvalue,
+        args: &[jvalue],
     ) -> Result<bool, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallStaticBooleanMethodA)(self.env, class.as_raw(), method.as_raw(), args);
+        let result =
+            ((**self.env).v1_2.CallStaticBooleanMethodA)(self.env, class.as_raw(), method.as_raw(), args.as_ptr());
         self.exception_check()?;
         Ok(result != JNI_FALSE)
     }
@@ -447,9 +449,10 @@ impl<'env> Env<'env> {
         self,
         class: &JClass,
         method: JMethodID,
-        args: *const jvalue,
+        args: &[jvalue],
     ) -> Result<jbyte, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallStaticByteMethodA)(self.env, class.as_raw(), method.as_raw(), args);
+        let result =
+            ((**self.env).v1_2.CallStaticByteMethodA)(self.env, class.as_raw(), method.as_raw(), args.as_ptr());
         self.exception_check()?;
         Ok(result)
     }
@@ -458,9 +461,10 @@ impl<'env> Env<'env> {
         self,
         class: &JClass,
         method: JMethodID,
-        args: *const jvalue,
+        args: &[jvalue],
     ) -> Result<jchar, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallStaticCharMethodA)(self.env, class.as_raw(), method.as_raw(), args);
+        let result =
+            ((**self.env).v1_2.CallStaticCharMethodA)(self.env, class.as_raw(), method.as_raw(), args.as_ptr());
         self.exception_check()?;
         Ok(result)
     }
@@ -469,9 +473,10 @@ impl<'env> Env<'env> {
         self,
         class: &JClass,
         method: JMethodID,
-        args: *const jvalue,
+        args: &[jvalue],
     ) -> Result<jshort, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallStaticShortMethodA)(self.env, class.as_raw(), method.as_raw(), args);
+        let result =
+            ((**self.env).v1_2.CallStaticShortMethodA)(self.env, class.as_raw(), method.as_raw(), args.as_ptr());
         self.exception_check()?;
         Ok(result)
     }
@@ -480,9 +485,9 @@ impl<'env> Env<'env> {
         self,
         class: &JClass,
         method: JMethodID,
-        args: *const jvalue,
+        args: &[jvalue],
     ) -> Result<jint, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallStaticIntMethodA)(self.env, class.as_raw(), method.as_raw(), args);
+        let result = ((**self.env).v1_2.CallStaticIntMethodA)(self.env, class.as_raw(), method.as_raw(), args.as_ptr());
         self.exception_check()?;
         Ok(result)
     }
@@ -491,9 +496,10 @@ impl<'env> Env<'env> {
         self,
         class: &JClass,
         method: JMethodID,
-        args: *const jvalue,
+        args: &[jvalue],
     ) -> Result<jlong, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallStaticLongMethodA)(self.env, class.as_raw(), method.as_raw(), args);
+        let result =
+            ((**self.env).v1_2.CallStaticLongMethodA)(self.env, class.as_raw(), method.as_raw(), args.as_ptr());
         self.exception_check()?;
         Ok(result)
     }
@@ -502,9 +508,10 @@ impl<'env> Env<'env> {
         self,
         class: &JClass,
         method: JMethodID,
-        args: *const jvalue,
+        args: &[jvalue],
     ) -> Result<jfloat, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallStaticFloatMethodA)(self.env, class.as_raw(), method.as_raw(), args);
+        let result =
+            ((**self.env).v1_2.CallStaticFloatMethodA)(self.env, class.as_raw(), method.as_raw(), args.as_ptr());
         self.exception_check()?;
         Ok(result)
     }
@@ -513,9 +520,10 @@ impl<'env> Env<'env> {
         self,
         class: &JClass,
         method: JMethodID,
-        args: *const jvalue,
+        args: &[jvalue],
     ) -> Result<jdouble, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallStaticDoubleMethodA)(self.env, class.as_raw(), method.as_raw(), args);
+        let result =
+            ((**self.env).v1_2.CallStaticDoubleMethodA)(self.env, class.as_raw(), method.as_raw(), args.as_ptr());
         self.exception_check()?;
         Ok(result)
     }
@@ -524,16 +532,20 @@ impl<'env> Env<'env> {
         self,
         class: &JClass,
         method: JMethodID,
-        args: *const jvalue,
+        args: &[jvalue],
     ) -> Result<(), Local<'env, E>> {
-        ((**self.env).v1_2.CallStaticVoidMethodA)(self.env, class.as_raw(), method.as_raw(), args);
+        ((**self.env).v1_2.CallStaticVoidMethodA)(self.env, class.as_raw(), method.as_raw(), args.as_ptr());
         self.exception_check()
     }
 
     // Instance Fields
 
-    pub unsafe fn get_object_field<R: ReferenceType>(self, this: jobject, field: JFieldID) -> Option<Local<'env, R>> {
-        let result = ((**self.env).v1_2.GetObjectField)(self.env, this, field.as_raw());
+    pub unsafe fn get_object_field<T: ReferenceType, R: ReferenceType>(
+        self,
+        this: &Ref<'env, T>,
+        field: JFieldID,
+    ) -> Option<Local<'env, R>> {
+        let result = ((**self.env).v1_2.GetObjectField)(self.env, this.as_raw(), field.as_raw());
         if result.is_null() {
             None
         } else {
@@ -541,73 +553,83 @@ impl<'env> Env<'env> {
         }
     }
 
-    pub unsafe fn get_boolean_field(self, this: jobject, field: JFieldID) -> bool {
-        let result = ((**self.env).v1_2.GetBooleanField)(self.env, this, field.as_raw());
+    pub unsafe fn get_boolean_field<T: ReferenceType>(self, this: &Ref<'env, T>, field: JFieldID) -> bool {
+        let result = ((**self.env).v1_2.GetBooleanField)(self.env, this.as_raw(), field.as_raw());
         result != JNI_FALSE
     }
 
-    pub unsafe fn get_byte_field(self, this: jobject, field: JFieldID) -> jbyte {
-        ((**self.env).v1_2.GetByteField)(self.env, this, field.as_raw())
+    pub unsafe fn get_byte_field<T: ReferenceType>(self, this: &Ref<'env, T>, field: JFieldID) -> jbyte {
+        ((**self.env).v1_2.GetByteField)(self.env, this.as_raw(), field.as_raw())
     }
 
-    pub unsafe fn get_char_field(self, this: jobject, field: JFieldID) -> jchar {
-        ((**self.env).v1_2.GetCharField)(self.env, this, field.as_raw())
+    pub unsafe fn get_char_field<T: ReferenceType>(self, this: &Ref<'env, T>, field: JFieldID) -> jchar {
+        ((**self.env).v1_2.GetCharField)(self.env, this.as_raw(), field.as_raw())
     }
 
-    pub unsafe fn get_short_field(self, this: jobject, field: JFieldID) -> jshort {
-        ((**self.env).v1_2.GetShortField)(self.env, this, field.as_raw())
+    pub unsafe fn get_short_field<T: ReferenceType>(self, this: &Ref<'env, T>, field: JFieldID) -> jshort {
+        ((**self.env).v1_2.GetShortField)(self.env, this.as_raw(), field.as_raw())
     }
 
-    pub unsafe fn get_int_field(self, this: jobject, field: JFieldID) -> jint {
-        ((**self.env).v1_2.GetIntField)(self.env, this, field.as_raw())
+    pub unsafe fn get_int_field<T: ReferenceType>(self, this: &Ref<'env, T>, field: JFieldID) -> jint {
+        ((**self.env).v1_2.GetIntField)(self.env, this.as_raw(), field.as_raw())
     }
 
-    pub unsafe fn get_long_field(self, this: jobject, field: JFieldID) -> jlong {
-        ((**self.env).v1_2.GetLongField)(self.env, this, field.as_raw())
+    pub unsafe fn get_long_field<T: ReferenceType>(self, this: &Ref<'env, T>, field: JFieldID) -> jlong {
+        ((**self.env).v1_2.GetLongField)(self.env, this.as_raw(), field.as_raw())
     }
 
-    pub unsafe fn get_float_field(self, this: jobject, field: JFieldID) -> jfloat {
-        ((**self.env).v1_2.GetFloatField)(self.env, this, field.as_raw())
+    pub unsafe fn get_float_field<T: ReferenceType>(self, this: &Ref<'env, T>, field: JFieldID) -> jfloat {
+        ((**self.env).v1_2.GetFloatField)(self.env, this.as_raw(), field.as_raw())
     }
 
-    pub unsafe fn get_double_field(self, this: jobject, field: JFieldID) -> jdouble {
-        ((**self.env).v1_2.GetDoubleField)(self.env, this, field.as_raw())
+    pub unsafe fn get_double_field<T: ReferenceType>(self, this: &Ref<'env, T>, field: JFieldID) -> jdouble {
+        ((**self.env).v1_2.GetDoubleField)(self.env, this.as_raw(), field.as_raw())
     }
 
-    pub unsafe fn set_object_field<R: ReferenceType>(self, this: jobject, field: JFieldID, value: impl AsArg<R>) {
-        ((**self.env).v1_2.SetObjectField)(self.env, this, field.as_raw(), value.as_arg());
+    pub unsafe fn set_object_field<T: ReferenceType, R: ReferenceType>(
+        self,
+        this: &Ref<'env, T>,
+        field: JFieldID,
+        value: impl AsArg<R>,
+    ) {
+        ((**self.env).v1_2.SetObjectField)(self.env, this.as_raw(), field.as_raw(), value.as_arg());
     }
 
-    pub unsafe fn set_boolean_field(self, this: jobject, field: JFieldID, value: bool) {
-        ((**self.env).v1_2.SetBooleanField)(self.env, this, field.as_raw(), if value { JNI_TRUE } else { JNI_FALSE });
+    pub unsafe fn set_boolean_field<T: ReferenceType>(self, this: &Ref<'env, T>, field: JFieldID, value: bool) {
+        ((**self.env).v1_2.SetBooleanField)(
+            self.env,
+            this.as_raw(),
+            field.as_raw(),
+            if value { JNI_TRUE } else { JNI_FALSE },
+        );
     }
 
-    pub unsafe fn set_byte_field(self, this: jobject, field: JFieldID, value: jbyte) {
-        ((**self.env).v1_2.SetByteField)(self.env, this, field.as_raw(), value);
+    pub unsafe fn set_byte_field<T: ReferenceType>(self, this: &Ref<'env, T>, field: JFieldID, value: jbyte) {
+        ((**self.env).v1_2.SetByteField)(self.env, this.as_raw(), field.as_raw(), value);
     }
 
-    pub unsafe fn set_char_field(self, this: jobject, field: JFieldID, value: jchar) {
-        ((**self.env).v1_2.SetCharField)(self.env, this, field.as_raw(), value);
+    pub unsafe fn set_char_field<T: ReferenceType>(self, this: &Ref<'env, T>, field: JFieldID, value: jchar) {
+        ((**self.env).v1_2.SetCharField)(self.env, this.as_raw(), field.as_raw(), value);
     }
 
-    pub unsafe fn set_short_field(self, this: jobject, field: JFieldID, value: jshort) {
-        ((**self.env).v1_2.SetShortField)(self.env, this, field.as_raw(), value);
+    pub unsafe fn set_short_field<T: ReferenceType>(self, this: &Ref<'env, T>, field: JFieldID, value: jshort) {
+        ((**self.env).v1_2.SetShortField)(self.env, this.as_raw(), field.as_raw(), value);
     }
 
-    pub unsafe fn set_int_field(self, this: jobject, field: JFieldID, value: jint) {
-        ((**self.env).v1_2.SetIntField)(self.env, this, field.as_raw(), value);
+    pub unsafe fn set_int_field<T: ReferenceType>(self, this: &Ref<'env, T>, field: JFieldID, value: jint) {
+        ((**self.env).v1_2.SetIntField)(self.env, this.as_raw(), field.as_raw(), value);
     }
 
-    pub unsafe fn set_long_field(self, this: jobject, field: JFieldID, value: jlong) {
-        ((**self.env).v1_2.SetLongField)(self.env, this, field.as_raw(), value);
+    pub unsafe fn set_long_field<T: ReferenceType>(self, this: &Ref<'env, T>, field: JFieldID, value: jlong) {
+        ((**self.env).v1_2.SetLongField)(self.env, this.as_raw(), field.as_raw(), value);
     }
 
-    pub unsafe fn set_float_field(self, this: jobject, field: JFieldID, value: jfloat) {
-        ((**self.env).v1_2.SetFloatField)(self.env, this, field.as_raw(), value);
+    pub unsafe fn set_float_field<T: ReferenceType>(self, this: &Ref<'env, T>, field: JFieldID, value: jfloat) {
+        ((**self.env).v1_2.SetFloatField)(self.env, this.as_raw(), field.as_raw(), value);
     }
 
-    pub unsafe fn set_double_field(self, this: jobject, field: JFieldID, value: jdouble) {
-        ((**self.env).v1_2.SetDoubleField)(self.env, this, field.as_raw(), value);
+    pub unsafe fn set_double_field<T: ReferenceType>(self, this: &Ref<'env, T>, field: JFieldID, value: jdouble) {
+        ((**self.env).v1_2.SetDoubleField)(self.env, this.as_raw(), field.as_raw(), value);
     }
 
     // Static Fields
