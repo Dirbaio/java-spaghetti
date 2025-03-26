@@ -2,9 +2,13 @@
 //!
 //! See also the [Android JNI tips](https://developer.android.com/training/articles/perf-jni) documentation as well as the
 //! [Java Native Interface Specification](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/jniTOC.html).
+//!
+//! Just like [jni-rs](https://docs.rs/jni/latest/jni/), thread safety of accessing Java objects are not guaranteed, unless
+//! they are thread-safe by themselves.
 
 #![feature(arbitrary_self_types)]
 
+use std::borrow::Cow;
 use std::fmt;
 use std::ptr::null_mut;
 
@@ -58,11 +62,25 @@ impl fmt::Display for CastError {
 /// should be compatible with.
 pub trait ThrowableType: ReferenceType {}
 
+/// JNI bindings rely on this type being accurate.
+///
 /// You should generally not be interacting with this type directly, but it must be public for codegen.
+///
+/// # Safety
+///
+/// **unsafe**:  `jni_reference_type_name` must pass a string terminated by '\0'.  Failing to do so is a soundness bug, as
+/// the string is passed directly to JNI as a raw pointer!  Additionally, passing the wrong type may be a soundness bug
+/// as although the Android JVM will simply panic and abort, I have no idea if that is a guarantee or not.
 #[doc(hidden)]
 pub unsafe trait ReferenceType: JniType + Sized + 'static {
-    // There couldn't be a default impl holding a static `OnceLock`: the compiler may not generate
-    // an independent static item for each generated struct that implements `ReferenceType`.
+    /// Returns a string value compatible with JNI
+    /// [FindClass](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#FindClass).
+    fn jni_reference_type_name() -> Cow<'static, str>;
+
+    /// Returns a cached `JClass` of the class object for this reference type.
+    ///
+    /// There could not be a default implementation holding a static `OnceLock`: the compiler may not
+    /// generate an independent static item for each generated struct that implements `ReferenceType`.
     fn jni_get_class<'env>(env: Env<'env>) -> &'static JClass;
 }
 

@@ -40,6 +40,7 @@ impl<'env, T: ReferenceType> Return<'env, T> {
         }
     }
 
+    /// Returns the raw JNI reference pointer. Generally it should not be used.
     pub fn as_raw(&self) -> jobject {
         self.object
     }

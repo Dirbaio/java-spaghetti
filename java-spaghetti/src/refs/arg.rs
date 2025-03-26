@@ -28,6 +28,7 @@ impl<T: ReferenceType> Arg<T> {
         }
     }
 
+    /// Returns the raw JNI reference pointer.
     pub fn as_raw(&self) -> jobject {
         self.object
     }

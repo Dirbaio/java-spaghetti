@@ -44,10 +44,12 @@ impl<'env, T: ReferenceType> Local<'env, T> {
         }
     }
 
+    /// Gets the [Env] under which the JNI reference is valid.
     pub fn env(&self) -> Env<'env> {
         self.ref_.env()
     }
 
+    /// Returns the raw JNI reference pointer.
     pub fn as_raw(&self) -> jobject {
         self.ref_.as_raw()
     }
@@ -60,10 +62,18 @@ impl<'env, T: ReferenceType> Local<'env, T> {
         object
     }
 
+    /// Leaks the `Local`, prevents `DeleteLocalRef` from being called on dropping.
+    ///
+    /// If the current thread is a Java thread, it will be freed when the control flow returns
+    /// to Java; otherwise it will be freed when the native thread exits.
+    ///
+    /// Note: some JVM implementations have a strict limitation of local reference capacity,
+    /// an uncatchable error will be thrown if the capacity is full.
     pub fn leak(self) -> Ref<'env, T> {
         unsafe { Ref::from_raw(self.env(), self.into_raw()) }
     }
 
+    /// Returns a new JNI global reference of the same Java object.
     pub fn as_global(&self) -> Global<T> {
         let env = self.env();
         let jnienv = env.as_raw();
@@ -72,11 +82,14 @@ impl<'env, T: ReferenceType> Local<'env, T> {
         unsafe { Global::from_raw(env.vm(), object) }
     }
 
+    /// Returns a borrowed [Ref], with which Java methods from generated bindings can be used.
     #[allow(clippy::should_implement_trait)]
     pub fn as_ref(&self) -> &Ref<'_, T> {
         &self.ref_
     }
 
+    /// Creates and leaks a new local reference to be returned from the JNI `extern` callback function.
+    /// It will be freed as soon as the control flow returns to Java.
     pub fn as_return(&self) -> Return<'env, T> {
         let env: *mut *const JNINativeInterface_ = self.env().as_raw();
         let object = unsafe { ((**env).v1_2.NewLocalRef)(env, self.as_raw()) };
@@ -84,10 +97,13 @@ impl<'env, T: ReferenceType> Local<'env, T> {
         unsafe { Return::from_raw(object) }
     }
 
+    /// Leaks the local reference to be returned from the JNI `extern` callback function.
+    /// It will be freed as soon as the control flow returns to Java.
     pub fn into_return(self) -> Return<'env, T> {
         unsafe { Return::from_raw(self.into_raw()) }
     }
 
+    /// Tries to cast itself to a JNI reference of type `U`.
     pub fn cast<U: ReferenceType>(&self) -> Result<Local<'env, U>, crate::CastError> {
         self.as_ref().check_assignable::<U>()?;
         let env = self.env();
@@ -97,6 +113,7 @@ impl<'env, T: ReferenceType> Local<'env, T> {
         Ok(unsafe { Local::from_raw(env, object) })
     }
 
+    /// Casts itself towards a super class type, without the cost of runtime checking.
     pub fn upcast<U: ReferenceType>(&self) -> Local<'env, U>
     where
         Self: AssignableTo<U>,

@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::ops::{Bound, RangeBounds};
@@ -6,12 +7,12 @@ use std::sync::{LazyLock, OnceLock, RwLock};
 
 use jni_sys::*;
 
-use crate::{AsArg, Env, JClass, JniType, Local, Ref, ReferenceType, ThrowableType};
+use crate::{AsArg, Env, JClass, Local, Ref, ReferenceType, ThrowableType};
 
 /// A Java Array of some POD-like type such as `bool`, `jbyte`, `jchar`, `jshort`, `jint`, `jlong`, `jfloat`, or `jdouble`.
 ///
 /// Thread safety of avoiding [race conditions](https://www.ibm.com/docs/en/sdk-java-technology/8?topic=jni-synchronization)
-/// is not guaranteed.
+/// is not guaranteed. JNI `GetPrimitiveArrayCritical` cannot ensure exclusive access to the array, so it is not used here.
 ///
 /// See also [ObjectArray] for arrays of reference types.
 ///
@@ -29,35 +30,35 @@ pub trait PrimitiveArray<T>: Sized + ReferenceType
 where
     T: Clone + Default,
 {
-    /// Uses JNI `New{Type}Array` to create a new java array containing "size" elements.
+    /// Uses JNI `New{Type}Array` to create a new Java array containing "size" elements.
     fn new<'env>(env: Env<'env>, size: usize) -> Local<'env, Self>;
 
-    /// Uses JNI `GetArrayLength` to get the length of the java array.
+    /// Uses JNI `GetArrayLength` to get the length of the Java array.
     fn len(self: &Ref<'_, Self>) -> usize;
 
-    /// Uses JNI `Get{Type}ArrayRegion` to read the contents of the java array within `[start .. start + elements.len()]`.
+    /// Uses JNI `Get{Type}ArrayRegion` to read the contents of the Java array within `[start .. start + elements.len()]`.
     ///
     /// Panics if the index is out of bound.
     fn get_region(self: &Ref<'_, Self>, start: usize, elements: &mut [T]);
 
-    /// Uses JNI `Set{Type}ArrayRegion` to set the contents of the java array within `[start .. start + elements.len()]`.
+    /// Uses JNI `Set{Type}ArrayRegion` to set the contents of the Java array within `[start .. start + elements.len()]`.
     ///
     /// Panics if the index is out of bound.
     fn set_region(self: &Ref<'_, Self>, start: usize, elements: &[T]);
 
-    /// Uses JNI `New{Type}Array` + `Set{Type}ArrayRegion` to create a new java array containing a copy of "elements".
+    /// Uses JNI `New{Type}Array` + `Set{Type}ArrayRegion` to create a new Java array containing a copy of "elements".
     fn new_from<'env>(env: Env<'env>, elements: &[T]) -> Local<'env, Self> {
         let array = Self::new(env, elements.len());
         array.set_region(0, elements);
         array
     }
 
-    /// Uses JNI `GetArrayLength` to get the length of the java array, returns `true` if it is 0.
+    /// Uses JNI `GetArrayLength` to get the length of the Java array, returns `true` if it is 0.
     fn is_empty(self: &Ref<'_, Self>) -> bool {
         self.len() == 0
     }
 
-    /// Uses JNI `GetArrayLength` + `Get{Type}ArrayRegion` to read the contents of the java array within given range
+    /// Uses JNI `GetArrayLength` + `Get{Type}ArrayRegion` to read the contents of the Java array within given range
     /// into a new `Vec`.
     ///
     /// Panics if the index is out of bound.
@@ -86,7 +87,7 @@ where
         vec
     }
 
-    /// Uses JNI `GetArrayLength` + `Get{Type}ArrayRegion` to read the contents of the entire java array into a new `Vec`.
+    /// Uses JNI `GetArrayLength` + `Get{Type}ArrayRegion` to read the contents of the entire Java array into a new `Vec`.
     fn as_vec(self: &Ref<'_, Self>) -> Vec<T> {
         self.get_region_as_vec(0..self.len())
     }
@@ -98,14 +99,12 @@ macro_rules! primitive_array {
         pub enum $name {}
 
         unsafe impl ReferenceType for $name {
+            fn jni_reference_type_name() -> Cow<'static, str> {
+                Cow::Borrowed($type_str)
+            }
             fn jni_get_class(env: Env) -> &'static JClass {
                 static CLASS_CACHE: OnceLock<JClass> = OnceLock::new();
-                CLASS_CACHE.get_or_init(|| Self::static_with_jni_type(|t| unsafe { env.require_class(t) }))
-            }
-        }
-        unsafe impl JniType for $name {
-            fn static_with_jni_type<R>(callback: impl FnOnce(&str) -> R) -> R {
-                callback($type_str)
+                CLASS_CACHE.get_or_init(|| unsafe { env.require_class(&Self::jni_reference_type_name()) })
             }
         }
 
@@ -116,8 +115,8 @@ macro_rules! primitive_array {
                 let jnienv = env.as_raw();
                 unsafe {
                     let object = ((**jnienv).v1_2.$new_array)(jnienv, size);
-                    let exception = ((**jnienv).v1_2.ExceptionOccurred)(jnienv);
-                    assert!(exception.is_null()); // Only sane exception here is an OOM exception
+                    assert!(!object.is_null(), "OOM");
+                    env.exception_check_raw().expect("OOM"); // Only sane exception here is an OOM exception
                     Local::from_raw(env, object)
                 }
             }
@@ -203,35 +202,32 @@ primitive_array! { DoubleArray,  "[D\0", jdouble { NewDoubleArray  SetDoubleArra
 /// See also [PrimitiveArray] for arrays of reference types.
 pub struct ObjectArray<T: ReferenceType, E: ThrowableType>(core::convert::Infallible, PhantomData<(T, E)>);
 
-// NOTE: This is a performance compromise for returning `&'static JClass`,
-// still faster than non-cached `require_class`.
+// NOTE: This is a performance compromise for returning `&'static JClass`, still faster than non-cached `FindClass`.
 static OBJ_ARR_CLASSES: LazyLock<RwLock<HashMap<String, &'static JClass>>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
 
 unsafe impl<T: ReferenceType, E: ThrowableType> ReferenceType for ObjectArray<T, E> {
-    fn jni_get_class(env: Env) -> &'static JClass {
-        Self::static_with_jni_type(|t| {
-            let class_map_reader = OBJ_ARR_CLASSES.read().unwrap();
-            if let Some(&class) = class_map_reader.get(t) {
-                class
-            } else {
-                drop(class_map_reader);
-                let class: &'static JClass = Box::leak(Box::new(unsafe { env.require_class(t) }));
-                let _ = OBJ_ARR_CLASSES.write().unwrap().insert(t.to_string(), class);
-                class
-            }
-        })
+    fn jni_reference_type_name() -> Cow<'static, str> {
+        let inner = T::jni_reference_type_name();
+        Cow::Owned(format!("[L{};\0", inner.trim_end_matches("\0")))
     }
-}
-
-unsafe impl<T: ReferenceType, E: ThrowableType> JniType for ObjectArray<T, E> {
-    fn static_with_jni_type<R>(callback: impl FnOnce(&str) -> R) -> R {
-        T::static_with_jni_type(|inner| callback(format!("[L{};\0", inner.trim_end_matches("\0")).as_str()))
+    fn jni_get_class(env: Env) -> &'static JClass {
+        let t = Self::jni_reference_type_name();
+        let class_map_reader = OBJ_ARR_CLASSES.read().unwrap();
+        if let Some(&class) = class_map_reader.get(t.as_ref()) {
+            class
+        } else {
+            drop(class_map_reader);
+            let class = unsafe { env.require_class(&t) };
+            let class_leaked: &'static JClass = Box::leak(Box::new(class));
+            let _ = OBJ_ARR_CLASSES.write().unwrap().insert(t.to_string(), class_leaked);
+            class_leaked
+        }
     }
 }
 
 impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
-    /// Uses JNI `NewObjectArray` to create a new java object array.
+    /// Uses JNI `NewObjectArray` to create a new Java object array.
     pub fn new<'env>(env: Env<'env>, size: usize) -> Local<'env, Self> {
         assert!(size <= i32::MAX as usize); // jsize == jint == i32
         let class = T::jni_get_class(env).as_raw();
@@ -242,7 +238,7 @@ impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
             let fill = null_mut();
             ((**env).v1_2.NewObjectArray)(env, size, class, fill)
         };
-        // Only sane exception here is an OOM exception
+        assert!(!object.is_null(), "OOM");
         env.exception_check::<E>().map_err(|_| "OOM").unwrap();
         unsafe { Local::from_raw(env, object) }
     }
@@ -256,7 +252,7 @@ impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
         }
     }
 
-    /// Uses JNI `NewObjectArray` to create a new java object array of the exact size, then sets its items
+    /// Uses JNI `NewObjectArray` to create a new Java object array of the exact size, then sets its items
     /// with the iterator of JNI (null?) references.
     pub fn new_from<'env>(env: Env<'env>, elements: impl ExactSizeIterator<Item = impl AsArg<T>>) -> Local<'env, Self> {
         let size = elements.len();
@@ -269,13 +265,13 @@ impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
         array
     }
 
-    /// Uses JNI `GetArrayLength` to get the length of the java array.
+    /// Uses JNI `GetArrayLength` to get the length of the Java array.
     pub fn len(self: &Ref<'_, Self>) -> usize {
         let env = self.env().as_raw();
         unsafe { ((**env).v1_2.GetArrayLength)(env, self.as_raw()) as usize }
     }
 
-    /// Uses JNI `GetArrayLength` to get the length of the java array, returns `true` if it is 0.
+    /// Uses JNI `GetArrayLength` to get the length of the Java array, returns `true` if it is 0.
     pub fn is_empty(self: &Ref<'_, Self>) -> bool {
         self.len() == 0
     }

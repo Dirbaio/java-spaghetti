@@ -38,10 +38,12 @@ impl<T: ReferenceType> Global<T> {
         }
     }
 
+    /// Gets the [VM] under which the JNI reference is created.
     pub fn vm(&self) -> VM {
         self.vm
     }
 
+    /// Returns the raw JNI reference pointer.
     pub fn as_raw(&self) -> jobject {
         self.object
     }
@@ -54,6 +56,7 @@ impl<T: ReferenceType> Global<T> {
         object
     }
 
+    /// Returns a new JNI local reference of the same Java object.
     pub fn as_local<'env>(&self, env: Env<'env>) -> Local<'env, T> {
         let jnienv = env.as_raw();
         let object = unsafe { ((**jnienv).v1_2.NewLocalRef)(jnienv, self.as_raw()) };
@@ -61,6 +64,7 @@ impl<T: ReferenceType> Global<T> {
         unsafe { Local::from_raw(env, object) }
     }
 
+    /// Returns a borrowed [Ref], with which Java methods from generated bindings can be used.
     pub fn as_ref<'env>(&'env self, env: Env<'env>) -> Ref<'env, T> {
         unsafe { Ref::from_raw(env, self.object) }
     }

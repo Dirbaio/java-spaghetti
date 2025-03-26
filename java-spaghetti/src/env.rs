@@ -140,22 +140,31 @@ impl<'env> Env<'env> {
         CLASS_LOADER.store(classloader, Ordering::Relaxed);
     }
 
+    /// Checks if an exception has occurred; if occurred, it clears the exception to make the next
+    /// JNI call possible, then it returns the exception as an `Err`.
+    ///
     /// XXX: Make this method public after making sure that it has a proper name.
     /// Note that there is `ExceptionCheck` in JNI functions, which does not create a
     /// local reference to the exception object.
     pub(crate) fn exception_check<E: ThrowableType>(self) -> Result<(), Local<'env, E>> {
+        self.exception_check_raw()
+            .map_err(|throwable| unsafe { Local::from_raw(self, throwable) })
+    }
+
+    /// The same as `exception_check`, except that it may return a raw local reference of the exception.
+    pub(crate) fn exception_check_raw(self) -> Result<(), jthrowable> {
         unsafe {
             let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
             if exception.is_null() {
                 Ok(())
             } else {
                 ((**self.env).v1_2.ExceptionClear)(self.env);
-                Err(Local::from_raw(self, exception))
+                Err(exception as jthrowable)
             }
         }
     }
 
-    unsafe fn exception_to_string(self, exception: jobject) -> String {
+    pub(crate) unsafe fn raw_exception_to_string(self, exception: jthrowable) -> String {
         static METHOD_GET_MESSAGE: OnceLock<JMethodID> = OnceLock::new();
         let throwable_get_message = *METHOD_GET_MESSAGE.get_or_init(|| {
             // use JNI FindClass to avoid infinte recursion.
@@ -165,12 +174,8 @@ impl<'env> Env<'env> {
 
         let message =
             ((**self.env).v1_2.CallObjectMethodA)(self.env, exception, throwable_get_message.as_raw(), ptr::null_mut());
-        let e2: *mut _jobject = ((**self.env).v1_2.ExceptionOccurred)(self.env);
-        if !e2.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
-            panic!("exception happened calling Throwable.getMessage()");
-        }
-
+        self.exception_check_raw()
+            .expect("exception happened calling Throwable.getMessage()");
         StringChars::from_env_jstring(self, message).to_string_lossy()
     }
 
@@ -201,12 +206,10 @@ impl<'env> Env<'env> {
             let args = [jvalue { l: string }];
             let result: *mut _jobject =
                 ((**self.env).v1_2.CallObjectMethodA)(self.env, classloader, cl_method.as_raw(), args.as_ptr());
-            let exception: *mut _jobject = ((**self.env).v1_2.ExceptionOccurred)(self.env);
-            if !exception.is_null() {
-                ((**self.env).v1_2.ExceptionClear)(self.env);
+            if let Err(exception) = self.exception_check_raw() {
                 panic!(
                     "exception happened calling loadClass(): {}",
-                    self.exception_to_string(exception)
+                    self.raw_exception_to_string(exception)
                 );
             } else if result.is_null() {
                 panic!("loadClass() returned null");
@@ -224,11 +227,7 @@ impl<'env> Env<'env> {
     unsafe fn require_class_jni(self, class: &str) -> Option<JClass> {
         assert!(class.ends_with('\0'));
         let cls = ((**self.env).v1_2.FindClass)(self.env, class.as_ptr() as *const c_char);
-        let exception: *mut _jobject = ((**self.env).v1_2.ExceptionOccurred)(self.env);
-        if !exception.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
-            return None;
-        }
+        self.exception_check_raw().ok()?;
         if cls.is_null() {
             return None;
         }

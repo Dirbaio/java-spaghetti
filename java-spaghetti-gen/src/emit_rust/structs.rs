@@ -118,21 +118,15 @@ impl Struct {
 
         let rust_name = &self.rust.struct_name;
         writeln!(out, "{attributes}{visibility} enum {rust_name}{{}}")?;
-        if !self.java.is_static() {
-            writeln!(
-                out,
-                "unsafe impl ::java_spaghetti::ReferenceType for {rust_name} {{\
-               \n    fn jni_get_class(__jni_env: ::java_spaghetti::Env) -> &'static ::java_spaghetti::JClass {{\
-               \n        Self::__class_global_ref(__jni_env)\
-               \n    }}\
-               \n}}",
-            )?;
-        }
+
         writeln!(
             out,
-            "unsafe impl ::java_spaghetti::JniType for {rust_name} {{\
-           \n    fn static_with_jni_type<R>(callback: impl FnOnce(&str) -> R) -> R {{\
-           \n        callback({})\
+            "unsafe impl ::java_spaghetti::ReferenceType for {rust_name} {{\
+           \n    fn jni_reference_type_name() -> ::std::borrow::Cow<'static, str> {{\
+           \n        ::std::borrow::Cow::Borrowed({})\
+           \n    }}\
+           \n    fn jni_get_class(__jni_env: ::java_spaghetti::Env) -> &'static ::java_spaghetti::JClass {{\
+           \n        Self::__class_global_ref(__jni_env)\
            \n    }}\
            \n}}",
             StrEmitter(self.java.path().as_str()),
