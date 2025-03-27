@@ -10,6 +10,8 @@ use crate::{AssignableTo, Env, Global, JavaDebug, JavaDisplay, Local, ReferenceT
 /// A non-null, [reference](https://www.ibm.com/docs/en/sdk-java-technology/8?topic=collector-overview-jni-object-references)
 /// to a Java object (+ [Env]).  This may refer to a [Local](crate::Local), [Global](crate::Global), local [Arg](crate::Arg), etc.
 ///
+/// `Ref` guarantees not to have a `Drop` implementation. It does not own the JNI reference.
+///
 /// **Not FFI Safe:**  `#[repr(rust)]`, and exact layout is likely to change - depending on exact features used - in the
 /// future.  Specifically, on Android, since we're guaranteed to only have a single ambient VM, we can likely store the
 /// `*const JNIEnv` in thread local storage instead of lugging it around in every [Ref].  Of course, there's no
@@ -30,7 +32,8 @@ impl<'env, T: ReferenceType> Ref<'env, T> {
     ///
     /// # Safety
     ///
-    /// - `object` is a non-null JNI reference, and it must keep valid for `'env` lifetime;
+    /// - `object` is a non-null JNI reference, and it must keep valid under `env` before the created `Ref` goes out of scope.
+    ///   This means it should not be a raw pointer managed by [Local] or any other wrapper that deletes it on dropping.
     /// - `object` references an instance of type `T`.
     pub unsafe fn from_raw(env: Env<'env>, object: jobject) -> Self {
         Self {
@@ -66,6 +69,12 @@ impl<'env, T: ReferenceType> Ref<'env, T> {
         let object = unsafe { ((**jnienv).v1_2.NewLocalRef)(jnienv, self.as_raw()) };
         assert!(!object.is_null());
         unsafe { Local::from_raw(env, object) }
+    }
+
+    /// Enters monitored mode for the corresponding object in this thread. See [Monitor]
+    /// for the limited locking functionality.
+    pub fn as_monitor(&'env self) -> Monitor<'env, T> {
+        Monitor::new(self)
     }
 
     /// Tests whether two JNI references refer to the same Java object.
@@ -130,11 +139,6 @@ impl<'env, T: ReferenceType> Ref<'env, T> {
     {
         unsafe { self.cast_ref_unchecked() }
     }
-
-    /// Enters monitored mode for the corresponding object in this thread. See [Monitor].
-    pub fn monitor<'r>(&'r self) -> Monitor<'env, 'r, T> {
-        Monitor::new(self)
-    }
 }
 
 impl<'env, T: JavaDebug> Debug for Ref<'env, T> {
@@ -149,9 +153,9 @@ impl<'env, T: JavaDisplay> Display for Ref<'env, T> {
     }
 }
 
-/// A non-null reference of a Java object locked with the JNI monitor mechanism, providing *limited* thread safety.
+/// A borrowed [Ref] of a Java object locked with the JNI monitor mechanism, providing *limited* thread safety.
 ///
-/// It is important to drop the monitor or call [Monitor::unlock()] when appropriate.
+/// **It is imposible to be FFI safe.** It is important to drop the monitor or call [Monitor::unlock()] when appropriate.
 ///
 /// Limitations:
 ///
@@ -159,50 +163,45 @@ impl<'env, T: JavaDisplay> Display for Ref<'env, T> {
 /// - It may not block other native functions from using the corresponding object without entering monitored mode.
 /// - It may not prevent any Java method or block from using this object, even if it is marked as `synchronized`.
 /// - While it is a reentrant lock for the current thread, dead lock is still possible under multi-thread conditions.
-pub struct Monitor<'env, 'r, T: ReferenceType> {
-    inner: Option<&'r Ref<'env, T>>,
+pub struct Monitor<'env, T: ReferenceType> {
+    inner: &'env Ref<'env, T>,
 }
 
-impl<'env, 'r, T: ReferenceType> Monitor<'env, 'r, T> {
-    fn new(reference: &'r Ref<'env, T>) -> Self {
+impl<'env, T: ReferenceType> Monitor<'env, T> {
+    fn new(reference: &'env Ref<'env, T>) -> Self {
         let jnienv = reference.env.as_raw();
         let result = unsafe { ((**jnienv).v1_2.MonitorEnter)(jnienv, reference.as_raw()) };
         assert!(result == jni_sys::JNI_OK);
-        Self { inner: Some(reference) }
+        Self { inner: reference }
     }
 
-    /// Decrements the JNI monitor counter indicating the number of times it has entered this monitor. If the value of
-    /// the counter becomes zero, the current thread releases the monitor.
-    pub fn unlock(mut self) -> &'r Ref<'env, T> {
-        self.unlock_inner();
-        self.inner.take().unwrap()
-    }
-
-    fn unlock_inner(&mut self) {
-        if let Some(inner) = self.inner.as_ref() {
-            let env = inner.env;
-            let jnienv = env.as_raw();
-            let result = unsafe { ((**jnienv).v1_2.MonitorExit)(jnienv, inner.as_raw()) };
-            assert!(result == jni_sys::JNI_OK);
-            if let Err(exception) = env.exception_check_raw() {
-                panic!(
-                    "exception happened calling JNI MonitorExit, the monitor is probably broken previously: {}",
-                    unsafe { env.raw_exception_to_string(exception) }
-                );
-            }
-        }
+    /// Decrements the JNI monitor counter indicating the number of times it has entered this monitor.
+    /// If the value of the counter becomes zero, the current thread releases the monitor.
+    pub fn unlock(self) -> &'env Ref<'env, T> {
+        let inner = self.inner;
+        drop(self); // this looks clearer than dropping implicitly
+        inner
     }
 }
 
-impl<'env, 'r, T: ReferenceType> Deref for Monitor<'env, 'r, T> {
+impl<'env, T: ReferenceType> Deref for Monitor<'env, T> {
     type Target = Ref<'env, T>;
     fn deref(&self) -> &Self::Target {
-        self.inner.as_ref().unwrap()
+        self.inner
     }
 }
 
-impl<'env, 'r, T: ReferenceType> Drop for Monitor<'env, 'r, T> {
+impl<'env, T: ReferenceType> Drop for Monitor<'env, T> {
     fn drop(&mut self) {
-        self.unlock_inner();
+        let env = self.inner.env;
+        let jnienv = env.as_raw();
+        let result = unsafe { ((**jnienv).v1_2.MonitorExit)(jnienv, self.inner.as_raw()) };
+        assert!(result == jni_sys::JNI_OK);
+        if let Err(exception) = env.exception_check_raw() {
+            panic!(
+                "exception happened calling JNI MonitorExit, the monitor is probably broken previously: {}",
+                unsafe { env.raw_exception_to_string(exception) }
+            );
+        }
     }
 }

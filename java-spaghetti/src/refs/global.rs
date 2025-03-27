@@ -29,7 +29,8 @@ impl<T: ReferenceType> Global<T> {
     ///
     /// # Safety
     ///
-    /// `object` must be an owned non-null JNI global reference that references an instance of type `T`.
+    /// `object` must be an owned non-null JNI global reference to an object of type `T`,
+    /// not to be deleted by another wrapper.
     pub unsafe fn from_raw(vm: VM, object: jobject) -> Self {
         Self {
             object,
@@ -58,13 +59,14 @@ impl<T: ReferenceType> Global<T> {
 
     /// Returns a new JNI local reference of the same Java object.
     pub fn as_local<'env>(&self, env: Env<'env>) -> Local<'env, T> {
-        let jnienv = env.as_raw();
-        let object = unsafe { ((**jnienv).v1_2.NewLocalRef)(jnienv, self.as_raw()) };
-        assert!(!object.is_null());
-        unsafe { Local::from_raw(env, object) }
+        // Safety: this `Ref<'env, T>` isn't available outside, and it does nothing on dropping.
+        let temp_ref = unsafe { Ref::from_raw(env, self.object) };
+        temp_ref.as_local() // creates a new `Local`
     }
 
-    /// Returns a borrowed [Ref], with which Java methods from generated bindings can be used.
+    /// Returns a [Ref], with which Java methods from generated bindings can be used.
+    /// The lifetime of the returned [Ref] can be the intersection of this `Global`
+    /// and a supposed local reference under `env`.
     pub fn as_ref<'env>(&'env self, env: Env<'env>) -> Ref<'env, T> {
         unsafe { Ref::from_raw(env, self.object) }
     }
