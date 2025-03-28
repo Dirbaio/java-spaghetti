@@ -57,7 +57,7 @@ impl<'env, T: ReferenceType> Local<'env, T> {
         self.ref_.as_raw()
     }
 
-    /// Leaks the `Local` and turns it into a raw pointer, preserving the ownership of one JNI 
+    /// Leaks the `Local` and turns it into a raw pointer, preserving the ownership of one JNI
     /// local reference; prevents `DeleteLocalRef` from being called on dropping. See [Local::leak].
     pub fn into_raw(self) -> jobject {
         let object = self.ref_.as_raw();
