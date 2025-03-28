@@ -4,8 +4,8 @@ use jni_sys::*;
 
 use crate::Env;
 
-/// Represents an env.GetStringChars + env.GetStringLength query.
-/// Will automatically env.ReleaseStringChars when dropped.
+/// Represents a JNI `GetStringChars` + `GetStringLength` query.
+/// It will call `ReleaseStringChars` automatically when dropped.
 pub struct StringChars<'env> {
     env: Env<'env>,
     string: jstring,
@@ -14,7 +14,14 @@ pub struct StringChars<'env> {
 }
 
 impl<'env> StringChars<'env> {
-    /// Construct a StringChars from an Env + jstring.
+    /// Construct a `StringChars` from an [Env] + [jstring].
+    ///
+    /// # Safety
+    ///
+    /// The Java string object referenced by `string` must remain available before the created
+    /// `StringChars` is dropped. This should be true if the JNI reference `string` is not deleted.
+    ///
+    /// This function is supposed to be used in generated bindings.
     pub unsafe fn from_env_jstring(env: Env<'env>, string: jstring) -> Self {
         debug_assert!(!string.is_null());
 
