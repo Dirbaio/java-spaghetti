@@ -53,7 +53,9 @@ unsafe impl AsJValue for jdouble {
         jvalue { d: *self }
     }
 }
-//unsafe impl AsJValue for jobject  { fn as_jvalue(&self) -> jvalue { jvalue { l: *self } } } // do NOT implement, no guarantee any given jobject is actually safe!
+
+// do NOT implement, no guarantee any given jobject is actually safe!
+// unsafe impl AsJValue for jobject  { fn as_jvalue(&self) -> jvalue { jvalue { l: *self } } }
 
 unsafe impl<T: ReferenceType> AsJValue for Ref<'_, T> {
     fn as_jvalue(&self) -> jvalue {
