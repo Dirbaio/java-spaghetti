@@ -70,13 +70,13 @@ impl<'env, T: ReferenceType> Ref<'env, T> {
         assert!(!object.is_null());
         unsafe { Local::from_raw(self.env(), object) }
     }
-    
+
     /// Enters monitored mode or increments the JNI monitor counter in this thread for the referenced Java object.
     /// See [Monitor] for the limited locking functionality.
     pub fn as_monitor(&'env self) -> Monitor<'env, T> {
         Monitor::new(self)
     }
-    
+
     /// Tests whether two JNI references refer to the same Java object.
     pub fn is_same_object<O: ReferenceType>(&self, other: &Ref<'_, O>) -> bool {
         let jnienv = self.env.as_raw();
