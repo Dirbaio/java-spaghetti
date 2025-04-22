@@ -739,7 +739,7 @@ impl<'env> Env<'env> {
         ((**self.env).v1_2.SetStaticDoubleField)(self.env, class, field, value);
     }
 
-    pub fn throw<T: ReferenceType>(self, throwable: Ref<T>) {
+    pub fn throw<T: ReferenceType>(self, throwable: &Ref<T>) {
         let res = unsafe { ((**self.env).v1_2.Throw)(self.env, throwable.as_raw()) };
         assert_eq!(res, 0);
     }
