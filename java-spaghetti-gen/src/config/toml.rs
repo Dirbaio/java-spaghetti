@@ -7,9 +7,6 @@ use serde_derive::Deserialize;
 
 use crate::identifiers::{FieldManglingStyle, MethodManglingStyle};
 
-fn default_true() -> bool {
-    true
-}
 fn default_method_naming_style() -> MethodManglingStyle {
     MethodManglingStyle::Rustify
 }
@@ -31,10 +28,6 @@ pub struct CodeGen {
     /// How fields should be named.
     #[serde(default = "Default::default")]
     pub field_naming_style: FieldManglingStyle,
-
-    /// Should not-emitted methods/fields still generate their code commented out?
-    #[serde(default = "default_true")]
-    pub keep_rejected_emits: bool,
 }
 
 impl Default for CodeGen {
@@ -43,7 +36,6 @@ impl Default for CodeGen {
             method_naming_style: default_method_naming_style(),
             method_naming_style_collision: default_method_naming_style_collision(),
             field_naming_style: Default::default(),
-            keep_rejected_emits: true,
         }
     }
 }
