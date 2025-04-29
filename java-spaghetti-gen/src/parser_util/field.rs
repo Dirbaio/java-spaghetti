@@ -106,7 +106,7 @@ impl<'a> JavaField<'a> {
     }
 }
 
-pub fn emit_descriptor(descriptor: &FieldDescriptor) -> String {
+pub fn emit_field_descriptor(descriptor: &FieldDescriptor) -> String {
     let mut res = String::new();
     for _ in 0..descriptor.dimensions {
         res.push('[');

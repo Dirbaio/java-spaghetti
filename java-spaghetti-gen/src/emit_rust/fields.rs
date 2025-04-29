@@ -8,7 +8,7 @@ use super::cstring;
 use super::known_docs_url::KnownDocsUrl;
 use crate::emit_rust::Context;
 use crate::identifiers::{FieldMangling, IdentifierManglingError};
-use crate::parser_util::{emit_descriptor, ClassName, IdBuf, IterableId, JavaClass, JavaField};
+use crate::parser_util::{emit_field_descriptor, ClassName, IdBuf, IterableId, JavaClass, JavaField};
 
 pub struct Field<'a> {
     pub class: &'a JavaClass,
@@ -77,6 +77,7 @@ impl<'a> Field<'a> {
         }
 
         if !emit_reject_reasons.is_empty() {
+            // TODO log
             return Ok(TokenStream::new());
         }
 
@@ -145,7 +146,7 @@ impl<'a> Field<'a> {
                 };
 
                 let java_name = cstring(self.java.name());
-                let descriptor = cstring(&emit_descriptor(self.java.descriptor()));
+                let descriptor = cstring(&emit_field_descriptor(self.java.descriptor()));
 
                 let get_docs = format!("**get** {docs}");
                 let set_docs = format!("**set** {docs}");
@@ -188,17 +189,7 @@ impl<'a> Field<'a> {
             }
         }
 
-        if emit_reject_reasons.is_empty() {
-            Ok(out)
-        } else if context.config.codegen.keep_rejected_emits {
-            // TODO still emit but comment out
-            //for reason in &emit_reject_reasons {
-            //    writeln!(out, "{}// Not emitting: {}", indent, reason)?;
-            //}
-            Ok(TokenStream::new())
-        } else {
-            Ok(TokenStream::new())
-        }
+        Ok(out)
     }
 }
 

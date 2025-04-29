@@ -1,10 +1,8 @@
-use std::fmt::Write;
-
 use cafebabe::attributes::AttributeData;
 use cafebabe::descriptors::{MethodDescriptor, ReturnDescriptor};
 use cafebabe::MethodAccessFlags;
 
-use super::emit_descriptor;
+use super::emit_field_descriptor;
 
 pub struct JavaMethod<'a> {
     java: &'a cafebabe::MethodInfo<'a>,
@@ -104,22 +102,17 @@ impl<'a> JavaMethod<'a> {
     }
 }
 
-// XXX: cannot get the original string from `cafebabe::descriptors::MethodDescriptor`.
-// <https://github.com/staktrace/cafebabe/issues/52>
-pub struct MethodSigWriter<'a>(pub &'a MethodDescriptor<'a>);
-
-impl std::fmt::Display for MethodSigWriter<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let descriptor = self.0;
-        f.write_char('(')?;
-        for arg in descriptor.parameters.iter() {
-            emit_descriptor(arg).fmt(f)?;
-        }
-        f.write_char(')')?;
-        if let ReturnDescriptor::Return(desc) = &descriptor.return_type {
-            emit_descriptor(desc).fmt(f)
-        } else {
-            f.write_char('V')
-        }
+pub fn emit_method_descriptor(descriptor: &MethodDescriptor) -> String {
+    let mut res = String::new();
+    res.push('(');
+    for arg in descriptor.parameters.iter() {
+        res.push_str(&emit_field_descriptor(arg))
     }
+    res.push(')');
+    if let ReturnDescriptor::Return(desc) = &descriptor.return_type {
+        res.push_str(&emit_field_descriptor(desc))
+    } else {
+        res.push('V')
+    }
+    res
 }

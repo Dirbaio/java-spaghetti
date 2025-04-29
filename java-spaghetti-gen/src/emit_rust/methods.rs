@@ -1,13 +1,13 @@
-use std::io;
-
 use cafebabe::descriptors::{FieldType, ReturnDescriptor};
+use proc_macro2::TokenStream;
+use quote::{format_ident, quote};
 
+use super::cstring;
 use super::fields::FieldTypeEmitter;
 use super::known_docs_url::KnownDocsUrl;
-use super::CStrEmitter;
 use crate::emit_rust::Context;
 use crate::identifiers::MethodManglingStyle;
-use crate::parser_util::{JavaClass, JavaMethod, MethodSigWriter};
+use crate::parser_util::{emit_method_descriptor, JavaClass, JavaMethod};
 
 pub struct Method<'a> {
     pub class: &'a JavaClass,
@@ -40,7 +40,7 @@ impl<'a> Method<'a> {
             .ok()
     }
 
-    pub fn emit(&self, context: &Context, mod_: &str, out: &mut impl io::Write) -> io::Result<()> {
+    pub fn emit(&self, context: &Context, mod_: &str) -> anyhow::Result<TokenStream> {
         let mut emit_reject_reasons = Vec::new();
 
         let java_class_method = format!("{}\x1f{}", self.class.path().as_str(), self.java.name());
@@ -48,7 +48,7 @@ impl<'a> Method<'a> {
             "{}\x1f{}\x1f{}",
             self.class.path().as_str(),
             self.java.name(),
-            MethodSigWriter(self.java.descriptor())
+            emit_method_descriptor(self.java.descriptor())
         );
 
         let ignored = context.config.ignore_class_methods.contains(&java_class_method)
@@ -79,7 +79,6 @@ impl<'a> Method<'a> {
         }
         if self.java.is_static_init() {
             emit_reject_reasons.push("Static class constructor - never needs to be called by Rust.");
-            return Ok(());
         }
         if ignored {
             emit_reject_reasons.push("[[ignore]]d");
@@ -88,71 +87,56 @@ impl<'a> Method<'a> {
         // Parameter names may or may not be available as extra debug information.  Example:
         // https://docs.oracle.com/javase/tutorial/reflect/member/methodparameterreflection.html
 
-        let mut params_array = String::new(); // Contents of let __jni_args = [...];
+        let mut params_array = TokenStream::new(); // Contents of let __jni_args = [...];
 
         // Contents of fn name<'env>(...) {
         let mut params_decl = if self.java.is_constructor() || self.java.is_static() {
-            String::from("__jni_env: ::java_spaghetti::Env<'env>")
+            quote!(__jni_env: ::java_spaghetti::Env<'env>)
         } else {
-            String::from("self: &::java_spaghetti::Ref<'env, Self>")
+            quote!(self: &::java_spaghetti::Ref<'env, Self>)
         };
 
         for (arg_idx, arg) in descriptor.parameters.iter().enumerate() {
-            let arg_name = format!("arg{}", arg_idx);
+            let arg_name = format_ident!("arg{}", arg_idx);
 
             let param_is_object = matches!(arg.field_type, FieldType::Object(_)) || arg.dimensions > 0;
 
-            let rust_type = FieldTypeEmitter(arg)
-                .emit_rust_type(context, mod_, &mut emit_reject_reasons)
-                .map_err(|_| io::Error::other("std::fmt::Error"))?;
+            let rust_type = FieldTypeEmitter(arg).emit_rust_type(context, mod_, &mut emit_reject_reasons)?;
 
             let arg_type = if arg.dimensions == 0 && !param_is_object {
-                rust_type.to_string()
-            } else {
-                let mut rust_type = rust_type.to_string();
-                rust_type.insert_str(0, "impl ::java_spaghetti::AsArg<");
-                rust_type.push('>');
                 rust_type
+            } else {
+                quote!(impl ::java_spaghetti::AsArg<#rust_type>)
             };
 
             if !params_array.is_empty() {
-                params_array.push_str(", ");
+                params_array.extend(quote!(,));
             }
 
             if param_is_object {
-                params_array.push_str(arg_name.as_str());
-                params_array.push_str(".as_arg_jvalue()");
+                params_array.extend(quote!(#arg_name.as_arg_jvalue()));
             } else {
-                params_array.push_str("::java_spaghetti::AsJValue::as_jvalue(&");
-                params_array.push_str(arg_name.as_str());
-                params_array.push(')');
+                params_array.extend(quote!(::java_spaghetti::AsJValue::as_jvalue(&#arg_name)));
             }
 
             if !params_decl.is_empty() {
-                params_decl.push_str(", ");
+                params_decl.extend(quote!(,));
             }
 
-            params_decl.push_str(arg_name.as_str());
-            params_decl.push_str(": ");
-            params_decl.push_str(arg_type.as_str());
+            params_decl.extend(quote!(#arg_name: #arg_type));
         }
 
         let mut ret_decl = if let ReturnDescriptor::Return(desc) = &descriptor.return_type {
-            let rust_type = FieldTypeEmitter(desc)
-                .emit_rust_type(context, mod_, &mut emit_reject_reasons)
-                .map_err(|_| io::Error::other("std::fmt::Error"))?;
+            let rust_type = FieldTypeEmitter(desc).emit_rust_type(context, mod_, &mut emit_reject_reasons)?;
 
             let param_is_object = matches!(desc.field_type, FieldType::Object(_));
             if desc.dimensions == 0 && !param_is_object {
-                rust_type.to_string()
-            } else {
-                let mut rust_type = rust_type.to_string();
-                rust_type.insert_str(0, "::std::option::Option<::java_spaghetti::Local<'env, ");
-                rust_type.push_str(">>");
                 rust_type
+            } else {
+                quote!(::std::option::Option<::java_spaghetti::Local<'env, #rust_type>>)
             }
         } else {
-            "()".to_string()
+            quote!(())
         };
 
         let mut ret_method_fragment = if let ReturnDescriptor::Return(desc) = &descriptor.return_type {
@@ -164,97 +148,74 @@ impl<'a> Method<'a> {
         if self.java.is_constructor() {
             if descriptor.return_type == ReturnDescriptor::Void {
                 ret_method_fragment = "object";
-                ret_decl = "::java_spaghetti::Local<'env, Self>".into();
+                ret_decl = quote!(::java_spaghetti::Local<'env, Self>);
             } else {
                 emit_reject_reasons.push("ERROR:  Constructor should've returned void");
             }
         }
 
-        let emit_reject_reasons = emit_reject_reasons; // Freeze
-        let indent = if emit_reject_reasons.is_empty() {
-            ""
+        if !emit_reject_reasons.is_empty() {
+            // TODO log
+            return Ok(TokenStream::new());
+        }
+
+        let mut out = TokenStream::new();
+
+        let access = if self.java.is_public() { quote!(pub) } else { quote!() };
+        let attributes = if self.java.deprecated() {
+            quote!(#[deprecated])
         } else {
-            if !context.config.codegen.keep_rejected_emits {
-                return Ok(());
-            }
-            "// "
+            quote!()
         };
-        let access = if self.java.is_public() { "pub " } else { "" };
-        let attributes = if self.java.deprecated() { "#[deprecated] " } else { "" };
 
-        writeln!(out)?;
-        for reason in &emit_reject_reasons {
-            writeln!(out, "{indent}// Not emitting: {reason}")?;
-        }
-        if let Some(url) = KnownDocsUrl::from_method(context, self) {
-            writeln!(out, "{indent}/// {url}")?;
-        } else {
-            writeln!(out, "{indent}/// {}", self.java.name())?;
-        }
-        writeln!(
-            out,
-            "{indent}{attributes}{access}fn {method_name}<'env>({params_decl}) -> \
-            ::std::result::Result<{ret_decl}, ::java_spaghetti::Local<'env, {}>> {{",
-            context.throwable_rust_path(mod_)
-        )?;
-        writeln!(
-            out,
-            "{}    // class.path == {:?}, java.flags == {:?}, .name == {:?}, .descriptor == \"{}\"",
-            indent,
-            self.class.path().as_str(),
-            self.java.access_flags,
-            self.java.name(),
-            MethodSigWriter(self.java.descriptor())
-        )?;
+        let docs = match KnownDocsUrl::from_method(context, self) {
+            Some(url) => format!("{url}"),
+            None => format!("{}", self.java.name()),
+        };
 
-        writeln!(
-            out,
-            "{indent}    static __METHOD: ::std::sync::OnceLock<::java_spaghetti::JMethodID> \
-                = ::std::sync::OnceLock::new();"
-        )?;
-        writeln!(out, "{indent}    unsafe {{")?;
-        writeln!(out, "{indent}        let __jni_args = [{params_array}];")?;
-        if !self.java.is_constructor() && !self.java.is_static() {
-            writeln!(out, "{indent}        let __jni_env = self.env();")?;
-        }
-        writeln!(
-            out,
-            "{indent}        let __jni_class = Self::__class_global_ref(__jni_env);"
-        )?;
-        writeln!(
-            out,
-            "{indent}        \
-            let __jni_method = __METHOD.get_or_init(|| \
-                ::java_spaghetti::JMethodID::from_raw(__jni_env.require_{}method(__jni_class, {}, {}))\
-            ).as_raw();",
-            if self.java.is_static() { "static_" } else { "" },
-            CStrEmitter(self.java.name()),
-            CStrEmitter(MethodSigWriter(self.java.descriptor()))
-        )?;
+        let throwable = context.throwable_rust_path(mod_);
 
-        if self.java.is_constructor() {
-            writeln!(
-                out,
-                "{indent}        \
-                __jni_env.new_object_a(__jni_class, __jni_method, __jni_args.as_ptr())",
-            )?;
+        let env_let = match !self.java.is_constructor() && !self.java.is_static() {
+            true => quote!(let __jni_env = self.env();),
+            false => quote!(),
+        };
+        let require_method = match self.java.is_static() {
+            false => quote!(require_method),
+            true => quote!(require_static_method),
+        };
+
+        let java_name = cstring(self.java.name());
+        let descriptor = cstring(&emit_method_descriptor(self.java.descriptor()));
+        let method_name = format_ident!("{method_name}");
+
+        let call = if self.java.is_constructor() {
+            quote!(__jni_env.new_object_a(__jni_class, __jni_method, __jni_args.as_ptr()))
         } else if self.java.is_static() {
-            writeln!(
-                out,
-                "{indent}        \
-                __jni_env.call_static_{}_method_a(__jni_class, __jni_method, __jni_args.as_ptr())",
-                ret_method_fragment
-            )?;
+            let call = format_ident!("call_static_{ret_method_fragment}_method_a");
+            quote!(    __jni_env.#call(__jni_class, __jni_method, __jni_args.as_ptr()))
         } else {
-            writeln!(
-                out,
-                "{indent}        \
-                __jni_env.call_{}_method_a(self.as_raw(), __jni_method, __jni_args.as_ptr())",
-                ret_method_fragment
-            )?;
-        }
-        writeln!(out, "{indent}    }}")?;
-        writeln!(out, "{indent}}}")?;
-        Ok(())
+            let call = format_ident!("call_{ret_method_fragment}_method_a");
+            quote!(    __jni_env.#call(self.as_raw(), __jni_method, __jni_args.as_ptr()))
+        };
+
+        out.extend(quote!(
+            #[doc = #docs]
+            #attributes
+            #access fn #method_name<'env>(#params_decl) -> ::std::result::Result<#ret_decl, ::java_spaghetti::Local<'env, #throwable>> {
+                static __METHOD: ::std::sync::OnceLock<::java_spaghetti::JMethodID> = ::std::sync::OnceLock::new();
+                unsafe {
+                    let __jni_args = [#params_array];
+                    #env_let
+                    let __jni_class = Self::__class_global_ref(__jni_env);
+                    let __jni_method = __METHOD.get_or_init(||
+                        ::java_spaghetti::JMethodID::from_raw(__jni_env.#require_method(__jni_class, #java_name, #descriptor))
+                    ).as_raw();
+
+                    #call
+                }
+            }
+        ));
+
+        Ok(out)
     }
 }

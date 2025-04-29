@@ -143,22 +143,6 @@ impl<'a> Context<'a> {
     }
 }
 
-/// Writes the string as a C string literal.
-///
-/// XXX: This implementation (as well as `Env` methods in `java-spaghetti` crate)
-/// should probably use byte slices so that full Unicode support can be made possible:
-/// JNI `GetFieldID` and `GetMethodID` expects *modified* UTF-8 string name and signature.
-/// Note: `cafebabe` converts modified UTF-8 string to real UTF-8 string at first hand.
-struct CStrEmitter<T: std::fmt::Display>(pub T);
-
-impl<T: std::fmt::Display> std::fmt::Display for CStrEmitter<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("c\"")?;
-        self.0.fmt(f)?;
-        f.write_str("\"")
-    }
-}
-
 fn cstring(s: &str) -> Literal {
     Literal::c_string(&CString::from_str(s).unwrap())
 }

@@ -211,7 +211,8 @@ impl Class {
                 }
             }
 
-            method.emit(context, &self.rust.mod_, out)?;
+            let res = method.emit(context, &self.rust.mod_).unwrap();
+            out.write(res.to_string().as_bytes())?;
         }
 
         for field in &mut fields {
