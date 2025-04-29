@@ -50,9 +50,8 @@ impl<'a> Field<'a> {
         }
 
         let descriptor = &self.java.descriptor();
-        let type_emitter = FieldTypeEmitter(descriptor);
 
-        let rust_type = type_emitter.emit_rust_type(context, mod_, &mut emit_reject_reasons)?;
+        let rust_type = emit_rust_type(descriptor, context, mod_, &mut emit_reject_reasons)?;
 
         // `rust_set_type` and `rust_get_type` are ones used below
         let (rust_set_type, rust_get_type) = match (descriptor.dimensions, &descriptor.field_type) {
@@ -66,7 +65,7 @@ impl<'a> Field<'a> {
             ),
         };
 
-        let field_fragment = type_emitter.emit_fragment_type();
+        let field_fragment = emit_fragment_type(descriptor);
 
         if self.rust_names.is_err() {
             emit_reject_reasons.push(match self.java.name() {
@@ -242,102 +241,97 @@ pub fn emit_constant(constant: &LiteralConstant<'_>, descriptor: &FieldDescripto
     }
 }
 
-pub struct FieldTypeEmitter<'a>(pub &'a FieldDescriptor<'a>);
-
-impl FieldTypeEmitter<'_> {
-    /// Generates the corresponding Rust type for the Java field type.
-    pub fn emit_rust_type(
-        &self,
-        context: &Context<'_>,
-        mod_: &str,
-        reject_reasons: &mut Vec<&'static str>,
-    ) -> Result<TokenStream, std::fmt::Error> {
-        let descriptor = self.0;
-        let cow = if descriptor.dimensions == 0 {
-            match &descriptor.field_type {
-                FieldType::Boolean => quote!(bool),
-                FieldType::Byte => quote!(i8),
-                FieldType::Char => quote!(u16),
-                FieldType::Short => quote!(i16),
-                FieldType::Integer => quote!(i32),
-                FieldType::Long => quote!(i64),
-                FieldType::Float => quote!(f32),
-                FieldType::Double => quote!(f64),
-                FieldType::Object(class_name) => {
-                    let class = IdBuf::from(class_name);
-                    if !context.all_classes.contains_key(class.as_str()) {
-                        reject_reasons.push("ERROR:  missing class for field/argument type");
-                    }
-                    if let Ok(path) = context.java_to_rust_path(class.as_id(), mod_) {
-                        path
-                    } else {
-                        reject_reasons.push("ERROR:  Failed to resolve JNI path to Rust path for class type");
-                        let class = class.as_str();
-                        quote!(#class) // XXX
-                    }
+/// Generates the corresponding Rust type for the Java field type.
+pub fn emit_rust_type(
+    descriptor: &FieldDescriptor,
+    context: &Context<'_>,
+    mod_: &str,
+    reject_reasons: &mut Vec<&'static str>,
+) -> Result<TokenStream, std::fmt::Error> {
+    let cow = if descriptor.dimensions == 0 {
+        match &descriptor.field_type {
+            FieldType::Boolean => quote!(bool),
+            FieldType::Byte => quote!(i8),
+            FieldType::Char => quote!(u16),
+            FieldType::Short => quote!(i16),
+            FieldType::Integer => quote!(i32),
+            FieldType::Long => quote!(i64),
+            FieldType::Float => quote!(f32),
+            FieldType::Double => quote!(f64),
+            FieldType::Object(class_name) => {
+                let class = IdBuf::from(class_name);
+                if !context.all_classes.contains_key(class.as_str()) {
+                    reject_reasons.push("ERROR:  missing class for field/argument type");
+                }
+                if let Ok(path) = context.java_to_rust_path(class.as_id(), mod_) {
+                    path
+                } else {
+                    reject_reasons.push("ERROR:  Failed to resolve JNI path to Rust path for class type");
+                    let class = class.as_str();
+                    quote!(#class) // XXX
                 }
             }
-        } else {
-            let mut out = TokenStream::new();
-            for _ in 0..(descriptor.dimensions - 1) {
+        }
+    } else {
+        let mut out = TokenStream::new();
+        for _ in 0..(descriptor.dimensions - 1) {
+            out.extend(quote!(::java_spaghetti::ObjectArray<));
+        }
+        match &descriptor.field_type {
+            FieldType::Boolean => out.extend(quote!(::java_spaghetti::BooleanArray)),
+            FieldType::Byte => out.extend(quote!(::java_spaghetti::ByteArray)),
+            FieldType::Char => out.extend(quote!(::java_spaghetti::CharArray)),
+            FieldType::Short => out.extend(quote!(::java_spaghetti::ShortArray)),
+            FieldType::Integer => out.extend(quote!(::java_spaghetti::IntArray)),
+            FieldType::Long => out.extend(quote!(::java_spaghetti::LongArray)),
+            FieldType::Float => out.extend(quote!(::java_spaghetti::FloatArray)),
+            FieldType::Double => out.extend(quote!(::java_spaghetti::DoubleArray)),
+            FieldType::Object(class_name) => {
+                let class = IdBuf::from(class_name);
+
+                if !context.all_classes.contains_key(class.as_str()) {
+                    reject_reasons.push("ERROR:  missing class for field type");
+                }
+
                 out.extend(quote!(::java_spaghetti::ObjectArray<));
-            }
-            match &descriptor.field_type {
-                FieldType::Boolean => out.extend(quote!(::java_spaghetti::BooleanArray)),
-                FieldType::Byte => out.extend(quote!(::java_spaghetti::ByteArray)),
-                FieldType::Char => out.extend(quote!(::java_spaghetti::CharArray)),
-                FieldType::Short => out.extend(quote!(::java_spaghetti::ShortArray)),
-                FieldType::Integer => out.extend(quote!(::java_spaghetti::IntArray)),
-                FieldType::Long => out.extend(quote!(::java_spaghetti::LongArray)),
-                FieldType::Float => out.extend(quote!(::java_spaghetti::FloatArray)),
-                FieldType::Double => out.extend(quote!(::java_spaghetti::DoubleArray)),
-                FieldType::Object(class_name) => {
-                    let class = IdBuf::from(class_name);
-
-                    if !context.all_classes.contains_key(class.as_str()) {
-                        reject_reasons.push("ERROR:  missing class for field type");
+                match context.java_to_rust_path(class.as_id(), mod_) {
+                    Ok(path) => out.extend(path),
+                    Err(_) => {
+                        reject_reasons.push("ERROR:  Failed to resolve JNI path to Rust path for class type");
+                        out.extend(quote!(???));
                     }
-
-                    out.extend(quote!(::java_spaghetti::ObjectArray<));
-                    match context.java_to_rust_path(class.as_id(), mod_) {
-                        Ok(path) => out.extend(path),
-                        Err(_) => {
-                            reject_reasons.push("ERROR:  Failed to resolve JNI path to Rust path for class type");
-                            out.extend(quote!(???));
-                        }
-                    };
-                    out.extend(quote!(,));
-                    out.extend(context.throwable_rust_path(mod_));
-                    out.extend(quote!(>));
-                }
-            };
-            for _ in 0..(descriptor.dimensions - 1) {
-                // ObjectArray s
+                };
                 out.extend(quote!(,));
                 out.extend(context.throwable_rust_path(mod_));
                 out.extend(quote!(>));
             }
-            out.into()
         };
-        Ok(cow)
-    }
-
-    /// Contents of {get,set}_[static_]..._field, call_..._method_a.
-    pub fn emit_fragment_type(&self) -> &'static str {
-        if self.0.dimensions == 0 {
-            match self.0.field_type {
-                FieldType::Boolean => "boolean",
-                FieldType::Byte => "byte",
-                FieldType::Char => "char",
-                FieldType::Short => "short",
-                FieldType::Integer => "int",
-                FieldType::Long => "long",
-                FieldType::Float => "float",
-                FieldType::Double => "double",
-                FieldType::Object(_) => "object",
-            }
-        } else {
-            "object"
+        for _ in 0..(descriptor.dimensions - 1) {
+            // ObjectArray s
+            out.extend(quote!(,));
+            out.extend(context.throwable_rust_path(mod_));
+            out.extend(quote!(>));
         }
+        out.into()
+    };
+    Ok(cow)
+}
+
+/// Contents of {get,set}_[static_]..._field, call_..._method_a.
+pub fn emit_fragment_type(descriptor: &FieldDescriptor) -> &'static str {
+    if descriptor.dimensions == 0 {
+        match descriptor.field_type {
+            FieldType::Boolean => "boolean",
+            FieldType::Byte => "byte",
+            FieldType::Char => "char",
+            FieldType::Short => "short",
+            FieldType::Integer => "int",
+            FieldType::Long => "long",
+            FieldType::Float => "float",
+            FieldType::Double => "double",
+            FieldType::Object(_) => "object",
+        }
+    } else {
+        "object"
     }
 }

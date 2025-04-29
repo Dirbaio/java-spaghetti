@@ -3,7 +3,7 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
 use super::cstring;
-use super::fields::FieldTypeEmitter;
+use super::fields::{emit_fragment_type, emit_rust_type};
 use super::known_docs_url::KnownDocsUrl;
 use crate::emit_rust::Context;
 use crate::identifiers::MethodManglingStyle;
@@ -101,7 +101,7 @@ impl<'a> Method<'a> {
 
             let param_is_object = matches!(arg.field_type, FieldType::Object(_)) || arg.dimensions > 0;
 
-            let rust_type = FieldTypeEmitter(arg).emit_rust_type(context, mod_, &mut emit_reject_reasons)?;
+            let rust_type = emit_rust_type(arg, context, mod_, &mut emit_reject_reasons)?;
 
             let arg_type = if arg.dimensions == 0 && !param_is_object {
                 rust_type
@@ -127,7 +127,7 @@ impl<'a> Method<'a> {
         }
 
         let mut ret_decl = if let ReturnDescriptor::Return(desc) = &descriptor.return_type {
-            let rust_type = FieldTypeEmitter(desc).emit_rust_type(context, mod_, &mut emit_reject_reasons)?;
+            let rust_type = emit_rust_type(desc, context, mod_, &mut emit_reject_reasons)?;
 
             let param_is_object = matches!(desc.field_type, FieldType::Object(_));
             if desc.dimensions == 0 && !param_is_object {
@@ -140,7 +140,7 @@ impl<'a> Method<'a> {
         };
 
         let mut ret_method_fragment = if let ReturnDescriptor::Return(desc) = &descriptor.return_type {
-            FieldTypeEmitter(desc).emit_fragment_type()
+            emit_fragment_type(desc)
         } else {
             "void"
         };
