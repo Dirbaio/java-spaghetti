@@ -9,7 +9,7 @@ use super::methods::Method;
 use super::StrEmitter;
 use crate::emit_rust::Context;
 use crate::identifiers::{FieldMangling, RustIdentifier};
-use crate::parser_util::{Class, Id, IdPart};
+use crate::parser_util::{Id, IdPart, JavaClass};
 
 #[derive(Debug, Default)]
 pub(crate) struct StructPaths {
@@ -20,16 +20,16 @@ pub(crate) struct StructPaths {
 impl StructPaths {
     pub(crate) fn new(context: &Context, class: Id) -> Result<Self, Box<dyn Error>> {
         Ok(Self {
-            mod_: Struct::mod_for(context, class)?,
-            struct_name: Struct::name_for(context, class)?,
+            mod_: Class::mod_for(context, class)?,
+            struct_name: Class::name_for(context, class)?,
         })
     }
 }
 
 #[derive(Debug)]
-pub(crate) struct Struct {
+pub(crate) struct Class {
     pub rust: StructPaths,
-    pub java: Class,
+    pub java: JavaClass,
 }
 
 fn rust_id(id: &str) -> Result<String, Box<dyn Error>> {
@@ -38,13 +38,13 @@ fn rust_id(id: &str) -> Result<String, Box<dyn Error>> {
         RustIdentifier::KeywordRawSafe(id) => id,
         RustIdentifier::KeywordUnderscorePostfix(id) => id,
         RustIdentifier::NonIdentifier(id) => io_data_err!(
-            "Unable to add_struct(): java identifier {:?} has no rust equivalent (yet?)",
+            "Unable to add_class(): java identifier {:?} has no rust equivalent (yet?)",
             id
         )?,
     })
 }
 
-impl Struct {
+impl Class {
     pub(crate) fn mod_for(_context: &Context, class: Id) -> Result<String, Box<dyn Error>> {
         let mut buf = String::new();
         for component in class {
@@ -84,7 +84,7 @@ impl Struct {
         Ok(buf)
     }
 
-    pub(crate) fn new(context: &mut Context, java: Class) -> Result<Self, Box<dyn Error>> {
+    pub(crate) fn new(context: &mut Context, java: JavaClass) -> Result<Self, Box<dyn Error>> {
         let rust = StructPaths::new(context, java.path())?;
 
         Ok(Self { rust, java })

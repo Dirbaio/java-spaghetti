@@ -5,15 +5,15 @@ use std::rc::Rc;
 use std::sync::Mutex;
 use std::time::Duration;
 
+use super::classes::Class;
 use super::modules::Module;
 use super::preamble::write_preamble;
-use super::structs::Struct;
 use crate::{config, parser_util, util};
 
 pub struct Context<'a> {
     pub(crate) config: &'a config::runtime::Config,
     pub(crate) module: Module,
-    pub(crate) all_classes: HashMap<String, Rc<Struct>>,
+    pub(crate) all_classes: HashMap<String, Rc<Class>>,
     pub(crate) progress: Mutex<util::Progress>,
 }
 
@@ -35,8 +35,8 @@ impl<'a> Context<'a> {
     }
 
     pub fn java_to_rust_path(&self, java_class: parser_util::Id, mod_: &str) -> Result<String, Box<dyn Error>> {
-        let m = Struct::mod_for(self, java_class)?;
-        let s = Struct::name_for(self, java_class)?;
+        let m = Class::mod_for(self, java_class)?;
+        let s = Class::name_for(self, java_class)?;
         let fqn = format!("{}::{}", m, s);
 
         // Calculate relative path from B to A.
@@ -68,7 +68,7 @@ impl<'a> Context<'a> {
         Ok(res)
     }
 
-    fn struct_included(&self, path: &str) -> bool {
+    fn class_included(&self, path: &str) -> bool {
         if self.config.include_classes.contains(path) {
             return true;
         }
@@ -94,16 +94,16 @@ impl<'a> Context<'a> {
         false
     }
 
-    pub fn add_struct(&mut self, class: parser_util::Class) -> Result<(), Box<dyn Error>> {
+    pub fn add_class(&mut self, class: parser_util::JavaClass) -> Result<(), Box<dyn Error>> {
         if self.config.ignore_classes.contains(class.path().as_str()) {
             return Ok(());
         }
-        if !self.struct_included(class.path().as_str()) {
+        if !self.class_included(class.path().as_str()) {
             return Ok(());
         }
 
         let java_path = class.path().as_str().to_string();
-        let s = Rc::new(Struct::new(self, class)?);
+        let s = Rc::new(Class::new(self, class)?);
 
         self.all_classes.insert(java_path, s.clone());
 
@@ -111,13 +111,13 @@ impl<'a> Context<'a> {
         for fragment in s.rust.mod_.split("::") {
             rust_mod = rust_mod.modules.entry(fragment.to_owned()).or_default();
         }
-        if rust_mod.structs.contains_key(&s.rust.struct_name) {
+        if rust_mod.classes.contains_key(&s.rust.struct_name) {
             return io_data_err!(
-                "Unable to add_struct(): java class name {:?} was already added",
+                "Unable to add_class(): java class name {:?} was already added",
                 &s.rust.struct_name
             )?;
         }
-        rust_mod.structs.insert(s.rust.struct_name.clone(), s);
+        rust_mod.classes.insert(s.rust.struct_name.clone(), s);
 
         Ok(())
     }

@@ -9,17 +9,17 @@ use super::known_docs_url::KnownDocsUrl;
 use super::StrEmitter;
 use crate::emit_rust::Context;
 use crate::identifiers::{FieldMangling, IdentifierManglingError};
-use crate::parser_util::{Class, ClassName, FieldSigWriter, IdBuf, IterableId, JavaField};
+use crate::parser_util::{JavaClass, ClassName, FieldSigWriter, IdBuf, IterableId, JavaField};
 
 pub struct Field<'a> {
-    pub class: &'a Class,
+    pub class: &'a JavaClass,
     pub java: JavaField<'a>,
     pub rust_names: Result<FieldMangling<'a>, IdentifierManglingError>,
     pub ignored: bool,
 }
 
 impl<'a> Field<'a> {
-    pub fn new(context: &Context, class: &'a Class, java: &'a cafebabe::FieldInfo<'a>) -> Self {
+    pub fn new(context: &Context, class: &'a JavaClass, java: &'a cafebabe::FieldInfo<'a>) -> Self {
         let java_class_field = format!("{}\x1f{}", class.path().as_str(), &java.name);
         let ignored = context.config.ignore_class_fields.contains(&java_class_field);
         let renamed_to = context

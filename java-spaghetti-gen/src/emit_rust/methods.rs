@@ -7,17 +7,17 @@ use super::known_docs_url::KnownDocsUrl;
 use super::StrEmitter;
 use crate::emit_rust::Context;
 use crate::identifiers::MethodManglingStyle;
-use crate::parser_util::{Class, JavaMethod, MethodSigWriter};
+use crate::parser_util::{JavaClass, JavaMethod, MethodSigWriter};
 
 pub struct Method<'a> {
-    pub class: &'a Class,
+    pub class: &'a JavaClass,
     pub java: JavaMethod<'a>,
     rust_name: Option<String>,
     mangling_style: MethodManglingStyle,
 }
 
 impl<'a> Method<'a> {
-    pub fn new(context: &Context, class: &'a Class, java: &'a cafebabe::MethodInfo<'a>) -> Self {
+    pub fn new(context: &Context, class: &'a JavaClass, java: &'a cafebabe::MethodInfo<'a>) -> Self {
         let mut result = Self {
             class,
             java: JavaMethod::from(java),

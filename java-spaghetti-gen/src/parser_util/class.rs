@@ -1,45 +1,40 @@
 use std::borrow::Cow;
+use std::marker::PhantomPinned;
+use std::pin::Pin;
 
 use cafebabe::attributes::AttributeData;
 pub use cafebabe::ClassAccessFlags;
-pub use unsafe_class::Class;
 
 use super::Id;
-mod unsafe_class {
-    use std::marker::PhantomPinned;
-    use std::pin::Pin;
 
-    #[derive(Debug)]
-    pub struct Class {
-        #[allow(unused)]
-        raw_bytes: Pin<Box<(Vec<u8>, PhantomPinned)>>,
-        inner: cafebabe::ClassFile<'static>,
-    }
-
-    impl Class {
-        pub fn read(raw_bytes: Vec<u8>) -> Result<Self, cafebabe::ParseError> {
-            let pinned = Box::pin((raw_bytes, PhantomPinned));
-            // SAFETY: `get<'a>(&'a self)` restricts the lifetime parameter of
-            // the returned referenced `ClassFile`.
-            let fake_static = unsafe { std::slice::from_raw_parts(pinned.0.as_ptr(), pinned.0.len()) };
-            let inner = cafebabe::parse_class(fake_static)?;
-            Ok(Self {
-                raw_bytes: pinned,
-                inner,
-            })
-        }
-
-        // It is probably not possible to implement `Deref` safely.
-        pub fn get<'a>(&'a self) -> &'a cafebabe::ClassFile<'a> {
-            // SAFETY: casts `self.inner` into `cafebabe::ClassFile<'a>` forcefully.
-            // `cafebabe::parse_class` takes immutable &'a [u8], why is the returned
-            // `ClassFile<'a>` invariant over `'a`?
-            unsafe { &*(&raw const (self.inner)).cast() }
-        }
-    }
+#[derive(Debug)]
+pub struct JavaClass {
+    #[allow(unused)]
+    raw_bytes: Pin<Box<(Vec<u8>, PhantomPinned)>>,
+    inner: cafebabe::ClassFile<'static>,
 }
 
-impl Class {
+impl JavaClass {
+    pub fn read(raw_bytes: Vec<u8>) -> Result<Self, cafebabe::ParseError> {
+        let pinned = Box::pin((raw_bytes, PhantomPinned));
+        // SAFETY: `get<'a>(&'a self)` restricts the lifetime parameter of
+        // the returned referenced `ClassFile`.
+        let fake_static = unsafe { std::slice::from_raw_parts(pinned.0.as_ptr(), pinned.0.len()) };
+        let inner = cafebabe::parse_class(fake_static)?;
+        Ok(Self {
+            raw_bytes: pinned,
+            inner,
+        })
+    }
+
+    // It is probably not possible to implement `Deref` safely.
+    pub fn get<'a>(&'a self) -> &'a cafebabe::ClassFile<'a> {
+        // SAFETY: casts `self.inner` into `cafebabe::ClassFile<'a>` forcefully.
+        // `cafebabe::parse_class` takes immutable &'a [u8], why is the returned
+        // `ClassFile<'a>` invariant over `'a`?
+        unsafe { &*(&raw const (self.inner)).cast() }
+    }
+
     fn flags(&self) -> ClassAccessFlags {
         self.get().access_flags
     }

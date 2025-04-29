@@ -1,12 +1,12 @@
 //! Rust generation logic
 
+mod classes;
 mod context;
 mod fields;
 mod known_docs_url;
 mod methods;
 mod modules;
 mod preamble;
-mod structs;
 
 pub use context::Context;
 

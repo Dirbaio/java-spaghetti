@@ -4,7 +4,7 @@ use std::io::{self, Read};
 use std::path::Path;
 
 use crate::config::runtime::Config;
-use crate::parser_util::Class;
+use crate::parser_util::JavaClass;
 use crate::{emit_rust, util};
 
 /// The core function of this library: Generate Rust code to access Java APIs.
@@ -46,8 +46,8 @@ fn gather_file(context: &mut emit_rust::Context, path: &Path) -> Result<(), Box<
 
     match ext.to_string_lossy().to_ascii_lowercase().as_str() {
         "class" => {
-            let class = Class::read(std::fs::read(path)?)?;
-            context.add_struct(class)?;
+            let class = JavaClass::read(std::fs::read(path)?)?;
+            context.add_class(class)?;
         }
         "jar" => {
             let mut jar = zip::ZipArchive::new(io::BufReader::new(File::open(path)?))?;
@@ -69,8 +69,8 @@ fn gather_file(context: &mut emit_rust::Context, path: &Path) -> Result<(), Box<
 
                 let mut buf = Vec::new();
                 file.read_to_end(&mut buf)?;
-                let class = Class::read(buf)?;
-                context.add_struct(class)?;
+                let class = JavaClass::read(buf)?;
+                context.add_class(class)?;
             }
         }
         unknown => {

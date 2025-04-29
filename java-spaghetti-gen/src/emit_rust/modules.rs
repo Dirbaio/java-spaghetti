@@ -2,13 +2,13 @@ use std::collections::BTreeMap;
 use std::io::{self, Write};
 use std::rc::Rc;
 
-use super::structs::Struct;
+use super::classes::Class;
 use crate::emit_rust::Context;
 
 #[derive(Debug, Default)]
 pub(crate) struct Module {
     // For consistent diffs / printing order, these should *not* be HashMaps
-    pub(crate) structs: BTreeMap<String, Rc<Struct>>,
+    pub(crate) classes: BTreeMap<String, Rc<Class>>,
     pub(crate) modules: BTreeMap<String, Module>,
 }
 
@@ -22,7 +22,7 @@ impl Module {
             writeln!(out, "}}")?;
         }
 
-        for (_, structure) in self.structs.iter() {
+        for (_, structure) in self.classes.iter() {
             structure.write(context, out)?;
         }
 
