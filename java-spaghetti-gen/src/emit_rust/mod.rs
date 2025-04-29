@@ -137,7 +137,7 @@ impl<'a> Context<'a> {
         Ok(())
     }
 
-    pub fn write(&self, out: &mut impl io::Write) -> io::Result<()> {
+    pub fn write(&self, out: &mut impl io::Write) -> anyhow::Result<()> {
         write_preamble(out)?;
         self.module.write(self, out)
     }

@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::io::{self, Write};
+use std::io::Write;
 use std::rc::Rc;
 
 use super::classes::Class;
@@ -13,7 +13,7 @@ pub(crate) struct Module {
 }
 
 impl Module {
-    pub(crate) fn write(&self, context: &Context, out: &mut impl Write) -> io::Result<()> {
+    pub(crate) fn write(&self, context: &Context, out: &mut impl Write) -> anyhow::Result<()> {
         for (name, module) in self.modules.iter() {
             writeln!(out)?;
 
@@ -22,8 +22,9 @@ impl Module {
             writeln!(out, "}}")?;
         }
 
-        for (_, structure) in self.classes.iter() {
-            structure.write(context, out)?;
+        for (_, class) in self.classes.iter() {
+            let res = class.write(context)?;
+            out.write(res.to_string().as_bytes())?;
         }
 
         Ok(())

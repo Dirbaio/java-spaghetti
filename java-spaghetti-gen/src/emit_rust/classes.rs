@@ -1,7 +1,9 @@
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fmt::Write;
-use std::io;
+
+use proc_macro2::TokenStream;
+use quote::{format_ident, quote};
 
 use super::cstring;
 use super::fields::Field;
@@ -90,9 +92,7 @@ impl Class {
         Ok(Self { rust, java })
     }
 
-    pub(crate) fn write(&self, context: &Context, out: &mut impl io::Write) -> io::Result<()> {
-        writeln!(out)?;
-
+    pub(crate) fn write(&self, context: &Context) -> anyhow::Result<TokenStream> {
         // Ignored access_flags: SUPER, SYNTHETIC, ANNOTATION, ABSTRACT
 
         let keyword = if self.java.is_interface() {
@@ -107,29 +107,41 @@ impl Class {
             "class"
         };
 
-        let visibility = if self.java.is_public() { "pub" } else { "" };
-        let attributes = (if self.java.deprecated() { "#[deprecated] " } else { "" }).to_string();
+        let visibility = if self.java.is_public() { quote!(pub) } else { quote!() };
+        let attributes = match self.java.deprecated() {
+            true => quote!(#[deprecated] ),
+            false => quote!(),
+        };
 
-        if let Some(url) = KnownDocsUrl::from_class(context, self.java.path()) {
-            writeln!(out, "/// {} {} {}", visibility, keyword, url)?;
-        } else {
-            writeln!(out, "/// {} {} {}", visibility, keyword, self.java.path().as_str())?;
-        }
+        let docs = match KnownDocsUrl::from_class(context, self.java.path()) {
+            Some(url) => format!("{} {} {}", visibility, keyword, url),
+            None => format!("{} {} {}", visibility, keyword, self.java.path().as_str()),
+        };
 
-        let rust_name = &self.rust.struct_name;
-        writeln!(out, "{attributes}{visibility} enum {rust_name}{{}}")?;
-        if !self.java.is_static() {
-            writeln!(out, "unsafe impl ::java_spaghetti::ReferenceType for {rust_name} {{}}")?;
-        }
-        writeln!(
-            out,
-            "unsafe impl ::java_spaghetti::JniType for {rust_name} {{\
-          \n    fn static_with_jni_type<R>(callback: impl FnOnce(&::std::ffi::CStr) -> R) -> R {{\
-          \n        callback({})\
-          \n    }}\
-          \n}}",
-            cstring(self.java.path().as_str()),
-        )?;
+        let rust_name = format_ident!("{}", &self.rust.struct_name);
+
+        let referencetype_impl = match self.java.is_static() {
+            true => quote!(),
+            false => quote!(unsafe impl ::java_spaghetti::ReferenceType for #rust_name {}),
+        };
+
+        let mut out = TokenStream::new();
+
+        let java_path = cstring(self.java.path().as_str());
+
+        out.extend(quote!(
+            #[doc = #docs]
+            #attributes
+            #visibility enum #rust_name {}
+
+            #referencetype_impl
+
+            unsafe impl ::java_spaghetti::JniType for #rust_name {
+                fn static_with_jni_type<R>(callback: impl FnOnce(&::std::ffi::CStr) -> R) -> R {
+                    callback(#java_path)
+                }
+            }
+        ));
 
         // recursively visit all superclasses and superinterfaces.
         let mut queue = Vec::new();
@@ -141,32 +153,33 @@ impl Class {
             for path2 in self.java.interfaces().map(|i| Id(i)).chain(class.java.super_path()) {
                 if context.all_classes.contains_key(path2.as_str()) && !visited.contains(&path2) {
                     let rust_path = context.java_to_rust_path(path2, &self.rust.mod_).unwrap();
-                    writeln!(
-                        out,
-                        "unsafe impl ::java_spaghetti::AssignableTo<{rust_path}> for {rust_name} {{}}"
-                    )?;
+                    out.extend(quote!(
+                        unsafe impl ::java_spaghetti::AssignableTo<#rust_path> for #rust_name {}
+                    ));
                     queue.push(path2);
                     visited.insert(path2);
                 }
             }
         }
 
-        writeln!(out, "impl {rust_name} {{")?;
+        let mut contents = TokenStream::new();
 
-        writeln!(
-            out,
-            "\
-          \nfn __class_global_ref(__jni_env: ::java_spaghetti::Env) -> ::java_spaghetti::sys::jobject {{\
-          \n    static __CLASS: ::std::sync::OnceLock<::java_spaghetti::Global<{}>> = ::std::sync::OnceLock::new();\
-          \n    __CLASS.get_or_init(|| unsafe {{\
-          \n        ::java_spaghetti::Local::from_raw(__jni_env, __jni_env.require_class({})).as_global()\
-          \n    }}).as_raw()\
-          \n}}",
-            context
-                .java_to_rust_path(Id("java/lang/Object"), &self.rust.mod_)
-                .unwrap(),
-            cstring(self.java.path().as_str()),
-        )?;
+        let object = context
+            .java_to_rust_path(Id("java/lang/Object"), &self.rust.mod_)
+            .unwrap();
+
+        let class = cstring(self.java.path().as_str());
+
+        contents.extend(quote!(
+            fn __class_global_ref(__jni_env: ::java_spaghetti::Env) -> ::java_spaghetti::sys::jobject {
+                static __CLASS: ::std::sync::OnceLock<::java_spaghetti::Global<#object>> = ::std::sync::OnceLock::new();
+                __CLASS
+                    .get_or_init(|| unsafe {
+                        ::java_spaghetti::Local::from_raw(__jni_env, __jni_env.require_class(#class)).as_global()
+                    })
+                    .as_raw()
+            }
+        ));
 
         let mut id_repeats = HashMap::new();
 
@@ -212,15 +225,16 @@ impl Class {
             }
 
             let res = method.emit(context, &self.rust.mod_).unwrap();
-            out.write(res.to_string().as_bytes())?;
+            contents.extend(res);
         }
 
         for field in &mut fields {
             let res = field.emit(context, &self.rust.mod_).unwrap();
-            out.write(res.to_string().as_bytes())?;
+            contents.extend(res);
         }
 
-        writeln!(out, "}}")?;
-        Ok(())
+        out.extend(quote!(impl #rust_name { #contents }));
+
+        Ok(out)
     }
 }
