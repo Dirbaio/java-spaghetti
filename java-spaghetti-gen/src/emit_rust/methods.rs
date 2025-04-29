@@ -4,7 +4,7 @@ use cafebabe::descriptors::{FieldType, ReturnDescriptor};
 
 use super::fields::FieldTypeEmitter;
 use super::known_docs_url::KnownDocsUrl;
-use super::StrEmitter;
+use super::CStrEmitter;
 use crate::emit_rust::Context;
 use crate::identifiers::MethodManglingStyle;
 use crate::parser_util::{JavaClass, JavaMethod, MethodSigWriter};
@@ -228,8 +228,8 @@ impl<'a> Method<'a> {
                 ::java_spaghetti::JMethodID::from_raw(__jni_env.require_{}method(__jni_class, {}, {}))\
             ).as_raw();",
             if self.java.is_static() { "static_" } else { "" },
-            StrEmitter(self.java.name()),
-            StrEmitter(MethodSigWriter(self.java.descriptor()))
+            CStrEmitter(self.java.name()),
+            CStrEmitter(MethodSigWriter(self.java.descriptor()))
         )?;
 
         if self.java.is_constructor() {

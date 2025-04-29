@@ -1,3 +1,4 @@
+use std::ffi::{CStr, CString};
 use std::marker::PhantomData;
 use std::ops::{Bound, RangeBounds};
 use std::ptr::null_mut;
@@ -92,7 +93,7 @@ macro_rules! primitive_array {
 
         unsafe impl ReferenceType for $name {}
         unsafe impl JniType for $name {
-            fn static_with_jni_type<R>(callback: impl FnOnce(&str) -> R) -> R {
+            fn static_with_jni_type<R>(callback: impl FnOnce(&CStr) -> R) -> R {
                 callback($type_str)
             }
         }
@@ -174,14 +175,14 @@ macro_rules! primitive_array {
     };
 }
 
-primitive_array! { BooleanArray, "[Z\0", bool    { NewBooleanArray SetBooleanArrayRegion GetBooleanArrayRegion } }
-primitive_array! { ByteArray,    "[B\0", jbyte   { NewByteArray    SetByteArrayRegion    GetByteArrayRegion    } }
-primitive_array! { CharArray,    "[C\0", jchar   { NewCharArray    SetCharArrayRegion    GetCharArrayRegion    } }
-primitive_array! { ShortArray,   "[S\0", jshort  { NewShortArray   SetShortArrayRegion   GetShortArrayRegion   } }
-primitive_array! { IntArray,     "[I\0", jint    { NewIntArray     SetIntArrayRegion     GetIntArrayRegion     } }
-primitive_array! { LongArray,    "[J\0", jlong   { NewLongArray    SetLongArrayRegion    GetLongArrayRegion    } }
-primitive_array! { FloatArray,   "[F\0", jfloat  { NewFloatArray   SetFloatArrayRegion   GetFloatArrayRegion   } }
-primitive_array! { DoubleArray,  "[D\0", jdouble { NewDoubleArray  SetDoubleArrayRegion  GetDoubleArrayRegion  } }
+primitive_array! { BooleanArray, c"[Z", bool    { NewBooleanArray SetBooleanArrayRegion GetBooleanArrayRegion } }
+primitive_array! { ByteArray,    c"[B", jbyte   { NewByteArray    SetByteArrayRegion    GetByteArrayRegion    } }
+primitive_array! { CharArray,    c"[C", jchar   { NewCharArray    SetCharArrayRegion    GetCharArrayRegion    } }
+primitive_array! { ShortArray,   c"[S", jshort  { NewShortArray   SetShortArrayRegion   GetShortArrayRegion   } }
+primitive_array! { IntArray,     c"[I", jint    { NewIntArray     SetIntArrayRegion     GetIntArrayRegion     } }
+primitive_array! { LongArray,    c"[J", jlong   { NewLongArray    SetLongArrayRegion    GetLongArrayRegion    } }
+primitive_array! { FloatArray,   c"[F", jfloat  { NewFloatArray   SetFloatArrayRegion   GetFloatArrayRegion   } }
+primitive_array! { DoubleArray,  c"[D", jdouble { NewDoubleArray  SetDoubleArrayRegion  GetDoubleArrayRegion  } }
 
 /// A Java Array of reference types (classes, interfaces, other arrays, etc.)
 ///
@@ -194,8 +195,15 @@ pub struct ObjectArray<T: ReferenceType, E: ThrowableType>(core::convert::Infall
 unsafe impl<T: ReferenceType, E: ThrowableType> ReferenceType for ObjectArray<T, E> {}
 
 unsafe impl<T: ReferenceType, E: ThrowableType> JniType for ObjectArray<T, E> {
-    fn static_with_jni_type<R>(callback: impl FnOnce(&str) -> R) -> R {
-        T::static_with_jni_type(|inner| callback(format!("[L{};\0", inner.trim_end_matches("\0")).as_str()))
+    fn static_with_jni_type<R>(callback: impl FnOnce(&CStr) -> R) -> R {
+        T::static_with_jni_type(|inner| {
+            let inner = inner.to_bytes();
+            let mut buf = Vec::with_capacity(inner.len() + 4);
+            buf.extend_from_slice(b"[L");
+            buf.extend_from_slice(inner);
+            buf.extend_from_slice(b";");
+            callback(&CString::new(buf).unwrap())
+        })
     }
 }
 

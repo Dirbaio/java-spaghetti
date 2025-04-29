@@ -6,10 +6,10 @@ use cafebabe::constant_pool::LiteralConstant;
 use cafebabe::descriptors::{FieldDescriptor, FieldType};
 
 use super::known_docs_url::KnownDocsUrl;
-use super::StrEmitter;
+use super::CStrEmitter;
 use crate::emit_rust::Context;
 use crate::identifiers::{FieldMangling, IdentifierManglingError};
-use crate::parser_util::{JavaClass, ClassName, FieldSigWriter, IdBuf, IterableId, JavaField};
+use crate::parser_util::{ClassName, FieldSigWriter, IdBuf, IterableId, JavaClass, JavaField};
 
 pub struct Field<'a> {
     pub class: &'a JavaClass,
@@ -177,8 +177,8 @@ impl<'a> Field<'a> {
                         ::java_spaghetti::JFieldID::from_raw(__jni_env.require_{}field(__jni_class, {}, {}))\
                     ).as_raw();",
                     if self.java.is_static() { "static_" } else { "" },
-                    StrEmitter(self.java.name()),
-                    StrEmitter(FieldSigWriter(self.java.descriptor()))
+                    CStrEmitter(self.java.name()),
+                    CStrEmitter(FieldSigWriter(self.java.descriptor()))
                 )?;
                 if self.java.is_static() {
                     writeln!(
@@ -232,8 +232,8 @@ impl<'a> Field<'a> {
                             ::java_spaghetti::JFieldID::from_raw(__jni_env.require_{}field(__jni_class, {}, {}))\
                         ).as_raw();",
                         if self.java.is_static() { "static_" } else { "" },
-                        StrEmitter(self.java.name()),
-                        StrEmitter(FieldSigWriter(self.java.descriptor()))
+                        CStrEmitter(self.java.name()),
+                        CStrEmitter(FieldSigWriter(self.java.descriptor()))
                     )?;
                     if self.java.is_static() {
                         writeln!(

@@ -1,5 +1,5 @@
+use std::ffi::CStr;
 use std::marker::PhantomData;
-use std::os::raw::c_char;
 use std::ptr::{self, null_mut};
 use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::OnceLock;
@@ -162,8 +162,8 @@ impl<'env> Env<'env> {
         static METHOD_GET_MESSAGE: OnceLock<usize> = OnceLock::new();
         let throwable_get_message = *METHOD_GET_MESSAGE.get_or_init(|| {
             // use JNI FindClass to avoid infinte recursion.
-            let throwable_class = self.require_class_jni("java/lang/Throwable\0");
-            let method = self.require_method(throwable_class, "getMessage\0", "()Ljava/lang/String;\0");
+            let throwable_class = self.require_class_jni(c"java/lang/Throwable");
+            let method = self.require_method(throwable_class, c"getMessage", c"()Ljava/lang/String;");
             ((**self.env).v1_2.DeleteLocalRef)(self.env, throwable_class);
             method.addr()
         }) as jmethodID; // it is a global ID
@@ -180,10 +180,9 @@ impl<'env> Env<'env> {
     }
 
     /// Note: the returned `jclass` is actually a new local reference of the class object.
-    pub unsafe fn require_class(self, class: &str) -> jclass {
+    pub unsafe fn require_class(self, class: &CStr) -> jclass {
         // First try with JNI FindClass.
-        debug_assert!(class.ends_with('\0'));
-        let c = ((**self.env).v1_2.FindClass)(self.env, class.as_ptr() as *const c_char);
+        let c = ((**self.env).v1_2.FindClass)(self.env, class.as_ptr());
         let exception: *mut _jobject = ((**self.env).v1_2.ExceptionOccurred)(self.env);
         if !exception.is_null() {
             ((**self.env).v1_2.ExceptionClear)(self.env);
@@ -196,7 +195,8 @@ impl<'env> Env<'env> {
         let classloader = CLASS_LOADER.load(Ordering::Relaxed);
         if !classloader.is_null() {
             let chars = class
-                .trim_end_matches('\0')
+                .to_str()
+                .unwrap()
                 .replace('/', ".")
                 .encode_utf16()
                 .collect::<Vec<_>>();
@@ -206,8 +206,8 @@ impl<'env> Env<'env> {
             let cl_method = *CL_METHOD.get_or_init(|| {
                 // We still use JNI FindClass for this, to avoid a chicken-and-egg situation.
                 // If the system class loader cannot find java.lang.ClassLoader, things are pretty broken!
-                let cl_class = self.require_class_jni("java/lang/ClassLoader\0");
-                let cl_method = self.require_method(cl_class, "loadClass\0", "(Ljava/lang/String;)Ljava/lang/Class;\0");
+                let cl_class = self.require_class_jni(c"java/lang/ClassLoader");
+                let cl_method = self.require_method(cl_class, c"loadClass", c"(Ljava/lang/String;)Ljava/lang/Class;");
                 ((**self.env).v1_2.DeleteLocalRef)(self.env, cl_class);
                 cl_method.addr()
             }) as jmethodID; // it is a global ID
@@ -232,68 +232,35 @@ impl<'env> Env<'env> {
         }
 
         // If neither found the class, panic.
-        panic!("couldn't load class {}", class);
+        panic!("couldn't load class {:?}", class);
     }
 
-    unsafe fn require_class_jni(self, class: &str) -> jclass {
-        debug_assert!(class.ends_with('\0'));
-        let class = ((**self.env).v1_2.FindClass)(self.env, class.as_ptr() as *const c_char);
+    unsafe fn require_class_jni(self, class: &CStr) -> jclass {
+        let class = ((**self.env).v1_2.FindClass)(self.env, class.as_ptr());
         assert!(!class.is_null());
         class
     }
 
-    pub unsafe fn require_method(self, class: jclass, method: &str, descriptor: &str) -> jmethodID {
-        debug_assert!(method.ends_with('\0'));
-        debug_assert!(descriptor.ends_with('\0'));
-
-        let method = ((**self.env).v1_2.GetMethodID)(
-            self.env,
-            class,
-            method.as_ptr() as *const c_char,
-            descriptor.as_ptr() as *const c_char,
-        );
+    pub unsafe fn require_method(self, class: jclass, method: &CStr, descriptor: &CStr) -> jmethodID {
+        let method = ((**self.env).v1_2.GetMethodID)(self.env, class, method.as_ptr(), descriptor.as_ptr());
         assert!(!method.is_null());
         method
     }
 
-    pub unsafe fn require_static_method(self, class: jclass, method: &str, descriptor: &str) -> jmethodID {
-        debug_assert!(method.ends_with('\0'));
-        debug_assert!(descriptor.ends_with('\0'));
-
-        let method = ((**self.env).v1_2.GetStaticMethodID)(
-            self.env,
-            class,
-            method.as_ptr() as *const c_char,
-            descriptor.as_ptr() as *const c_char,
-        );
+    pub unsafe fn require_static_method(self, class: jclass, method: &CStr, descriptor: &CStr) -> jmethodID {
+        let method = ((**self.env).v1_2.GetStaticMethodID)(self.env, class, method.as_ptr(), descriptor.as_ptr());
         assert!(!method.is_null());
         method
     }
 
-    pub unsafe fn require_field(self, class: jclass, field: &str, descriptor: &str) -> jfieldID {
-        debug_assert!(field.ends_with('\0'));
-        debug_assert!(field.ends_with('\0'));
-
-        let field = ((**self.env).v1_2.GetFieldID)(
-            self.env,
-            class,
-            field.as_ptr() as *const c_char,
-            descriptor.as_ptr() as *const c_char,
-        );
+    pub unsafe fn require_field(self, class: jclass, field: &CStr, descriptor: &CStr) -> jfieldID {
+        let field = ((**self.env).v1_2.GetFieldID)(self.env, class, field.as_ptr(), descriptor.as_ptr());
         assert!(!field.is_null());
         field
     }
 
-    pub unsafe fn require_static_field(self, class: jclass, field: &str, descriptor: &str) -> jfieldID {
-        debug_assert!(field.ends_with('\0'));
-        debug_assert!(field.ends_with('\0'));
-
-        let field = ((**self.env).v1_2.GetStaticFieldID)(
-            self.env,
-            class,
-            field.as_ptr() as *const c_char,
-            descriptor.as_ptr() as *const c_char,
-        );
+    pub unsafe fn require_static_field(self, class: jclass, field: &CStr, descriptor: &CStr) -> jfieldID {
+        let field = ((**self.env).v1_2.GetStaticFieldID)(self.env, class, field.as_ptr(), descriptor.as_ptr());
         assert!(!field.is_null());
         field
     }
@@ -301,27 +268,32 @@ impl<'env> Env<'env> {
     // Multi-Query Methods
     // XXX: Remove these unused functions.
 
-    pub unsafe fn require_class_method(self, class: &str, method: &str, descriptor: &str) -> (jclass, jmethodID) {
+    pub unsafe fn require_class_method(self, class: &CStr, method: &CStr, descriptor: &CStr) -> (jclass, jmethodID) {
         let class = self.require_class(class);
         (class, self.require_method(class, method, descriptor))
     }
 
     pub unsafe fn require_class_static_method(
         self,
-        class: &str,
-        method: &str,
-        descriptor: &str,
+        class: &CStr,
+        method: &CStr,
+        descriptor: &CStr,
     ) -> (jclass, jmethodID) {
         let class = self.require_class(class);
         (class, self.require_static_method(class, method, descriptor))
     }
 
-    pub unsafe fn require_class_field(self, class: &str, method: &str, descriptor: &str) -> (jclass, jfieldID) {
+    pub unsafe fn require_class_field(self, class: &CStr, method: &CStr, descriptor: &CStr) -> (jclass, jfieldID) {
         let class = self.require_class(class);
         (class, self.require_field(class, method, descriptor))
     }
 
-    pub unsafe fn require_class_static_field(self, class: &str, method: &str, descriptor: &str) -> (jclass, jfieldID) {
+    pub unsafe fn require_class_static_field(
+        self,
+        class: &CStr,
+        method: &CStr,
+        descriptor: &CStr,
+    ) -> (jclass, jfieldID) {
         let class = self.require_class(class);
         (class, self.require_static_field(class, method, descriptor))
     }

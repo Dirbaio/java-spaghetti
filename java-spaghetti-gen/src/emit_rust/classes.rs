@@ -6,7 +6,7 @@ use std::io;
 use super::fields::Field;
 use super::known_docs_url::KnownDocsUrl;
 use super::methods::Method;
-use super::StrEmitter;
+use super::CStrEmitter;
 use crate::emit_rust::Context;
 use crate::identifiers::{FieldMangling, RustIdentifier};
 use crate::parser_util::{Id, IdPart, JavaClass};
@@ -124,11 +124,11 @@ impl Class {
         writeln!(
             out,
             "unsafe impl ::java_spaghetti::JniType for {rust_name} {{\
-          \n    fn static_with_jni_type<R>(callback: impl FnOnce(&str) -> R) -> R {{\
+          \n    fn static_with_jni_type<R>(callback: impl FnOnce(&::std::ffi::CStr) -> R) -> R {{\
           \n        callback({})\
           \n    }}\
           \n}}",
-            StrEmitter(self.java.path().as_str()),
+            CStrEmitter(self.java.path().as_str()),
         )?;
 
         // recursively visit all superclasses and superinterfaces.
@@ -165,7 +165,7 @@ impl Class {
             context
                 .java_to_rust_path(Id("java/lang/Object"), &self.rust.mod_)
                 .unwrap(),
-            StrEmitter(self.java.path().as_str()),
+            CStrEmitter(self.java.path().as_str()),
         )?;
 
         let mut id_repeats = HashMap::new();
