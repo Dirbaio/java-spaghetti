@@ -16,6 +16,9 @@ serde = "1.0.197"
 serde_derive = "1.0.197"
 toml = "0.8.10"
 zip = "2.2.2"
+quote = "1.0.40"
+proc-macro2 = "1.0.95"
+anyhow = "1.0.98"
 
 [dev-dependencies]
 jni-sys  = "0.4.0"

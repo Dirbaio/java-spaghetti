@@ -9,10 +9,15 @@ mod preamble;
 
 use std::collections::HashMap;
 use std::error::Error;
+use std::ffi::CString;
 use std::io;
 use std::rc::Rc;
+use std::str::FromStr;
 use std::sync::Mutex;
 use std::time::Duration;
+
+use proc_macro2::{Literal, TokenStream};
+use quote::{format_ident, quote, TokenStreamExt};
 
 use self::classes::Class;
 use self::modules::Module;
@@ -38,12 +43,12 @@ impl<'a> Context<'a> {
         }
     }
 
-    pub(crate) fn throwable_rust_path(&self, mod_: &str) -> String {
+    pub(crate) fn throwable_rust_path(&self, mod_: &str) -> TokenStream {
         self.java_to_rust_path(parser_util::Id("java/lang/Throwable"), mod_)
             .unwrap()
     }
 
-    pub fn java_to_rust_path(&self, java_class: parser_util::Id, mod_: &str) -> Result<String, Box<dyn Error>> {
+    pub fn java_to_rust_path(&self, java_class: parser_util::Id, mod_: &str) -> Result<TokenStream, Box<dyn Error>> {
         let m = Class::mod_for(self, java_class)?;
         let s = Class::name_for(self, java_class)?;
         let fqn = format!("{}::{}", m, s);
@@ -59,20 +64,21 @@ impl<'a> Context<'a> {
             mb = &mb[1..];
         }
 
-        let mut res = String::new();
+        let mut res = TokenStream::new();
 
         // for each item left in b, append a `super`
         for _ in mb {
-            res.push_str("super::");
+            res.extend(quote!(super::));
         }
 
         // for each item in a, append it
         for ident in ma {
-            res.push_str(ident);
-            res.push_str("::");
+            let ident = format_ident!("{}", ident);
+            res.extend(quote!(#ident::));
         }
 
-        res.push_str(a[a.len() - 1]);
+        let ident = format_ident!("{}", a[a.len() - 1]);
+        res.append(ident);
 
         Ok(res)
     }
@@ -151,4 +157,8 @@ impl<T: std::fmt::Display> std::fmt::Display for CStrEmitter<T> {
         self.0.fmt(f)?;
         f.write_str("\"")
     }
+}
+
+fn cstring(s: &str) -> Literal {
+    Literal::c_string(&CString::from_str(s).unwrap())
 }

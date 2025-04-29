@@ -1,15 +1,14 @@
-use std::borrow::Cow;
-use std::fmt::Write;
-use std::io;
-
+use anyhow::anyhow;
 use cafebabe::constant_pool::LiteralConstant;
 use cafebabe::descriptors::{FieldDescriptor, FieldType};
+use proc_macro2::{Literal, TokenStream};
+use quote::{format_ident, quote};
 
+use super::cstring;
 use super::known_docs_url::KnownDocsUrl;
-use super::CStrEmitter;
 use crate::emit_rust::Context;
 use crate::identifiers::{FieldMangling, IdentifierManglingError};
-use crate::parser_util::{ClassName, FieldSigWriter, IdBuf, IterableId, JavaClass, JavaField};
+use crate::parser_util::{emit_descriptor, ClassName, IdBuf, IterableId, JavaClass, JavaField};
 
 pub struct Field<'a> {
     pub class: &'a JavaClass,
@@ -40,7 +39,7 @@ impl<'a> Field<'a> {
         }
     }
 
-    pub fn emit(&self, context: &Context, mod_: &str, out: &mut impl io::Write) -> io::Result<()> {
+    pub fn emit(&self, context: &Context, mod_: &str) -> anyhow::Result<TokenStream> {
         let mut emit_reject_reasons = Vec::new();
 
         if !self.java.is_public() {
@@ -53,22 +52,18 @@ impl<'a> Field<'a> {
         let descriptor = &self.java.descriptor();
         let type_emitter = FieldTypeEmitter(descriptor);
 
-        let rust_type = type_emitter
-            .emit_rust_type(context, mod_, &mut emit_reject_reasons)
-            .map_err(|_| io::Error::other("std::fmt::Error"))?;
+        let rust_type = type_emitter.emit_rust_type(context, mod_, &mut emit_reject_reasons)?;
 
-        let (rust_set_type_buffer, rust_get_type_buffer);
         // `rust_set_type` and `rust_get_type` are ones used below
         let (rust_set_type, rust_get_type) = match (descriptor.dimensions, &descriptor.field_type) {
-            (0, t) if !matches!(t, FieldType::Object(_)) => (rust_type.as_ref(), rust_type.as_ref()),
+            (0, t) if !matches!(t, FieldType::Object(_)) => (rust_type.clone(), rust_type),
             (0, FieldType::Object(cls)) if self.java.is_constant() && ClassName::from(cls).is_string_class() => {
-                ("&'static str", "&'static str")
+                (quote!(&'static str), quote!(&'static str))
             }
-            _ => {
-                rust_set_type_buffer = format!("impl ::java_spaghetti::AsArg<{}>", &rust_type);
-                rust_get_type_buffer = format!("::std::option::Option<::java_spaghetti::Local<'env, {}>>", &rust_type);
-                (rust_set_type_buffer.as_str(), rust_get_type_buffer.as_str())
-            }
+            _ => (
+                quote!(impl ::java_spaghetti::AsArg<#rust_type>),
+                quote!(::std::option::Option<::java_spaghetti::Local<'env, #rust_type>>),
+            ),
         };
 
         let field_fragment = type_emitter.emit_fragment_type();
@@ -81,15 +76,9 @@ impl<'a> Field<'a> {
             });
         }
 
-        let emit_reject_reasons = emit_reject_reasons; // Freeze
-        let indent = if emit_reject_reasons.is_empty() {
-            ""
-        } else {
-            if !context.config.codegen.keep_rejected_emits {
-                return Ok(());
-            }
-            "// "
-        };
+        if !emit_reject_reasons.is_empty() {
+            return Ok(TokenStream::new());
+        }
 
         let keywords = format!(
             "{}{}{}{}",
@@ -99,207 +88,165 @@ impl<'a> Field<'a> {
             if self.java.is_volatile() { " volatile" } else { "" }
         );
 
-        let attributes = if self.java.deprecated() { "#[deprecated] " } else { "" };
-
-        writeln!(out)?;
-        for reason in &emit_reject_reasons {
-            writeln!(out, "{}// Not emitting: {}", indent, reason)?;
-        }
-
-        let env_param = if self.java.is_static() {
-            "__jni_env: ::java_spaghetti::Env<'env>"
+        let attributes = if self.java.deprecated() {
+            quote!(#[deprecated])
         } else {
-            "self: &::java_spaghetti::Ref<'env, Self>"
+            quote!()
         };
 
-        let url = KnownDocsUrl::from_field(
+        let mut out = TokenStream::new();
+
+        let env_param = if self.java.is_static() {
+            quote!(__jni_env: ::java_spaghetti::Env<'env>)
+        } else {
+            quote!(self: &::java_spaghetti::Ref<'env, Self>)
+        };
+
+        let docs = match KnownDocsUrl::from_field(
             context,
             self.class.path().as_str(),
             self.java.name(),
             self.java.descriptor().clone(),
-        );
-        let url = url.as_ref();
+        ) {
+            Some(url) => format!("{keywords} {url}"),
+            None => format!("{keywords} {}", self.java.name()),
+        };
 
-        match self.rust_names.as_ref() {
-            Ok(FieldMangling::ConstValue(constant, value)) => {
-                let value_writer = ConstantWriter(value);
-                if let Some(url) = url {
-                    writeln!(out, "{indent}/// {keywords} {url}")?;
-                }
-                match descriptor.field_type {
-                    FieldType::Char if descriptor.dimensions == 0 => writeln!(
-                        out,
-                        "{indent}{attributes}pub const {constant} : u16 = {value_writer}u16;",
-                    )?,
-                    FieldType::Boolean if descriptor.dimensions == 0 => writeln!(
-                        out,
-                        "{indent}{attributes}pub const {constant} : {rust_get_type} = {};",
-                        if let LiteralConstant::Integer(0) = value {
-                            "false"
-                        } else {
-                            "true"
-                        }
-                    )?,
-                    _ => writeln!(
-                        out,
-                        "{indent}{attributes}pub const {constant} : {rust_get_type} = {value_writer};",
-                    )?,
-                }
+        match self.rust_names.as_ref().map_err(|e| anyhow!("bad mangling: {e}"))? {
+            FieldMangling::ConstValue(constant, value) => {
+                let constant = format_ident!("{}", constant);
+                let value = emit_constant(&value, descriptor);
+
+                out.extend(quote!(
+                    #[doc = #docs]
+                    #attributes
+                    pub const #constant: #rust_get_type = #value;
+                ));
             }
-            Ok(FieldMangling::GetSet(get, set)) => {
-                // Getter
-                if let Some(url) = url {
-                    writeln!(out, "{indent}/// **get** {keywords} {url}")?;
-                } else {
-                    writeln!(out, "{indent}/// **get** {keywords} {}", self.java.name())?;
-                }
-                writeln!(
-                    out,
-                    "{indent}{attributes}pub fn {get}<'env>({env_param}) -> {rust_get_type} {{",
-                )?;
-                writeln!(
-                    out,
-                    "{indent}    static __FIELD: ::std::sync::OnceLock<::java_spaghetti::JFieldID> \
-                        = ::std::sync::OnceLock::new();"
-                )?;
-                writeln!(out, "{indent}    unsafe {{")?;
-                if !self.java.is_static() {
-                    writeln!(out, "{indent}        let __jni_env = self.env();")?;
-                }
-                writeln!(
-                    out,
-                    "{indent}        let __jni_class = Self::__class_global_ref(__jni_env);"
-                )?;
-                writeln!(
-                    out,
-                    "{indent}        \
-                    let __jni_field = __FIELD.get_or_init(|| \
-                        ::java_spaghetti::JFieldID::from_raw(__jni_env.require_{}field(__jni_class, {}, {}))\
-                    ).as_raw();",
-                    if self.java.is_static() { "static_" } else { "" },
-                    CStrEmitter(self.java.name()),
-                    CStrEmitter(FieldSigWriter(self.java.descriptor()))
-                )?;
-                if self.java.is_static() {
-                    writeln!(
-                        out,
-                        "{indent}        __jni_env.get_static_{field_fragment}_field(__jni_class, __jni_field)",
-                    )?;
-                } else {
-                    writeln!(
-                        out,
-                        "{indent}        __jni_env.get_{field_fragment}_field(self.as_raw(), __jni_field)",
-                    )?;
-                }
-                writeln!(out, "{indent}    }}")?;
-                writeln!(out, "{indent}}}")?;
+            FieldMangling::GetSet(get, set) => {
+                let get = format_ident!("{get}");
+                let set = format_ident!("{set}");
+
+                let env_let = match self.java.is_static() {
+                    false => quote!(let __jni_env = self.env();),
+                    true => quote!(),
+                };
+                let require_field = match self.java.is_static() {
+                    false => quote!(require_field),
+                    true => quote!(require_static_field),
+                };
+                let get_field = match self.java.is_static() {
+                    false => format_ident!("get_{field_fragment}_field"),
+                    true => format_ident!("get_static_{field_fragment}_field"),
+                };
+                let set_field = match self.java.is_static() {
+                    false => format_ident!("set_{field_fragment}_field"),
+                    true => format_ident!("set_static_{field_fragment}_field"),
+                };
+
+                let java_name = cstring(self.java.name());
+                let descriptor = cstring(&emit_descriptor(self.java.descriptor()));
+
+                let get_docs = format!("**get** {docs}");
+                let set_docs = format!("**set** {docs}");
+                out.extend(quote!(
+                    #[doc = #get_docs]
+                    #attributes
+                    pub fn #get<'env>(#env_param) -> #rust_get_type {
+                        static __FIELD: ::std::sync::OnceLock<::java_spaghetti::JFieldID> = ::std::sync::OnceLock::new();
+                        #env_let
+                        let __jni_class = Self::__class_global_ref(__jni_env);
+                        unsafe {
+                            let __jni_field = __FIELD.get_or_init(|| ::java_spaghetti::JFieldID::from_raw(__jni_env.#require_field(__jni_class, #java_name, #descriptor))).as_raw();
+                            __jni_env.#get_field(__jni_class, __jni_field)
+                        }
+                    }
+                ));
 
                 // Setter
                 if !self.java.is_final() {
                     let lifetimes = if field_fragment == "object" {
-                        "'env, 'obj"
+                        quote!('env, 'obj)
                     } else {
-                        "'env"
+                        quote!('env)
                     };
 
-                    writeln!(out)?;
-                    if let Some(url) = url {
-                        writeln!(out, "{indent}/// **set** {keywords} {url}")?;
-                    } else {
-                        writeln!(out, "{indent}/// **set** {keywords} {}", self.java.name())?;
-                    }
-                    writeln!(
-                        out,
-                        "{indent}{attributes}pub fn {set}<{lifetimes}>({env_param}, value: {rust_set_type}) {{",
-                    )?;
-                    writeln!(
-                        out,
-                        "{indent}    static __FIELD: ::std::sync::OnceLock<::java_spaghetti::JFieldID> \
-                            = ::std::sync::OnceLock::new();"
-                    )?;
-                    writeln!(out, "{indent}    unsafe {{")?;
-                    if !self.java.is_static() {
-                        writeln!(out, "{indent}        let __jni_env = self.env();")?;
-                    }
-                    writeln!(
-                        out,
-                        "{indent}        let __jni_class = Self::__class_global_ref(__jni_env);"
-                    )?;
-                    writeln!(
-                        out,
-                        "{indent}        \
-                        let __jni_field = __FIELD.get_or_init(|| \
-                            ::java_spaghetti::JFieldID::from_raw(__jni_env.require_{}field(__jni_class, {}, {}))\
-                        ).as_raw();",
-                        if self.java.is_static() { "static_" } else { "" },
-                        CStrEmitter(self.java.name()),
-                        CStrEmitter(FieldSigWriter(self.java.descriptor()))
-                    )?;
-                    if self.java.is_static() {
-                        writeln!(
-                            out,
-                            "{indent}        \
-                            __jni_env.set_static_{field_fragment}_field(__jni_class, __jni_field, value)",
-                        )?;
-                    } else {
-                        writeln!(
-                            out,
-                            "{indent}        \
-                            __jni_env.set_{field_fragment}_field(self.as_raw(), __jni_field, value)",
-                        )?;
-                    }
-                    writeln!(out, "{indent}    }}")?;
-                    writeln!(out, "{indent}}}")?;
-                }
-            }
-            Err(_) => {
-                writeln!(
-                    out,
-                    "{indent}{attributes}pub fn get_{:?}<'env>({env_param}) -> {rust_get_type} {{ ... }}",
-                    self.java.name(),
-                )?;
-                if !self.java.is_final() {
-                    writeln!(
-                        out,
-                        "{indent}{attributes}pub fn set_{:?}<'env>({env_param}) -> {rust_set_type} {{ ... }}",
-                        self.java.name(),
-                    )?;
+                    out.extend(quote!(
+                        #[doc = #set_docs]
+                        #attributes
+                        pub fn #set<#lifetimes>(#env_param, value: #rust_set_type) {
+                            static __FIELD: ::std::sync::OnceLock<::java_spaghetti::JFieldID> = ::std::sync::OnceLock::new();
+                            #env_let
+                            let __jni_class = Self::__class_global_ref(__jni_env);
+                            unsafe {
+                                let __jni_field = __FIELD.get_or_init(|| ::java_spaghetti::JFieldID::from_raw(__jni_env.#require_field(__jni_class, #java_name, #descriptor))).as_raw();
+                                __jni_env.#set_field(__jni_class, __jni_field, value);
+                            }
+                        }
+                    ));
                 }
             }
         }
 
-        Ok(())
+        if emit_reject_reasons.is_empty() {
+            Ok(out)
+        } else if context.config.codegen.keep_rejected_emits {
+            // TODO still emit but comment out
+            //for reason in &emit_reject_reasons {
+            //    writeln!(out, "{}// Not emitting: {}", indent, reason)?;
+            //}
+            Ok(TokenStream::new())
+        } else {
+            Ok(TokenStream::new())
+        }
     }
 }
 
-struct ConstantWriter<'a>(&'a LiteralConstant<'a>);
-
-// Migrated from <https://docs.rs/jreflection/latest/src/jreflection/field.rs.html#53-73>,
-// which seems like a bug for `java-spaghetti`.
-impl std::fmt::Display for ConstantWriter<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.0 {
-            LiteralConstant::Integer(value) => write!(f, "{}", value),
-            LiteralConstant::Long(value) => write!(f, "{}i64", value),
-
-            LiteralConstant::Float(value) if value.is_infinite() && *value < 0.0 => {
-                write!(f, "::std::f32::NEG_INFINITY")
+pub fn emit_constant(constant: &LiteralConstant<'_>, descriptor: &FieldDescriptor) -> TokenStream {
+    if descriptor.field_type == FieldType::Char && descriptor.dimensions == 0 {
+        return match constant {
+            LiteralConstant::Integer(value) => {
+                let value = *value as i16;
+                quote!(#value)
             }
-            LiteralConstant::Float(value) if value.is_infinite() => write!(f, "::std::f32::INFINITY"),
-            LiteralConstant::Float(value) if value.is_nan() => write!(f, "::std::f32::NAN"),
-            LiteralConstant::Float(value) => write!(f, "{}f32", value),
+            _ => panic!("invalid constant for char {:?}", constant),
+        };
+    }
+    if descriptor.field_type == FieldType::Boolean && descriptor.dimensions == 0 {
+        return match constant {
+            LiteralConstant::Integer(0) => quote!(false),
+            LiteralConstant::Integer(1) => quote!(true),
+            _ => panic!("invalid constant for boolean {:?}", constant),
+        };
+    }
 
-            LiteralConstant::Double(value) if value.is_infinite() && *value < 0.0 => {
-                write!(f, "::std::f64::NEG_INFINITY")
-            }
-            LiteralConstant::Double(value) if value.is_infinite() => write!(f, "::std::f64::INFINITY"),
-            LiteralConstant::Double(value) if value.is_nan() => write!(f, "::std::f64::NAN"),
-            LiteralConstant::Double(value) => write!(f, "{}f64", value),
+    match constant {
+        LiteralConstant::Integer(value) => {
+            let value = Literal::i32_unsuffixed(*value);
+            quote!(#value)
+        }
+        LiteralConstant::Long(value) => {
+            let value = Literal::i64_unsuffixed(*value);
+            quote!(#value)
+        }
 
-            LiteralConstant::String(value) => std::fmt::Debug::fmt(value, f),
-            LiteralConstant::StringBytes(_) => {
-                write!(f, "panic!(\"Java string constant contains invalid 'Modified UTF8'\")")
-            }
+        LiteralConstant::Float(value) if value.is_infinite() && *value < 0.0 => {
+            quote!(::std::f32::NEG_INFINITY)
+        }
+        LiteralConstant::Float(value) if value.is_infinite() => quote!(::std::f32::INFINITY),
+        LiteralConstant::Float(value) if value.is_nan() => quote!(::std::f32::NAN),
+        LiteralConstant::Float(value) => quote!(#value),
+
+        LiteralConstant::Double(value) if value.is_infinite() && *value < 0.0 => {
+            quote!(::std::f64::NEG_INFINITY)
+        }
+        LiteralConstant::Double(value) if value.is_infinite() => quote!(::std::f64::INFINITY),
+        LiteralConstant::Double(value) if value.is_nan() => quote!(::std::f64::NAN),
+        LiteralConstant::Double(value) => quote!(#value),
+
+        LiteralConstant::String(value) => quote! {#value},
+        LiteralConstant::StringBytes(_) => {
+            quote!(panic!("Java string constant contains invalid 'Modified UTF8'"))
         }
     }
 }
@@ -313,19 +260,18 @@ impl FieldTypeEmitter<'_> {
         context: &Context<'_>,
         mod_: &str,
         reject_reasons: &mut Vec<&'static str>,
-    ) -> Result<Cow<'static, str>, std::fmt::Error> {
-        use Cow::Borrowed;
+    ) -> Result<TokenStream, std::fmt::Error> {
         let descriptor = self.0;
         let cow = if descriptor.dimensions == 0 {
             match &descriptor.field_type {
-                FieldType::Boolean => Borrowed("bool"),
-                FieldType::Byte => Borrowed("i8"),
-                FieldType::Char => Borrowed("u16"),
-                FieldType::Short => Borrowed("i16"),
-                FieldType::Integer => Borrowed("i32"),
-                FieldType::Long => Borrowed("i64"),
-                FieldType::Float => Borrowed("f32"),
-                FieldType::Double => Borrowed("f64"),
+                FieldType::Boolean => quote!(bool),
+                FieldType::Byte => quote!(i8),
+                FieldType::Char => quote!(u16),
+                FieldType::Short => quote!(i16),
+                FieldType::Integer => quote!(i32),
+                FieldType::Long => quote!(i64),
+                FieldType::Float => quote!(f32),
+                FieldType::Double => quote!(f64),
                 FieldType::Object(class_name) => {
                     let class = IdBuf::from(class_name);
                     if !context.all_classes.contains_key(class.as_str()) {
@@ -335,25 +281,25 @@ impl FieldTypeEmitter<'_> {
                         path
                     } else {
                         reject_reasons.push("ERROR:  Failed to resolve JNI path to Rust path for class type");
-                        format!("{:?}", class) // XXX
+                        let class = class.as_str();
+                        quote!(#class) // XXX
                     }
-                    .into()
                 }
             }
         } else {
-            let mut out = String::new();
+            let mut out = TokenStream::new();
             for _ in 0..(descriptor.dimensions - 1) {
-                write!(out, "::java_spaghetti::ObjectArray<")?;
+                out.extend(quote!(::java_spaghetti::ObjectArray<));
             }
             match &descriptor.field_type {
-                FieldType::Boolean => write!(out, "::java_spaghetti::BooleanArray"),
-                FieldType::Byte => write!(out, "::java_spaghetti::ByteArray"),
-                FieldType::Char => write!(out, "::java_spaghetti::CharArray"),
-                FieldType::Short => write!(out, "::java_spaghetti::ShortArray"),
-                FieldType::Integer => write!(out, "::java_spaghetti::IntArray"),
-                FieldType::Long => write!(out, "::java_spaghetti::LongArray"),
-                FieldType::Float => write!(out, "::java_spaghetti::FloatArray"),
-                FieldType::Double => write!(out, "::java_spaghetti::DoubleArray"),
+                FieldType::Boolean => out.extend(quote!(::java_spaghetti::BooleanArray)),
+                FieldType::Byte => out.extend(quote!(::java_spaghetti::ByteArray)),
+                FieldType::Char => out.extend(quote!(::java_spaghetti::CharArray)),
+                FieldType::Short => out.extend(quote!(::java_spaghetti::ShortArray)),
+                FieldType::Integer => out.extend(quote!(::java_spaghetti::IntArray)),
+                FieldType::Long => out.extend(quote!(::java_spaghetti::LongArray)),
+                FieldType::Float => out.extend(quote!(::java_spaghetti::FloatArray)),
+                FieldType::Double => out.extend(quote!(::java_spaghetti::DoubleArray)),
                 FieldType::Object(class_name) => {
                     let class = IdBuf::from(class_name);
 
@@ -361,24 +307,24 @@ impl FieldTypeEmitter<'_> {
                         reject_reasons.push("ERROR:  missing class for field type");
                     }
 
-                    write!(out, "::java_spaghetti::ObjectArray<")?;
+                    out.extend(quote!(::java_spaghetti::ObjectArray<));
                     match context.java_to_rust_path(class.as_id(), mod_) {
-                        Ok(path) => write!(out, "{path}"),
+                        Ok(path) => out.extend(path),
                         Err(_) => {
                             reject_reasons.push("ERROR:  Failed to resolve JNI path to Rust path for class type");
-                            write!(out, "???")
+                            out.extend(quote!(???));
                         }
-                    }?;
-                    write!(out, ", ")?;
-                    write!(out, "{}", &context.throwable_rust_path(mod_))?;
-                    write!(out, ">")
+                    };
+                    out.extend(quote!(,));
+                    out.extend(context.throwable_rust_path(mod_));
+                    out.extend(quote!(>));
                 }
-            }?;
+            };
             for _ in 0..(descriptor.dimensions - 1) {
                 // ObjectArray s
-                write!(out, ", ")?;
-                write!(out, "{}", &context.throwable_rust_path(mod_))?;
-                write!(out, ">")?;
+                out.extend(quote!(,));
+                out.extend(context.throwable_rust_path(mod_));
+                out.extend(quote!(>));
             }
             out.into()
         };

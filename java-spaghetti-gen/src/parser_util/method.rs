@@ -4,7 +4,7 @@ use cafebabe::attributes::AttributeData;
 use cafebabe::descriptors::{MethodDescriptor, ReturnDescriptor};
 use cafebabe::MethodAccessFlags;
 
-use super::FieldSigWriter;
+use super::emit_descriptor;
 
 pub struct JavaMethod<'a> {
     java: &'a cafebabe::MethodInfo<'a>,
@@ -113,11 +113,11 @@ impl std::fmt::Display for MethodSigWriter<'_> {
         let descriptor = self.0;
         f.write_char('(')?;
         for arg in descriptor.parameters.iter() {
-            FieldSigWriter(arg).fmt(f)?;
+            emit_descriptor(arg).fmt(f)?;
         }
         f.write_char(')')?;
         if let ReturnDescriptor::Return(desc) = &descriptor.return_type {
-            FieldSigWriter(desc).fmt(f)
+            emit_descriptor(desc).fmt(f)
         } else {
             f.write_char('V')
         }

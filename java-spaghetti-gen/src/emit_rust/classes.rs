@@ -3,10 +3,10 @@ use std::error::Error;
 use std::fmt::Write;
 use std::io;
 
+use super::cstring;
 use super::fields::Field;
 use super::known_docs_url::KnownDocsUrl;
 use super::methods::Method;
-use super::CStrEmitter;
 use crate::emit_rust::Context;
 use crate::identifiers::{FieldMangling, RustIdentifier};
 use crate::parser_util::{Id, IdPart, JavaClass};
@@ -128,7 +128,7 @@ impl Class {
           \n        callback({})\
           \n    }}\
           \n}}",
-            CStrEmitter(self.java.path().as_str()),
+            cstring(self.java.path().as_str()),
         )?;
 
         // recursively visit all superclasses and superinterfaces.
@@ -165,7 +165,7 @@ impl Class {
             context
                 .java_to_rust_path(Id("java/lang/Object"), &self.rust.mod_)
                 .unwrap(),
-            CStrEmitter(self.java.path().as_str()),
+            cstring(self.java.path().as_str()),
         )?;
 
         let mut id_repeats = HashMap::new();
@@ -215,7 +215,8 @@ impl Class {
         }
 
         for field in &mut fields {
-            field.emit(context, &self.rust.mod_, out)?;
+            let res = field.emit(context, &self.rust.mod_).unwrap();
+            out.write(res.to_string().as_bytes())?;
         }
 
         writeln!(out, "}}")?;

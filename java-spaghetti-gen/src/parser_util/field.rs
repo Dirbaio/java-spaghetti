@@ -106,33 +106,28 @@ impl<'a> JavaField<'a> {
     }
 }
 
-// XXX: cannot get the original string from `cafebabe::descriptors::FieldDescriptor`.
-// <https://github.com/staktrace/cafebabe/issues/52>
-pub struct FieldSigWriter<'a>(pub &'a FieldDescriptor<'a>);
-
-impl std::fmt::Display for FieldSigWriter<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let descriptor = self.0;
-        for _ in 0..descriptor.dimensions {
-            f.write_char('[')?;
-        }
-        if let FieldType::Object(class_name) = &descriptor.field_type {
-            f.write_char('L')?;
-            ClassName::from(class_name).fmt(f)?;
-            f.write_char(';')
-        } else {
-            let ch = match descriptor.field_type {
-                FieldType::Boolean => 'Z',
-                FieldType::Byte => 'B',
-                FieldType::Char => 'C',
-                FieldType::Short => 'S',
-                FieldType::Integer => 'I',
-                FieldType::Long => 'J',
-                FieldType::Float => 'F',
-                FieldType::Double => 'D',
-                _ => unreachable!(),
-            };
-            f.write_char(ch)
-        }
+pub fn emit_descriptor(descriptor: &FieldDescriptor) -> String {
+    let mut res = String::new();
+    for _ in 0..descriptor.dimensions {
+        res.push('[');
     }
+    if let FieldType::Object(class_name) = &descriptor.field_type {
+        res.push('L');
+        write!(&mut res, "{}", ClassName::from(class_name)).unwrap();
+        res.push(';');
+    } else {
+        let ch = match descriptor.field_type {
+            FieldType::Boolean => 'Z',
+            FieldType::Byte => 'B',
+            FieldType::Char => 'C',
+            FieldType::Short => 'S',
+            FieldType::Integer => 'I',
+            FieldType::Long => 'J',
+            FieldType::Float => 'F',
+            FieldType::Double => 'D',
+            _ => unreachable!(),
+        };
+        res.push(ch)
+    }
+    res
 }

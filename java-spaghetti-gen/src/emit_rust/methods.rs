@@ -107,9 +107,9 @@ impl<'a> Method<'a> {
                 .map_err(|_| io::Error::other("std::fmt::Error"))?;
 
             let arg_type = if arg.dimensions == 0 && !param_is_object {
-                rust_type.into_owned()
+                rust_type.to_string()
             } else {
-                let mut rust_type = rust_type.into_owned();
+                let mut rust_type = rust_type.to_string();
                 rust_type.insert_str(0, "impl ::java_spaghetti::AsArg<");
                 rust_type.push('>');
                 rust_type
@@ -144,15 +144,15 @@ impl<'a> Method<'a> {
 
             let param_is_object = matches!(desc.field_type, FieldType::Object(_));
             if desc.dimensions == 0 && !param_is_object {
-                rust_type
+                rust_type.to_string()
             } else {
-                let mut rust_type = rust_type.into_owned();
+                let mut rust_type = rust_type.to_string();
                 rust_type.insert_str(0, "::std::option::Option<::java_spaghetti::Local<'env, ");
                 rust_type.push_str(">>");
-                rust_type.into()
+                rust_type
             }
         } else {
-            "()".into()
+            "()".to_string()
         };
 
         let mut ret_method_fragment = if let ReturnDescriptor::Return(desc) = &descriptor.return_type {
