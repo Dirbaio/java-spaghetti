@@ -91,24 +91,17 @@ impl<'a> Method<'a> {
 
         // Contents of fn name<'env>(...) {
         let mut params_decl = if self.java.is_constructor() || self.java.is_static() {
-            quote!(__jni_env: ::java_spaghetti::Env<'env>)
+            quote!(__jni_env: ::java_spaghetti::Env<'env>,)
         } else {
-            quote!(self: &::java_spaghetti::Ref<'env, Self>)
+            quote!(self: &::java_spaghetti::Ref<'env, Self>,)
         };
 
         for (arg_idx, arg) in descriptor.parameters.iter().enumerate() {
             let arg_name = format_ident!("arg{}", arg_idx);
             let arg_type = emit_rust_type(arg, context, mod_, RustTypeFlavor::ImplAsArg, &mut emit_reject_reasons)?;
 
-            if !params_array.is_empty() {
-                params_array.extend(quote!(,));
-            }
-            params_array.extend(quote!(::java_spaghetti::AsJValue::as_jvalue(&#arg_name)));
-
-            if !params_decl.is_empty() {
-                params_decl.extend(quote!(,));
-            }
-            params_decl.extend(quote!(#arg_name: #arg_type));
+            params_array.extend(quote!(::java_spaghetti::AsJValue::as_jvalue(&#arg_name),));
+            params_decl.extend(quote!(#arg_name: #arg_type,));
         }
 
         let mut ret_decl = if let ReturnDescriptor::Return(desc) = &descriptor.return_type {
