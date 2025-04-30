@@ -213,7 +213,7 @@ impl<'a> Iterator for ClassNameIter<'a> {
                 };
                 Some(namespace)
             }
-            Self::RestClasses(ref mut id_iter) => id_iter.next(),
+            Self::RestClasses(id_iter) => id_iter.next(),
         }
     }
 }
