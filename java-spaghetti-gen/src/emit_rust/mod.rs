@@ -1,5 +1,6 @@
 //! Rust generation logic
 
+mod class_proxy;
 mod classes;
 mod fields;
 mod known_docs_url;
@@ -7,7 +8,7 @@ mod methods;
 mod modules;
 mod preamble;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::ffi::CString;
 use std::io;
@@ -84,10 +85,18 @@ impl<'a> Context<'a> {
     }
 
     fn class_included(&self, path: &str) -> bool {
-        if self.config.include_classes.contains(path) {
+        self.included(path, &self.config.include_classes)
+    }
+
+    fn proxy_included(&self, path: &str) -> bool {
+        self.included(path, &self.config.include_proxies)
+    }
+
+    fn included(&self, path: &str, set: &HashSet<String>) -> bool {
+        if set.contains(path) {
             return true;
         }
-        if self.config.include_classes.contains("*") {
+        if set.contains("*") {
             return true;
         }
 
@@ -100,7 +109,7 @@ impl<'a> Context<'a> {
 
             pat.push('/');
             pat.push('*');
-            if self.config.include_classes.contains(&pat) {
+            if set.contains(&pat) {
                 return true;
             }
             pat.pop();

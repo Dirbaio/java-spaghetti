@@ -46,6 +46,8 @@ pub struct Config {
 
     pub(crate) include_classes: HashSet<String>,
 
+    pub(crate) include_proxies: HashSet<String>,
+
     pub(crate) ignore_classes: HashSet<String>,
     pub(crate) ignore_class_fields: HashSet<String>,
     pub(crate) ignore_class_methods: HashSet<String>,
@@ -65,12 +67,17 @@ impl From<toml::FileWithContext> for Config {
         let documentation = file.documentation;
         let logging = file.logging;
 
-        let mut include_classes = HashSet::new();
+        let mut include_classes: HashSet<String> = HashSet::new();
         for include in file.includes {
             include_classes.insert(include);
         }
         if include_classes.is_empty() {
             include_classes.insert("*".to_string());
+        }
+
+        let mut include_proxies: HashSet<String> = HashSet::new();
+        for include in file.include_proxies {
+            include_proxies.insert(include);
         }
 
         let mut ignore_classes = HashSet::new();
@@ -128,6 +135,7 @@ impl From<toml::FileWithContext> for Config {
             output_path,
             logging_verbose: logging.verbose,
             include_classes,
+            include_proxies,
             ignore_classes,
             ignore_class_fields,
             ignore_class_methods,

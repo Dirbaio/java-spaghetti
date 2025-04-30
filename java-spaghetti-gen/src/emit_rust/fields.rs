@@ -253,12 +253,16 @@ pub fn emit_constant(constant: &LiteralConstant<'_>, descriptor: &FieldDescripto
 pub enum RustTypeFlavor {
     ImplAsArg,
     OptionLocal,
+    OptionRef,
+    Arg,
 }
 
 fn flavorify(ty: TokenStream, flavor: RustTypeFlavor) -> TokenStream {
     match flavor {
         RustTypeFlavor::ImplAsArg => quote!(impl ::java_spaghetti::AsArg<#ty>),
         RustTypeFlavor::OptionLocal => quote!(::std::option::Option<::java_spaghetti::Local<'env, #ty>>),
+        RustTypeFlavor::OptionRef => quote!(::std::option::Option<::java_spaghetti::Ref<'env, #ty>>),
+        RustTypeFlavor::Arg => quote!(::java_spaghetti::Arg<#ty>),
     }
 }
 

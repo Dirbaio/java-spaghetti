@@ -14,6 +14,10 @@ fn default_method_naming_style_collision() -> MethodManglingStyle {
     MethodManglingStyle::RustifyShortSignature
 }
 
+fn default_proxy_path_prefix() -> String {
+    "java_spaghetti/proxy".to_string()
+}
+
 /// The \[codegen\] section.
 #[derive(Debug, Clone, Deserialize)]
 pub struct CodeGen {
@@ -28,6 +32,9 @@ pub struct CodeGen {
     /// How fields should be named.
     #[serde(default = "Default::default")]
     pub field_naming_style: FieldManglingStyle,
+
+    #[serde(default = "default_proxy_path_prefix")]
+    pub proxy_path_prefix: String,
 }
 
 impl Default for CodeGen {
@@ -36,6 +43,7 @@ impl Default for CodeGen {
             method_naming_style: default_method_naming_style(),
             method_naming_style_collision: default_method_naming_style_collision(),
             field_naming_style: Default::default(),
+            proxy_path_prefix: default_proxy_path_prefix(),
         }
     }
 }
@@ -278,6 +286,11 @@ pub struct File {
     #[serde(rename = "include")]
     #[serde(default = "Vec::new")]
     pub includes: Vec<String>,
+
+    /// Proxies to include.
+    #[serde(rename = "include_proxy")]
+    #[serde(default = "Vec::new")]
+    pub include_proxies: Vec<String>,
 
     /// Classes and class methods to ignore.
     #[serde(rename = "ignore")]

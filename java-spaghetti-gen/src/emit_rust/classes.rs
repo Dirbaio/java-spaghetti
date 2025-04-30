@@ -235,6 +235,10 @@ impl Class {
 
         out.extend(quote!(impl #rust_name { #contents }));
 
+        if self.java.is_interface() && context.proxy_included(&self.java.path().as_str()) {
+            out.extend(self.write_proxy(context, &methods)?);
+        }
+
         Ok(out)
     }
 }
