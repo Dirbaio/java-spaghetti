@@ -147,11 +147,7 @@ fn resolve_file(path: PathBuf, dir: &Path) -> PathBuf {
     }
     .into();
 
-    if path.is_relative() {
-        dir.join(path)
-    } else {
-        path
-    }
+    if path.is_relative() { dir.join(path) } else { path }
 }
 
 fn expand_vars(string: String) -> String {

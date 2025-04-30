@@ -17,7 +17,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use proc_macro2::{Literal, TokenStream};
-use quote::{format_ident, quote, TokenStreamExt};
+use quote::{TokenStreamExt, format_ident, quote};
 
 use self::classes::Class;
 use self::modules::Module;

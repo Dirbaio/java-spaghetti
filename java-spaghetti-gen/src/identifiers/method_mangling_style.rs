@@ -1,7 +1,7 @@
 use cafebabe::descriptors::{FieldType, MethodDescriptor};
 use serde_derive::Deserialize;
 
-use super::rust_identifier::{javaify_identifier, rustify_identifier, IdentifierManglingError};
+use super::rust_identifier::{IdentifierManglingError, javaify_identifier, rustify_identifier};
 use crate::parser_util::{ClassName, IdPart};
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Hash)]

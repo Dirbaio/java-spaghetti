@@ -30,7 +30,12 @@ pub fn write_generated(context: &emit_rust::Context, path: &impl AsRef<Path>, co
             }
 
             if !found_marker {
-                return io_data_err!("Cannot overwrite {:?}:  File exists, and first line {:?} doesn't match expected MARKER_COMMENT {:?}", path, first_line, MARKER_COMMENT);
+                return io_data_err!(
+                    "Cannot overwrite {:?}:  File exists, and first line {:?} doesn't match expected MARKER_COMMENT {:?}",
+                    path,
+                    first_line,
+                    MARKER_COMMENT
+                );
             }
 
             let difference = Difference::find(&mut original, &mut Cursor::new(contents))?;

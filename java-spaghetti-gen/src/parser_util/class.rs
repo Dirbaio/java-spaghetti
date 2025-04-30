@@ -2,8 +2,8 @@ use std::borrow::Cow;
 use std::marker::PhantomPinned;
 use std::pin::Pin;
 
-use cafebabe::attributes::AttributeData;
 pub use cafebabe::ClassAccessFlags;
+use cafebabe::attributes::AttributeData;
 
 use super::Id;
 

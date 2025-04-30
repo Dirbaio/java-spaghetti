@@ -1,6 +1,6 @@
 use serde_derive::Deserialize;
 
-use crate::identifiers::{constify_identifier, javaify_identifier, rustify_identifier, IdentifierManglingError};
+use crate::identifiers::{IdentifierManglingError, constify_identifier, javaify_identifier, rustify_identifier};
 use crate::parser_util::JavaField;
 
 pub enum FieldMangling<'a> {

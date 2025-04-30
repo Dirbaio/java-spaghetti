@@ -1,6 +1,6 @@
+use cafebabe::MethodAccessFlags;
 use cafebabe::attributes::AttributeData;
 use cafebabe::descriptors::{MethodDescriptor, ReturnDescriptor};
-use cafebabe::MethodAccessFlags;
 
 use super::emit_field_descriptor;
 
