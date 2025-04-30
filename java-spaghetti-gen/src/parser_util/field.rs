@@ -1,9 +1,9 @@
 use std::fmt::Write;
 
+use cafebabe::FieldAccessFlags;
 use cafebabe::attributes::AttributeData;
 use cafebabe::constant_pool::LiteralConstant;
 use cafebabe::descriptors::{FieldDescriptor, FieldType};
-use cafebabe::FieldAccessFlags;
 
 use super::ClassName;
 
@@ -71,15 +71,6 @@ impl<'a> JavaField<'a> {
         } else {
             None
         }
-    }
-
-    pub fn is_constant(&self) -> bool {
-        self.is_static()
-            && self.is_final()
-            && self
-                .attributes
-                .iter()
-                .any(|attr| matches!(&attr.data, AttributeData::ConstantValue(_)))
     }
 
     pub fn constant<'s>(&'s self) -> Option<LiteralConstant<'a>> {

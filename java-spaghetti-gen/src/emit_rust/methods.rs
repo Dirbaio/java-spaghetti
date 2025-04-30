@@ -3,11 +3,11 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
 use super::cstring;
-use super::fields::{emit_fragment_type, emit_rust_type};
+use super::fields::{RustTypeFlavor, emit_fragment_type, emit_rust_type};
 use super::known_docs_url::KnownDocsUrl;
 use crate::emit_rust::Context;
 use crate::identifiers::MethodManglingStyle;
-use crate::parser_util::{emit_method_descriptor, JavaClass, JavaMethod};
+use crate::parser_util::{JavaClass, JavaMethod, emit_method_descriptor};
 
 pub struct Method<'a> {
     pub class: &'a JavaClass,
@@ -101,13 +101,7 @@ impl<'a> Method<'a> {
 
             let param_is_object = matches!(arg.field_type, FieldType::Object(_)) || arg.dimensions > 0;
 
-            let rust_type = emit_rust_type(arg, context, mod_, &mut emit_reject_reasons)?;
-
-            let arg_type = if arg.dimensions == 0 && !param_is_object {
-                rust_type
-            } else {
-                quote!(impl ::java_spaghetti::AsArg<#rust_type>)
-            };
+            let arg_type = emit_rust_type(arg, context, mod_, RustTypeFlavor::ImplAsArg, &mut emit_reject_reasons)?;
 
             if !params_array.is_empty() {
                 params_array.extend(quote!(,));
@@ -127,14 +121,13 @@ impl<'a> Method<'a> {
         }
 
         let mut ret_decl = if let ReturnDescriptor::Return(desc) = &descriptor.return_type {
-            let rust_type = emit_rust_type(desc, context, mod_, &mut emit_reject_reasons)?;
-
-            let param_is_object = matches!(desc.field_type, FieldType::Object(_));
-            if desc.dimensions == 0 && !param_is_object {
-                rust_type
-            } else {
-                quote!(::std::option::Option<::java_spaghetti::Local<'env, #rust_type>>)
-            }
+            emit_rust_type(
+                desc,
+                context,
+                mod_,
+                RustTypeFlavor::OptionLocal,
+                &mut emit_reject_reasons,
+            )?
         } else {
             quote!(())
         };

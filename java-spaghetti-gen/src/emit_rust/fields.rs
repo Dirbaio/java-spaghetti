@@ -8,7 +8,7 @@ use super::cstring;
 use super::known_docs_url::KnownDocsUrl;
 use crate::emit_rust::Context;
 use crate::identifiers::{FieldMangling, IdentifierManglingError};
-use crate::parser_util::{emit_field_descriptor, ClassName, IdBuf, IterableId, JavaClass, JavaField};
+use crate::parser_util::{ClassName, IdBuf, IterableId, JavaClass, JavaField, emit_field_descriptor};
 
 pub struct Field<'a> {
     pub class: &'a JavaClass,
@@ -51,19 +51,20 @@ impl<'a> Field<'a> {
 
         let descriptor = &self.java.descriptor();
 
-        let rust_type = emit_rust_type(descriptor, context, mod_, &mut emit_reject_reasons)?;
-
-        // `rust_set_type` and `rust_get_type` are ones used below
-        let (rust_set_type, rust_get_type) = match (descriptor.dimensions, &descriptor.field_type) {
-            (0, t) if !matches!(t, FieldType::Object(_)) => (rust_type.clone(), rust_type),
-            (0, FieldType::Object(cls)) if self.java.is_constant() && ClassName::from(cls).is_string_class() => {
-                (quote!(&'static str), quote!(&'static str))
-            }
-            _ => (
-                quote!(impl ::java_spaghetti::AsArg<#rust_type>),
-                quote!(::std::option::Option<::java_spaghetti::Local<'env, #rust_type>>),
-            ),
-        };
+        let rust_set_type = emit_rust_type(
+            descriptor,
+            context,
+            mod_,
+            RustTypeFlavor::ImplAsArg,
+            &mut emit_reject_reasons,
+        )?;
+        let rust_get_type = emit_rust_type(
+            descriptor,
+            context,
+            mod_,
+            RustTypeFlavor::OptionLocal,
+            &mut emit_reject_reasons,
+        )?;
 
         let field_fragment = emit_fragment_type(descriptor);
 
@@ -116,11 +117,19 @@ impl<'a> Field<'a> {
             FieldMangling::ConstValue(constant, value) => {
                 let constant = format_ident!("{}", constant);
                 let value = emit_constant(&value, descriptor);
+                let ty = if descriptor.dimensions == 0
+                    && let FieldType::Object(cls) = &descriptor.field_type
+                    && ClassName::from(cls).is_string_class()
+                {
+                    quote!(&'static str)
+                } else {
+                    rust_get_type
+                };
 
                 out.extend(quote!(
                     #[doc = #docs]
                     #attributes
-                    pub const #constant: #rust_get_type = #value;
+                    pub const #constant: #ty = #value;
                 ));
             }
             FieldMangling::GetSet(get, set) => {
@@ -241,11 +250,24 @@ pub fn emit_constant(constant: &LiteralConstant<'_>, descriptor: &FieldDescripto
     }
 }
 
+pub enum RustTypeFlavor {
+    ImplAsArg,
+    OptionLocal,
+}
+
+fn flavorify(ty: TokenStream, flavor: RustTypeFlavor) -> TokenStream {
+    match flavor {
+        RustTypeFlavor::ImplAsArg => quote!(impl ::java_spaghetti::AsArg<#ty>),
+        RustTypeFlavor::OptionLocal => quote!(::std::option::Option<::java_spaghetti::Local<'env, #ty>>),
+    }
+}
+
 /// Generates the corresponding Rust type for the Java field type.
 pub fn emit_rust_type(
     descriptor: &FieldDescriptor,
     context: &Context<'_>,
     mod_: &str,
+    flavor: RustTypeFlavor,
     reject_reasons: &mut Vec<&'static str>,
 ) -> Result<TokenStream, std::fmt::Error> {
     let res = if descriptor.dimensions == 0 {
@@ -264,7 +286,7 @@ pub fn emit_rust_type(
                     reject_reasons.push("ERROR:  missing class for field/argument type");
                 }
                 if let Ok(path) = context.java_to_rust_path(class.as_id(), mod_) {
-                    path
+                    flavorify(path, flavor)
                 } else {
                     reject_reasons.push("ERROR:  Failed to resolve JNI path to Rust path for class type");
                     let class = class.as_str();
@@ -305,7 +327,8 @@ pub fn emit_rust_type(
         for _ in 0..(descriptor.dimensions - 1) {
             res = quote!(::java_spaghetti::ObjectArray<#res, #throwable>)
         }
-        res
+
+        flavorify(res, flavor)
     };
     Ok(res)
 }
