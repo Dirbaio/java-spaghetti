@@ -248,7 +248,7 @@ pub fn emit_rust_type(
     mod_: &str,
     reject_reasons: &mut Vec<&'static str>,
 ) -> Result<TokenStream, std::fmt::Error> {
-    let cow = if descriptor.dimensions == 0 {
+    let res = if descriptor.dimensions == 0 {
         match &descriptor.field_type {
             FieldType::Boolean => quote!(bool),
             FieldType::Byte => quote!(i8),
@@ -273,19 +273,17 @@ pub fn emit_rust_type(
             }
         }
     } else {
-        let mut out = TokenStream::new();
-        for _ in 0..(descriptor.dimensions - 1) {
-            out.extend(quote!(::java_spaghetti::ObjectArray<));
-        }
-        match &descriptor.field_type {
-            FieldType::Boolean => out.extend(quote!(::java_spaghetti::BooleanArray)),
-            FieldType::Byte => out.extend(quote!(::java_spaghetti::ByteArray)),
-            FieldType::Char => out.extend(quote!(::java_spaghetti::CharArray)),
-            FieldType::Short => out.extend(quote!(::java_spaghetti::ShortArray)),
-            FieldType::Integer => out.extend(quote!(::java_spaghetti::IntArray)),
-            FieldType::Long => out.extend(quote!(::java_spaghetti::LongArray)),
-            FieldType::Float => out.extend(quote!(::java_spaghetti::FloatArray)),
-            FieldType::Double => out.extend(quote!(::java_spaghetti::DoubleArray)),
+        let throwable = context.throwable_rust_path(mod_);
+
+        let mut res = match &descriptor.field_type {
+            FieldType::Boolean => quote!(::java_spaghetti::BooleanArray),
+            FieldType::Byte => quote!(::java_spaghetti::ByteArray),
+            FieldType::Char => quote!(::java_spaghetti::CharArray),
+            FieldType::Short => quote!(::java_spaghetti::ShortArray),
+            FieldType::Integer => quote!(::java_spaghetti::IntArray),
+            FieldType::Long => quote!(::java_spaghetti::LongArray),
+            FieldType::Float => quote!(::java_spaghetti::FloatArray),
+            FieldType::Double => quote!(::java_spaghetti::DoubleArray),
             FieldType::Object(class_name) => {
                 let class = IdBuf::from(class_name);
 
@@ -293,28 +291,23 @@ pub fn emit_rust_type(
                     reject_reasons.push("ERROR:  missing class for field type");
                 }
 
-                out.extend(quote!(::java_spaghetti::ObjectArray<));
-                match context.java_to_rust_path(class.as_id(), mod_) {
-                    Ok(path) => out.extend(path),
+                let path = match context.java_to_rust_path(class.as_id(), mod_) {
+                    Ok(path) => path,
                     Err(_) => {
                         reject_reasons.push("ERROR:  Failed to resolve JNI path to Rust path for class type");
-                        out.extend(quote!(???));
+                        quote!(???)
                     }
                 };
-                out.extend(quote!(,));
-                out.extend(context.throwable_rust_path(mod_));
-                out.extend(quote!(>));
+
+                quote!(::java_spaghetti::ObjectArray<#path, #throwable>)
             }
         };
         for _ in 0..(descriptor.dimensions - 1) {
-            // ObjectArray s
-            out.extend(quote!(,));
-            out.extend(context.throwable_rust_path(mod_));
-            out.extend(quote!(>));
+            res = quote!(::java_spaghetti::ObjectArray<#res, #throwable>)
         }
-        out.into()
+        res
     };
-    Ok(cow)
+    Ok(res)
 }
 
 /// Contents of {get,set}_[static_]..._field, call_..._method_a.
