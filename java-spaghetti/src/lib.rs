@@ -9,11 +9,9 @@
 #![feature(arbitrary_self_types)]
 
 use std::fmt;
-use std::ptr::null_mut;
 
 /// public jni-sys reexport.
 pub use ::jni_sys as sys;
-use sys::{jobject, jvalue};
 
 mod refs {
     mod arg;
@@ -30,6 +28,7 @@ mod refs {
 }
 
 mod array;
+mod as_arg;
 mod as_jvalue;
 mod env;
 mod id_cache;
@@ -38,6 +37,7 @@ mod string_chars;
 mod vm;
 
 pub use array::*;
+pub use as_arg::*;
 pub use as_jvalue::*;
 pub use env::*;
 pub use id_cache::*;
@@ -84,91 +84,6 @@ pub trait JavaDebug: ReferenceType {
     fn fmt(self: &Ref<'_, Self>, f: &mut fmt::Formatter<'_>) -> fmt::Result;
 }
 
-/// A marker trait indicating this is a valid JNI reference type for Java method argument
-/// type `T`, this can be null.
-///
-/// # Safety
-///
-/// It should be implemented automatically by `java_spaghetti`.
-pub unsafe trait AsArg<T>: Sized {
-    fn as_arg(&self) -> jobject;
-    fn as_arg_jvalue(&self) -> jvalue {
-        jvalue { l: self.as_arg() }
-    }
-}
-
 /// Represents a Java `null` value.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct Null;
-
-unsafe impl<T: ReferenceType, U: AsArg<T>> AsArg<T> for &U {
-    fn as_arg(&self) -> jobject {
-        U::as_arg(self)
-    }
-}
-
-unsafe impl<T: ReferenceType, U: AsArg<T>> AsArg<T> for &mut U {
-    fn as_arg(&self) -> jobject {
-        U::as_arg(self)
-    }
-}
-
-unsafe impl<T: ReferenceType> AsArg<T> for Null {
-    fn as_arg(&self) -> jobject {
-        null_mut()
-    }
-}
-
-unsafe impl<T: ReferenceType, U: AssignableTo<T>> AsArg<T> for Ref<'_, U> {
-    fn as_arg(&self) -> jobject {
-        self.as_raw()
-    }
-}
-
-unsafe impl<T: ReferenceType, U: AssignableTo<T>> AsArg<T> for Option<Ref<'_, U>> {
-    fn as_arg(&self) -> jobject {
-        self.as_ref().map(|r| r.as_raw()).unwrap_or(null_mut())
-    }
-}
-
-unsafe impl<T: ReferenceType, U: AssignableTo<T>> AsArg<T> for Option<&Ref<'_, U>> {
-    fn as_arg(&self) -> jobject {
-        self.map(|r| r.as_raw()).unwrap_or(null_mut())
-    }
-}
-
-unsafe impl<T: ReferenceType, U: AssignableTo<T>> AsArg<T> for Local<'_, U> {
-    fn as_arg(&self) -> jobject {
-        self.as_raw()
-    }
-}
-
-unsafe impl<T: ReferenceType, U: AssignableTo<T>> AsArg<T> for Option<Local<'_, U>> {
-    fn as_arg(&self) -> jobject {
-        self.as_ref().map(|r| r.as_raw()).unwrap_or(null_mut())
-    }
-}
-
-unsafe impl<T: ReferenceType, U: AssignableTo<T>> AsArg<T> for Option<&Local<'_, U>> {
-    fn as_arg(&self) -> jobject {
-        self.map(|r| r.as_raw()).unwrap_or(null_mut())
-    }
-}
-
-unsafe impl<T: ReferenceType, U: AssignableTo<T>> AsArg<T> for Global<U> {
-    fn as_arg(&self) -> jobject {
-        self.as_raw()
-    }
-}
-
-unsafe impl<T: ReferenceType, U: AssignableTo<T>> AsArg<T> for Option<Global<U>> {
-    fn as_arg(&self) -> jobject {
-        self.as_ref().map(|r| r.as_raw()).unwrap_or(null_mut())
-    }
-}
-
-unsafe impl<T: ReferenceType, U: AssignableTo<T>> AsArg<T> for Option<&Global<U>> {
-    fn as_arg(&self) -> jobject {
-        self.map(|r| r.as_raw()).unwrap_or(null_mut())
-    }
-}

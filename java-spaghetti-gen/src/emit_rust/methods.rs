@@ -1,4 +1,4 @@
-use cafebabe::descriptors::{FieldType, ReturnDescriptor};
+use cafebabe::descriptors::ReturnDescriptor;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
@@ -98,25 +98,16 @@ impl<'a> Method<'a> {
 
         for (arg_idx, arg) in descriptor.parameters.iter().enumerate() {
             let arg_name = format_ident!("arg{}", arg_idx);
-
-            let param_is_object = matches!(arg.field_type, FieldType::Object(_)) || arg.dimensions > 0;
-
             let arg_type = emit_rust_type(arg, context, mod_, RustTypeFlavor::ImplAsArg, &mut emit_reject_reasons)?;
 
             if !params_array.is_empty() {
                 params_array.extend(quote!(,));
             }
-
-            if param_is_object {
-                params_array.extend(quote!(#arg_name.as_arg_jvalue()));
-            } else {
-                params_array.extend(quote!(::java_spaghetti::AsJValue::as_jvalue(&#arg_name)));
-            }
+            params_array.extend(quote!(::java_spaghetti::AsJValue::as_jvalue(&#arg_name)));
 
             if !params_decl.is_empty() {
                 params_decl.extend(quote!(,));
             }
-
             params_decl.extend(quote!(#arg_name: #arg_type));
         }
 
