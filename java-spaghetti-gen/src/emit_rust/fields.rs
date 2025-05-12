@@ -66,6 +66,10 @@ impl<'a> Field<'a> {
             &mut emit_reject_reasons,
         )?;
 
+        let static_fragment = match self.java.is_static() {
+            false => "",
+            true => "_static",
+        };
         let field_fragment = emit_fragment_type(descriptor);
 
         if self.rust_names.is_err() {
@@ -140,17 +144,13 @@ impl<'a> Field<'a> {
                     false => quote!(let __jni_env = self.env();),
                     true => quote!(),
                 };
-                let require_field = match self.java.is_static() {
-                    false => quote!(require_field),
-                    true => quote!(require_static_field),
-                };
-                let get_field = match self.java.is_static() {
-                    false => format_ident!("get_{field_fragment}_field"),
-                    true => format_ident!("get_static_{field_fragment}_field"),
-                };
-                let set_field = match self.java.is_static() {
-                    false => format_ident!("set_{field_fragment}_field"),
-                    true => format_ident!("set_static_{field_fragment}_field"),
+                let require_field = format_ident!("require{static_fragment}_field");
+                let get_field = format_ident!("get{static_fragment}_{field_fragment}_field");
+                let set_field = format_ident!("set{static_fragment}_{field_fragment}_field");
+
+                let this_or_class = match self.java.is_static() {
+                    false => quote!(self.as_raw()),
+                    true => quote!(__jni_class),
                 };
 
                 let java_name = cstring(self.java.name());
@@ -167,7 +167,7 @@ impl<'a> Field<'a> {
                         let __jni_class = Self::__class_global_ref(__jni_env);
                         unsafe {
                             let __jni_field = __FIELD.get_or_init(|| ::java_spaghetti::JFieldID::from_raw(__jni_env.#require_field(__jni_class, #java_name, #descriptor))).as_raw();
-                            __jni_env.#get_field(__jni_class, __jni_field)
+                            __jni_env.#get_field(#this_or_class, __jni_field)
                         }
                     }
                 ));
@@ -189,7 +189,7 @@ impl<'a> Field<'a> {
                             let __jni_class = Self::__class_global_ref(__jni_env);
                             unsafe {
                                 let __jni_field = __FIELD.get_or_init(|| ::java_spaghetti::JFieldID::from_raw(__jni_env.#require_field(__jni_class, #java_name, #descriptor))).as_raw();
-                                __jni_env.#set_field(__jni_class, __jni_field, value);
+                                __jni_env.#set_field(#this_or_class, __jni_field, value);
                             }
                         }
                     ));
