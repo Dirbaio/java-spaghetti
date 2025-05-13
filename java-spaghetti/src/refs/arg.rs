@@ -52,11 +52,7 @@ impl<T: ReferenceType> Arg<T> {
     /// the intended use case of immediately converting any [Arg] into [Local] at the start of a JNI callback,
     /// where Java directly invoked your function with an [Env] + arguments, is sound.
     pub unsafe fn into_local<'env>(self, env: Env<'env>) -> Option<Local<'env, T>> {
-        if self.object.is_null() {
-            None
-        } else {
-            Some(Local::from_raw(env, self.object))
-        }
+        self.into_ref(env).map(|r| r.as_local())
     }
 
     /// This equals [Arg::into_ref] + [Ref::as_global].
