@@ -255,6 +255,7 @@ pub enum RustTypeFlavor {
     OptionLocal,
     OptionRef,
     Arg,
+    Return,
 }
 
 fn flavorify(ty: TokenStream, flavor: RustTypeFlavor) -> TokenStream {
@@ -263,6 +264,7 @@ fn flavorify(ty: TokenStream, flavor: RustTypeFlavor) -> TokenStream {
         RustTypeFlavor::OptionLocal => quote!(::std::option::Option<::java_spaghetti::Local<'env, #ty>>),
         RustTypeFlavor::OptionRef => quote!(::std::option::Option<::java_spaghetti::Ref<'env, #ty>>),
         RustTypeFlavor::Arg => quote!(::java_spaghetti::Arg<#ty>),
+        RustTypeFlavor::Return => quote!(::java_spaghetti::Return<'env, #ty>),
     }
 }
 

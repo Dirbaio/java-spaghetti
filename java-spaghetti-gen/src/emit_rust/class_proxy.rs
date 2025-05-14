@@ -1,6 +1,6 @@
 use std::fmt::Write;
 
-use cafebabe::descriptors::{FieldDescriptor, FieldType};
+use cafebabe::descriptors::{FieldDescriptor, FieldType, ReturnDescriptor};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
@@ -52,6 +52,17 @@ impl Class {
             let native_name = format_ident!("{native_name}");
             let rust_name = format_ident!("{rust_name}");
 
+            let ret = match &method.java.descriptor.return_type {
+                ReturnDescriptor::Void => quote!(()),
+                ReturnDescriptor::Return(desc) => emit_rust_type(
+                    desc,
+                    context,
+                    &self.rust.mod_,
+                    RustTypeFlavor::Return,
+                    &mut emit_reject_reasons,
+                )?,
+            };
+
             let mut trait_args = TokenStream::new();
             let mut native_args = TokenStream::new();
             let mut native_convert_args = TokenStream::new();
@@ -88,17 +99,17 @@ impl Class {
                     &self,
                     env: ::java_spaghetti::Env<'env>,
                     #trait_args
-                );
+                ) -> #ret;
             ));
 
             out.extend(quote!(
                 #[unsafe(no_mangle)]
-                extern "system" fn #native_name(
-                    __jni_env: ::java_spaghetti::Env<'_>,
+                extern "system" fn #native_name<'env>(
+                    __jni_env: ::java_spaghetti::Env<'env>,
                     _class: *mut (), // self class, ignore
                     ptr: i64,
                     #native_args
-                ) {
+                ) -> #ret {
                     let ptr: *const std::sync::Arc<dyn #rust_proxy_name> = ::std::ptr::with_exposed_provenance(ptr as usize);
                     unsafe {
                         (*ptr).#rust_name(__jni_env, #native_convert_args )
