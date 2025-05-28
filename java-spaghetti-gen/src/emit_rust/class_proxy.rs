@@ -88,9 +88,9 @@ impl Class {
                 )?;
                 native_args.extend(quote!(#arg_name: #native_arg_type,));
                 if matches!(arg.field_type, FieldType::Object(_)) || arg.dimensions > 0 {
-                    native_convert_args.extend(quote!(#arg_name.into_ref(__jni_env)));
+                    native_convert_args.extend(quote!(#arg_name.into_ref(__jni_env),));
                 } else {
-                    native_convert_args.extend(quote!(#arg_name));
+                    native_convert_args.extend(quote!(#arg_name,));
                 }
             }
 
