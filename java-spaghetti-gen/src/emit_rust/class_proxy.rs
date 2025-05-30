@@ -38,6 +38,15 @@ impl Class {
 
         for method in methods {
             let Some(rust_name) = method.rust_name() else { continue };
+            if method.java.is_static()
+                || method.java.is_static_init()
+                || method.java.is_constructor()
+                || method.java.is_final()
+                || method.java.is_private()
+            {
+                continue;
+            }
+
             let mut native_params = Vec::new();
             native_params.push(FieldDescriptor {
                 dimensions: 0,
