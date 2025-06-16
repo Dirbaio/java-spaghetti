@@ -103,7 +103,7 @@ impl<'env, T: ReferenceType> Local<'env, T> {
     /// Casts itself towards a super class type, without the cost of runtime checking.
     pub fn upcast<U: ReferenceType>(self) -> Local<'env, U>
     where
-        Self: AssignableTo<U>,
+        T: AssignableTo<U>,
     {
         // Memory layout of the inner `Ref<'env, U>` is the same as `Ref<'env, T>`.
         unsafe { transmute(self) }

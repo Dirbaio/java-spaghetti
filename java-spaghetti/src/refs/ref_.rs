@@ -112,7 +112,7 @@ impl<'env, T: ReferenceType> Ref<'env, T> {
     /// Casts itself towards a super class type, without the cost of runtime checking.
     pub fn upcast<U: ReferenceType>(self) -> Ref<'env, U>
     where
-        Self: AssignableTo<U>,
+        T: AssignableTo<U>,
     {
         unsafe { self.cast_unchecked() }
     }
@@ -135,7 +135,7 @@ impl<'env, T: ReferenceType> Ref<'env, T> {
     /// Casts the borrowed `Ref` towards a super class type, without the cost of runtime checking.
     pub fn upcast_ref<U: ReferenceType>(&self) -> &Ref<'env, U>
     where
-        Self: AssignableTo<U>,
+        T: AssignableTo<U>,
     {
         unsafe { self.cast_ref_unchecked() }
     }
