@@ -236,33 +236,90 @@ impl<'env> Env<'env> {
     }
 
     unsafe fn require_class_jni(self, class: &CStr) -> jclass {
-        let class = ((**self.env).v1_2.FindClass)(self.env, class.as_ptr());
-        assert!(!class.is_null());
-        class
+        let res = ((**self.env).v1_2.FindClass)(self.env, class.as_ptr());
+        if res.is_null() {
+            ((**self.env).v1_2.ExceptionClear)(self.env);
+            panic!("could not find class {class:?}");
+        }
+        res
+    }
+
+    // used only for debugging
+    unsafe fn get_class_name(self, class: jclass) -> String {
+        let classclass = self.require_class_jni(c"java/lang/Class");
+
+        // don't use self.require_method() here to avoid recursion!
+        let method = ((**self.env).v1_2.GetMethodID)(
+            self.env,
+            classclass,
+            c"getName".as_ptr(),
+            c"()Ljava/lang/String;".as_ptr(),
+        );
+        if method.is_null() {
+            ((**self.env).v1_2.ExceptionClear)(self.env);
+            ((**self.env).v1_2.DeleteLocalRef)(self.env, classclass);
+            return "??? (couldn't get class getName method)".to_string();
+        }
+
+        let string = ((**self.env).v1_2.CallObjectMethod)(self.env, class, method);
+        if string.is_null() {
+            return "??? (getName returned null string)".to_string();
+        }
+        let chars = ((**self.env).v1_2.GetStringUTFChars)(self.env, string, ptr::null_mut());
+        if chars.is_null() {
+            ((**self.env).v1_2.DeleteLocalRef)(self.env, string);
+            ((**self.env).v1_2.DeleteLocalRef)(self.env, classclass);
+            return "??? (GetStringUTFChars returned null chars)".to_string();
+        }
+
+        let cchars = CStr::from_ptr(chars);
+        let res = cchars.to_string_lossy().to_string();
+
+        ((**self.env).v1_2.ReleaseStringUTFChars)(self.env, string, chars);
+        ((**self.env).v1_2.DeleteLocalRef)(self.env, string);
+        ((**self.env).v1_2.DeleteLocalRef)(self.env, classclass);
+
+        res
     }
 
     pub unsafe fn require_method(self, class: jclass, method: &CStr, descriptor: &CStr) -> jmethodID {
-        let method = ((**self.env).v1_2.GetMethodID)(self.env, class, method.as_ptr(), descriptor.as_ptr());
-        assert!(!method.is_null());
-        method
+        let res = ((**self.env).v1_2.GetMethodID)(self.env, class, method.as_ptr(), descriptor.as_ptr());
+        if res.is_null() {
+            ((**self.env).v1_2.ExceptionClear)(self.env);
+            let class_name = self.get_class_name(class);
+            panic!("could not find method {method:?} {descriptor:?} on class {class_name:?}");
+        }
+        res
     }
 
     pub unsafe fn require_static_method(self, class: jclass, method: &CStr, descriptor: &CStr) -> jmethodID {
-        let method = ((**self.env).v1_2.GetStaticMethodID)(self.env, class, method.as_ptr(), descriptor.as_ptr());
-        assert!(!method.is_null());
-        method
+        let res = ((**self.env).v1_2.GetStaticMethodID)(self.env, class, method.as_ptr(), descriptor.as_ptr());
+        if res.is_null() {
+            ((**self.env).v1_2.ExceptionClear)(self.env);
+            let class_name = self.get_class_name(class);
+            panic!("could not find static method {method:?} {descriptor:?} on class {class_name:?}");
+        }
+        res
     }
 
     pub unsafe fn require_field(self, class: jclass, field: &CStr, descriptor: &CStr) -> jfieldID {
-        let field = ((**self.env).v1_2.GetFieldID)(self.env, class, field.as_ptr(), descriptor.as_ptr());
-        assert!(!field.is_null());
-        field
+        let res = ((**self.env).v1_2.GetFieldID)(self.env, class, field.as_ptr(), descriptor.as_ptr());
+        if res.is_null() {
+            ((**self.env).v1_2.ExceptionClear)(self.env);
+            let class_name = self.get_class_name(class);
+            panic!("could not find field {field:?} {descriptor:?} on class {class_name:?}");
+        }
+        res
     }
 
     pub unsafe fn require_static_field(self, class: jclass, field: &CStr, descriptor: &CStr) -> jfieldID {
-        let field = ((**self.env).v1_2.GetStaticFieldID)(self.env, class, field.as_ptr(), descriptor.as_ptr());
-        assert!(!field.is_null());
-        field
+        let res = ((**self.env).v1_2.GetStaticFieldID)(self.env, class, field.as_ptr(), descriptor.as_ptr());
+        if res.is_null() {
+            ((**self.env).v1_2.ExceptionClear)(self.env);
+            let class_name = self.get_class_name(class);
+            panic!("could not find static field {field:?} {descriptor:?} on class {class_name:?}");
+        }
+        res
     }
 
     // Multi-Query Methods
