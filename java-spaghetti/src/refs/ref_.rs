@@ -88,11 +88,10 @@ impl<'env, T: ReferenceType> Ref<'env, T> {
         let env = self.env();
         let jnienv = env.as_raw();
         let class = U::static_with_jni_type(|t| unsafe { env.require_class(t) });
-        let assignable = unsafe {
-            let ret = ((**jnienv).v1_2.IsInstanceOf)(jnienv, self.as_raw(), class);
+        let assignable = unsafe { ((**jnienv).v1_2.IsInstanceOf)(jnienv, self.as_raw(), class) };
+        unsafe {
             ((**jnienv).v1_2.DeleteLocalRef)(jnienv, class);
-            ret
-        };
+        }
         if assignable { Ok(()) } else { Err(crate::CastError) }
     }
 
