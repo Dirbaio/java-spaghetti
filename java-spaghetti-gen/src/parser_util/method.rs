@@ -1,8 +1,6 @@
 use cafebabe::MethodAccessFlags;
 use cafebabe::attributes::AttributeData;
-use cafebabe::descriptors::{MethodDescriptor, ReturnDescriptor};
-
-use super::emit_field_descriptor;
+use cafebabe::descriptors::MethodDescriptor;
 
 pub struct JavaMethod<'a> {
     java: &'a cafebabe::MethodInfo<'a>,
@@ -100,19 +98,4 @@ impl<'a> JavaMethod<'a> {
     pub fn descriptor<'s>(&'s self) -> &'a MethodDescriptor<'a> {
         &self.java.descriptor
     }
-}
-
-pub fn emit_method_descriptor(descriptor: &MethodDescriptor) -> String {
-    let mut res = String::new();
-    res.push('(');
-    for arg in descriptor.parameters.iter() {
-        res.push_str(&emit_field_descriptor(arg))
-    }
-    res.push(')');
-    if let ReturnDescriptor::Return(desc) = &descriptor.return_type {
-        res.push_str(&emit_field_descriptor(desc))
-    } else {
-        res.push('V')
-    }
-    res
 }

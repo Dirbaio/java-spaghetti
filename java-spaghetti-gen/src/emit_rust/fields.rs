@@ -8,7 +8,7 @@ use super::cstring;
 use super::known_docs_url::KnownDocsUrl;
 use crate::emit_rust::Context;
 use crate::identifiers::{FieldMangling, IdentifierManglingError};
-use crate::parser_util::{ClassName, IdBuf, IterableId, JavaClass, JavaField, emit_field_descriptor};
+use crate::parser_util::{Id, JavaClass, JavaField};
 
 pub struct Field<'a> {
     pub class: &'a JavaClass,
@@ -123,7 +123,7 @@ impl<'a> Field<'a> {
                 let value = emit_constant(&value, descriptor);
                 let ty = if descriptor.dimensions == 0
                     && let FieldType::Object(cls) = &descriptor.field_type
-                    && ClassName::from(cls).is_string_class()
+                    && Id::from(cls).is_string_class()
                 {
                     quote!(&'static str)
                 } else {
@@ -154,7 +154,7 @@ impl<'a> Field<'a> {
                 };
 
                 let java_name = cstring(self.java.name());
-                let descriptor = cstring(&emit_field_descriptor(self.java.descriptor()));
+                let descriptor = cstring(&self.java.descriptor().to_string());
 
                 let get_docs = format!("**get** {docs}");
                 let set_docs = format!("**set** {docs}");
@@ -287,11 +287,11 @@ pub fn emit_rust_type(
             FieldType::Float => quote!(f32),
             FieldType::Double => quote!(f64),
             FieldType::Object(class_name) => {
-                let class = IdBuf::from(class_name);
+                let class = Id::from(class_name);
                 if !context.all_classes.contains_key(class.as_str()) {
                     reject_reasons.push("ERROR:  missing class for field/argument type");
                 }
-                if let Ok(path) = context.java_to_rust_path(class.as_id(), mod_) {
+                if let Ok(path) = context.java_to_rust_path(class, mod_) {
                     flavorify(path, flavor)
                 } else {
                     reject_reasons.push("ERROR:  Failed to resolve JNI path to Rust path for class type");
@@ -313,13 +313,13 @@ pub fn emit_rust_type(
             FieldType::Float => quote!(::java_spaghetti::FloatArray),
             FieldType::Double => quote!(::java_spaghetti::DoubleArray),
             FieldType::Object(class_name) => {
-                let class = IdBuf::from(class_name);
+                let class = Id::from(class_name);
 
                 if !context.all_classes.contains_key(class.as_str()) {
                     reject_reasons.push("ERROR:  missing class for field type");
                 }
 
-                let path = match context.java_to_rust_path(class.as_id(), mod_) {
+                let path = match context.java_to_rust_path(class, mod_) {
                     Ok(path) => path,
                     Err(_) => {
                         reject_reasons.push("ERROR:  Failed to resolve JNI path to Rust path for class type");

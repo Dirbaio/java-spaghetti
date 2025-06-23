@@ -4,7 +4,7 @@ use cafebabe::descriptors::{FieldDescriptor, FieldType};
 
 use super::methods::Method;
 use crate::emit_rust::Context;
-use crate::parser_util::{Id, IdBuf};
+use crate::parser_util::Id;
 
 pub(crate) struct KnownDocsUrl {
     pub(crate) label: String,
@@ -149,7 +149,7 @@ impl KnownDocsUrl {
                 FieldType::Float => "float",
                 FieldType::Double => "double",
                 FieldType::Object(ref class_name) => {
-                    let class = IdBuf::from(class_name);
+                    let class = Id::from(class_name);
                     obj_arg = class
                         .as_str()
                         .replace('/', pattern.argument_namespace_separator.as_str())

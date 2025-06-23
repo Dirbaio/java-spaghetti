@@ -1,28 +1,6 @@
 // Migrated from <https://docs.rs/jreflection/0.0.11/src/jreflection/class.rs.html>.
 
-use std::fmt::Write;
-
-/// Owned Java class binary name (internal form).
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct IdBuf(String);
-
-impl IdBuf {
-    pub fn new(s: String) -> Self {
-        Self(s)
-    }
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
-    }
-    pub fn as_id(&self) -> Id {
-        Id(self.0.as_str())
-    }
-    #[allow(dead_code)]
-    pub fn iter(&self) -> IdIter {
-        IdIter::new(self.0.as_str())
-    }
-}
-
-// XXX: This should really be `#[repr(transparent)] pub struct Id(str);`...
+// XXX: This may really be `#[repr(transparent)] pub struct Id(str);`...
 // Also, patterns apparently can't handle Id::new(...) even when it's a const fn.
 
 /// Borrowed Java class binary name (internal form).
@@ -35,6 +13,20 @@ impl<'a> Id<'a> {
     }
     pub fn iter(&self) -> IdIter<'a> {
         IdIter::new(self.0)
+    }
+
+    pub fn is_string_class(&self) -> bool {
+        let mut iter = self.into_iter();
+        iter.next() == Some(IdPart::Namespace("java"))
+            && iter.next() == Some(IdPart::Namespace("lang"))
+            && iter.next() == Some(IdPart::LeafClass("String"))
+            && iter.next().is_none()
+    }
+}
+
+impl<'r, 'a: 'r> From<&'r cafebabe::descriptors::ClassName<'a>> for Id<'r> {
+    fn from(value: &'r cafebabe::descriptors::ClassName<'a>) -> Self {
+        Self(value.as_ref())
     }
 }
 
@@ -126,108 +118,3 @@ fn id_iter_test() {
         ]
     );
 }
-
-/// Newtype for `cafebabe::descriptors::ClassName`.
-///
-/// XXX: cannot get the original string from `cafebabe::descriptors::ClassName`; the binary
-/// name is split into `UnqualifiedSegment`s, not caring about Java-specific nested classes.
-/// See <https://github.com/staktrace/cafebabe/issues/52>.
-#[derive(Clone, Copy, Debug)]
-pub struct ClassName<'a> {
-    inner: &'a cafebabe::descriptors::ClassName<'a>,
-}
-
-impl<'a> From<&'a cafebabe::descriptors::ClassName<'a>> for ClassName<'a> {
-    fn from(value: &'a cafebabe::descriptors::ClassName<'a>) -> Self {
-        Self { inner: value }
-    }
-}
-
-impl<'a> std::ops::Deref for ClassName<'a> {
-    type Target = cafebabe::descriptors::ClassName<'a>;
-    fn deref(&self) -> &Self::Target {
-        self.inner
-    }
-}
-
-impl std::fmt::Display for ClassName<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut segs = self.segments.iter();
-        f.write_str(segs.next().unwrap().name.as_ref())?;
-        for seg in segs {
-            f.write_char('/')?;
-            f.write_str(seg.name.as_ref())?;
-        }
-        Ok(())
-    }
-}
-
-impl<'a> From<&ClassName<'a>> for IdBuf {
-    fn from(value: &ClassName<'a>) -> Self {
-        Self::new(value.to_string())
-    }
-}
-
-impl<'a> From<&cafebabe::descriptors::ClassName<'a>> for IdBuf {
-    fn from(value: &cafebabe::descriptors::ClassName<'a>) -> Self {
-        Self::new(ClassName::from(value).to_string())
-    }
-}
-
-impl<'a> ClassName<'a> {
-    pub fn iter<'s>(&'s self) -> ClassNameIter<'a> {
-        let segments = &self.inner.segments;
-        if segments.len() > 1 {
-            ClassNameIter::RestPath(segments)
-        } else {
-            let classes = segments.last().map(|s| s.name.as_ref()).unwrap_or("");
-            ClassNameIter::RestClasses(IdIter::new(classes))
-        }
-    }
-}
-
-impl<'a> IntoIterator for ClassName<'a> {
-    type Item = IdPart<'a>;
-    type IntoIter = ClassNameIter<'a>;
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
-
-pub enum ClassNameIter<'a> {
-    RestPath(&'a [cafebabe::descriptors::UnqualifiedSegment<'a>]),
-    RestClasses(IdIter<'a>),
-}
-
-impl<'a> Iterator for ClassNameIter<'a> {
-    type Item = IdPart<'a>;
-    fn next(&mut self) -> Option<Self::Item> {
-        match self {
-            Self::RestPath(segments) => {
-                // `segments.len() > 1` must be true at here
-                let namespace = IdPart::Namespace(&segments[0].name);
-                *self = if segments.len() - 1 > 1 {
-                    Self::RestPath(&segments[1..])
-                } else {
-                    Self::RestClasses(IdIter::new(&segments.last().unwrap().name))
-                };
-                Some(namespace)
-            }
-            Self::RestClasses(id_iter) => id_iter.next(),
-        }
-    }
-}
-
-#[allow(unused)]
-pub trait IterableId<'a>: IntoIterator<Item = IdPart<'a>> + Copy {
-    fn is_string_class(self) -> bool {
-        let mut iter = self.into_iter();
-        iter.next() == Some(IdPart::Namespace("java"))
-            && iter.next() == Some(IdPart::Namespace("lang"))
-            && iter.next() == Some(IdPart::LeafClass("String"))
-            && iter.next().is_none()
-    }
-}
-
-impl<'a> IterableId<'a> for Id<'a> {}
-impl<'a> IterableId<'a> for ClassName<'a> {}
