@@ -2,7 +2,7 @@ use cafebabe::descriptors::{FieldType, MethodDescriptor};
 use serde_derive::Deserialize;
 
 use super::rust_identifier::{IdentifierManglingError, javaify_identifier, rustify_identifier};
-use crate::parser_util::{ClassName, IdPart};
+use crate::parser_util::{Id, IdPart};
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
@@ -75,7 +75,7 @@ pub enum MethodManglingStyle {
 fn method_mangling_style_mangle_test() {
     use std::borrow::Cow;
 
-    use cafebabe::descriptors::{FieldDescriptor, ReturnDescriptor, UnqualifiedSegment};
+    use cafebabe::descriptors::{ClassName, FieldDescriptor, ReturnDescriptor};
 
     let desc_no_arg_ret_v = MethodDescriptor {
         parameters: Vec::new(),
@@ -93,19 +93,7 @@ fn method_mangling_style_mangle_test() {
     let desc_arg_obj_ret_v = MethodDescriptor {
         parameters: vec![FieldDescriptor {
             dimensions: 0,
-            field_type: FieldType::Object(cafebabe::descriptors::ClassName {
-                segments: vec![
-                    UnqualifiedSegment {
-                        name: Cow::Borrowed("java"),
-                    },
-                    UnqualifiedSegment {
-                        name: Cow::Borrowed("lang"),
-                    },
-                    UnqualifiedSegment {
-                        name: Cow::Borrowed("Object"),
-                    },
-                ],
-            }),
+            field_type: FieldType::Object(ClassName::try_from(Cow::Borrowed("java/lang/Object")).unwrap()),
         }],
         return_type: ReturnDescriptor::Void,
     };
@@ -245,7 +233,7 @@ impl MethodManglingStyle {
                 FieldType::Float => buffer.push_str("_float"),
                 FieldType::Double => buffer.push_str("_double"),
                 FieldType::Object(class_name) => {
-                    let class = ClassName::from(class_name);
+                    let class = Id::from(class_name);
 
                     if long_sig {
                         for component in class.iter() {

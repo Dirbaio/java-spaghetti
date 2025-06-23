@@ -10,7 +10,7 @@ use super::fields::RustTypeFlavor;
 use super::methods::Method;
 use crate::emit_rust::Context;
 use crate::emit_rust::fields::emit_rust_type;
-use crate::parser_util::{Id, emit_field_descriptor};
+use crate::parser_util::Id;
 
 impl Class {
     pub(crate) fn write_proxy(&self, context: &Context, methods: &[Method]) -> anyhow::Result<TokenStream> {
@@ -208,7 +208,7 @@ fn mangle_native_method(path: &str, name: &str, args: &[FieldDescriptor]) -> Str
     res.push_str(&mangle_native(name));
     res.push_str("__");
     for d in args {
-        res.push_str(&mangle_native(&emit_field_descriptor(d)));
+        res.push_str(&mangle_native(&d.to_string()));
     }
 
     res

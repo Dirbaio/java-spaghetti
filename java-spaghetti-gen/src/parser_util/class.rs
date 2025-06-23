@@ -1,9 +1,9 @@
-use std::borrow::Cow;
 use std::marker::PhantomPinned;
 use std::pin::Pin;
 
 pub use cafebabe::ClassAccessFlags;
 use cafebabe::attributes::AttributeData;
+use cafebabe::descriptors::ClassName;
 
 use super::Id;
 
@@ -79,7 +79,7 @@ impl JavaClass {
         self.get().super_class.as_ref().map(|class| Id(class))
     }
 
-    pub fn interfaces(&self) -> std::slice::Iter<'_, Cow<'_, str>> {
+    pub fn interfaces(&self) -> std::slice::Iter<'_, ClassName<'_>> {
         self.get().interfaces.iter()
     }
 

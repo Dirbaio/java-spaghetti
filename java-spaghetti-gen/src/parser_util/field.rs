@@ -1,11 +1,7 @@
-use std::fmt::Write;
-
 use cafebabe::FieldAccessFlags;
 use cafebabe::attributes::AttributeData;
 use cafebabe::constant_pool::LiteralConstant;
-use cafebabe::descriptors::{FieldDescriptor, FieldType};
-
-use super::ClassName;
+use cafebabe::descriptors::FieldDescriptor;
 
 #[derive(Clone, Copy, Debug)]
 pub struct JavaField<'a> {
@@ -95,30 +91,4 @@ impl<'a> JavaField<'a> {
     pub fn descriptor<'s>(&'s self) -> &'a FieldDescriptor<'a> {
         &self.java.descriptor
     }
-}
-
-pub fn emit_field_descriptor(descriptor: &FieldDescriptor) -> String {
-    let mut res = String::new();
-    for _ in 0..descriptor.dimensions {
-        res.push('[');
-    }
-    if let FieldType::Object(class_name) = &descriptor.field_type {
-        res.push('L');
-        write!(&mut res, "{}", ClassName::from(class_name)).unwrap();
-        res.push(';');
-    } else {
-        let ch = match descriptor.field_type {
-            FieldType::Boolean => 'Z',
-            FieldType::Byte => 'B',
-            FieldType::Char => 'C',
-            FieldType::Short => 'S',
-            FieldType::Integer => 'I',
-            FieldType::Long => 'J',
-            FieldType::Float => 'F',
-            FieldType::Double => 'D',
-            _ => unreachable!(),
-        };
-        res.push(ch)
-    }
-    res
 }

@@ -7,7 +7,7 @@ use super::fields::{RustTypeFlavor, emit_fragment_type, emit_rust_type};
 use super::known_docs_url::KnownDocsUrl;
 use crate::emit_rust::Context;
 use crate::identifiers::MethodManglingStyle;
-use crate::parser_util::{JavaClass, JavaMethod, emit_method_descriptor};
+use crate::parser_util::{JavaClass, JavaMethod};
 
 pub struct Method<'a> {
     pub class: &'a JavaClass,
@@ -48,7 +48,7 @@ impl<'a> Method<'a> {
             "{}\x1f{}\x1f{}",
             self.class.path().as_str(),
             self.java.name(),
-            emit_method_descriptor(self.java.descriptor())
+            self.java.descriptor()
         );
 
         let ignored = context.config.ignore_class_methods.contains(&java_class_method)
@@ -162,7 +162,7 @@ impl<'a> Method<'a> {
         };
 
         let java_name = cstring(self.java.name());
-        let descriptor = cstring(&emit_method_descriptor(self.java.descriptor()));
+        let descriptor = cstring(&self.java.descriptor().to_string());
         let method_name = format_ident!("{method_name}");
 
         let call = if self.java.is_constructor() {
