@@ -21,14 +21,14 @@ impl Module {
         for (name, module) in self.modules.iter() {
             writeln!(out)?;
 
-            writeln!(out, "pub mod {} {{", name)?;
+            writeln!(out, "pub mod {name} {{")?;
             module.write(context, out)?;
             writeln!(out, "}}")?;
         }
 
         for (_, class) in self.classes.iter() {
             let res = class.write(context)?;
-            out.write(dumb_format(res).as_bytes())?;
+            out.write_all(dumb_format(res).as_bytes())?;
         }
 
         Ok(())
@@ -61,7 +61,7 @@ struct DumbFormatter {
 
 impl DumbFormatter {
     fn newline(&mut self) {
-        self.f.push_str("\n");
+        self.f.push('\n');
         for _ in 0..self.indent {
             self.f.push_str("    ");
         }
@@ -71,7 +71,7 @@ impl DumbFormatter {
 
     fn pre_write(&mut self) {
         if self.space && !self.after_newline {
-            self.f.push_str(" ");
+            self.f.push(' ');
         }
         self.space = false;
         self.after_newline = false;

@@ -120,7 +120,7 @@ impl<'a> Field<'a> {
         match self.rust_names.as_ref().map_err(|e| anyhow!("bad mangling: {e}"))? {
             FieldMangling::ConstValue(constant, value) => {
                 let constant = format_ident!("{}", constant);
-                let value = emit_constant(&value, descriptor);
+                let value = emit_constant(value, descriptor);
                 let ty = if descriptor.dimensions == 0
                     && let FieldType::Object(cls) = &descriptor.field_type
                     && Id::from(cls).is_string_class()
@@ -208,14 +208,14 @@ pub fn emit_constant(constant: &LiteralConstant<'_>, descriptor: &FieldDescripto
                 let value = *value as i16;
                 quote!(#value)
             }
-            _ => panic!("invalid constant for char {:?}", constant),
+            _ => panic!("invalid constant for char {constant:?}"),
         };
     }
     if descriptor.field_type == FieldType::Boolean && descriptor.dimensions == 0 {
         return match constant {
             LiteralConstant::Integer(0) => quote!(false),
             LiteralConstant::Integer(1) => quote!(true),
-            _ => panic!("invalid constant for boolean {:?}", constant),
+            _ => panic!("invalid constant for boolean {constant:?}"),
         };
     }
 

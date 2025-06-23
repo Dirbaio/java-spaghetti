@@ -52,7 +52,7 @@ impl<'a> Context<'a> {
     pub fn java_to_rust_path(&self, java_class: parser_util::Id, mod_: &str) -> Result<TokenStream, Box<dyn Error>> {
         let m = Class::mod_for(self, java_class)?;
         let s = Class::name_for(self, java_class)?;
-        let fqn = format!("{}::{}", m, s);
+        let fqn = format!("{m}::{s}");
 
         // Calculate relative path from B to A.
         let b: Vec<&str> = mod_.split("::").collect();

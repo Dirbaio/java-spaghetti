@@ -4,6 +4,8 @@ use jni_sys::*;
 
 /// JNI bindings rely on this type being accurate.
 ///
+/// # Safety
+///
 /// **unsafe**: Passing the wrong type can cause unsoundness, since the code that interacts with JNI blindly trusts it's correct.
 ///
 /// Why the awkward callback style instead of returning `&'static CStr`?  Arrays of arrays may need to dynamically

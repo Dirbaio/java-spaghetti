@@ -25,8 +25,8 @@ impl<'env> StringChars<'env> {
     pub unsafe fn from_env_jstring(env: Env<'env>, string: jstring) -> Self {
         debug_assert!(!string.is_null());
 
-        let chars = env.get_string_chars(string);
-        let length = env.get_string_length(string);
+        let chars = unsafe { env.get_string_chars(string) };
+        let length = unsafe { env.get_string_length(string) };
 
         Self {
             env,
@@ -42,7 +42,7 @@ impl<'env> StringChars<'env> {
     }
 
     /// [std::char::decode_utf16]\(...\)s these string characters.
-    pub fn decode(&self) -> char::DecodeUtf16<iter::Cloned<slice::Iter<u16>>> {
+    pub fn decode(&self) -> char::DecodeUtf16<iter::Cloned<slice::Iter<'_, u16>>> {
         char::decode_utf16(self.chars().iter().cloned())
     }
 

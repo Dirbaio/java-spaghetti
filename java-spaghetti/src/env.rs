@@ -1,8 +1,8 @@
 use std::ffi::CStr;
 use std::marker::PhantomData;
 use std::ptr::{self, null_mut};
-use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicPtr, Ordering};
 
 use jni_sys::*;
 
@@ -69,6 +69,7 @@ pub struct Env<'env> {
 static CLASS_LOADER: AtomicPtr<_jobject> = AtomicPtr::new(null_mut());
 
 #[allow(clippy::missing_safety_doc)]
+#[allow(unsafe_op_in_unsafe_fn)]
 impl<'env> Env<'env> {
     pub unsafe fn from_raw(ptr: *mut JNIEnv) -> Self {
         Self {
@@ -232,7 +233,7 @@ impl<'env> Env<'env> {
         }
 
         // If neither found the class, panic.
-        panic!("couldn't load class {:?}", class);
+        panic!("couldn't load class {class:?}");
     }
 
     unsafe fn require_class_jni(self, class: &CStr) -> jclass {

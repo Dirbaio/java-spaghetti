@@ -76,10 +76,7 @@ fn gather_file(context: &mut emit_rust::Context, path: &Path) -> Result<(), Box<
         unknown => {
             Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                format!(
-                    "Input files must have a '.class' or '.jar' extension, not a '.{}' extension",
-                    unknown
-                ),
+                format!("Input files must have a '.class' or '.jar' extension, not a '.{unknown}' extension",),
             ))?;
         }
     }

@@ -49,7 +49,7 @@ impl VM {
             JNI_EDETACHED => {
                 let ret = unsafe { ((**self.0).v1_2.AttachCurrentThread)(self.0, &mut env, null_mut()) };
                 if ret != JNI_OK {
-                    panic!("AttachCurrentThread returned unknown error: {}", ret)
+                    panic!("AttachCurrentThread returned unknown error: {ret}")
                 }
                 if !get_thread_exit_flag() {
                     set_thread_attach_flag(self.0);
@@ -57,7 +57,7 @@ impl VM {
                 true
             }
             JNI_EVERSION => panic!("GetEnv returned JNI_EVERSION"),
-            unexpected => panic!("GetEnv returned unknown error: {}", unexpected),
+            unexpected => panic!("GetEnv returned unknown error: {unexpected}"),
         };
 
         let result = callback(unsafe { Env::from_raw(env as _) });

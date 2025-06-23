@@ -19,7 +19,7 @@ impl Progress {
 
     pub fn force_update(&mut self, msg: &str) {
         self.can_next_log = Instant::now() + self.debounce;
-        println!("{}", msg);
+        println!("{msg}");
     }
 
     pub fn update(&mut self, msg: &str) {

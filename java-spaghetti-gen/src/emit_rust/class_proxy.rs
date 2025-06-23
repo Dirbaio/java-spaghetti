@@ -13,6 +13,7 @@ use crate::emit_rust::fields::emit_rust_type;
 use crate::parser_util::Id;
 
 impl Class {
+    #[allow(clippy::vec_init_then_push)]
     pub(crate) fn write_proxy(&self, context: &Context, methods: &[Method]) -> anyhow::Result<TokenStream> {
         let mut emit_reject_reasons = Vec::new();
 
@@ -204,7 +205,7 @@ fn mangle_native_method(path: &str, name: &str, args: &[FieldDescriptor]) -> Str
     let mut res = String::new();
     res.push_str("Java_");
     res.push_str(&mangle_native(path));
-    res.push_str("_");
+    res.push('_');
     res.push_str(&mangle_native(name));
     res.push_str("__");
     for d in args {
@@ -219,7 +220,7 @@ fn mangle_native(s: &str) -> String {
     for c in s.chars() {
         match c {
             '0'..='9' | 'a'..='z' | 'A'..='Z' => res.push(c),
-            '/' => res.push_str("_"),
+            '/' => res.push('_'),
             '_' => res.push_str("_1"),
             ';' => res.push_str("_2"),
             '[' => res.push_str("_3"),

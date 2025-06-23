@@ -88,10 +88,12 @@ impl<'env, T: ReferenceType> Ref<'env, T> {
         let env = self.env();
         let jnienv = env.as_raw();
         let class = U::static_with_jni_type(|t| unsafe { env.require_class(t) });
-        if !unsafe { ((**jnienv).v1_2.IsInstanceOf)(jnienv, self.as_raw(), class) } {
-            return Err(crate::CastError);
-        }
-        Ok(())
+        let assignable = unsafe {
+            let ret = ((**jnienv).v1_2.IsInstanceOf)(jnienv, self.as_raw(), class);
+            ((**jnienv).v1_2.DeleteLocalRef)(jnienv, class);
+            ret
+        };
+        if assignable { Ok(()) } else { Err(crate::CastError) }
     }
 
     /// Casts itself to a JNI reference of type `U` forcefully, without the cost of runtime checking.
@@ -100,7 +102,7 @@ impl<'env, T: ReferenceType> Ref<'env, T> {
     ///
     /// - `self` references an instance of type `U`.
     pub unsafe fn cast_unchecked<U: ReferenceType>(self) -> Ref<'env, U> {
-        transmute(self)
+        unsafe { transmute(self) }
     }
 
     /// Tries to cast itself to a JNI reference of type `U`.
@@ -123,7 +125,7 @@ impl<'env, T: ReferenceType> Ref<'env, T> {
     ///
     /// - `self` references an instance of type `U`.
     pub unsafe fn cast_ref_unchecked<U: ReferenceType>(&self) -> &Ref<'env, U> {
-        transmute(self)
+        unsafe { transmute(self) }
     }
 
     /// Tries to cast the borrowed `Ref` to a JNI reference of type `U`.

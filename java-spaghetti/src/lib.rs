@@ -62,6 +62,7 @@ pub trait ThrowableType: ReferenceType {}
 
 /// You should generally not be interacting with this type directly, but it must be public for codegen.
 #[doc(hidden)]
+#[warn(clippy::missing_safety_doc)]
 pub unsafe trait ReferenceType: JniType + Sized + 'static {}
 
 /// Marker trait indicating `Self` can be assigned to `T`.
