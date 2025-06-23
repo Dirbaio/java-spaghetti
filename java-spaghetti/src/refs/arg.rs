@@ -42,7 +42,7 @@ impl<T: ReferenceType> Arg<T> {
         if self.object.is_null() {
             None
         } else {
-            Some(Ref::from_raw(env, self.object))
+            Some(unsafe { Ref::from_raw(env, self.object) })
         }
     }
 
@@ -52,7 +52,7 @@ impl<T: ReferenceType> Arg<T> {
     /// the intended use case of immediately converting any [Arg] into [Local] at the start of a JNI callback,
     /// where Java directly invoked your function with an [Env] + arguments, is sound.
     pub unsafe fn into_local<'env>(self, env: Env<'env>) -> Option<Local<'env, T>> {
-        self.into_ref(env).map(|r| r.as_local())
+        unsafe { self.into_ref(env) }.map(|r| r.as_local())
     }
 
     /// This equals [Arg::into_ref] + [Ref::as_global].
@@ -61,6 +61,6 @@ impl<T: ReferenceType> Arg<T> {
     ///
     /// **unsafe**:  The same as [Arg::into_ref].
     pub unsafe fn into_global(self, env: Env) -> Option<Global<T>> {
-        self.into_ref(env).as_ref().map(Ref::as_global)
+        unsafe { self.into_ref(env) }.as_ref().map(Ref::as_global)
     }
 }

@@ -147,7 +147,7 @@ impl<'a> Method<'a> {
 
         let docs = match KnownDocsUrl::from_method(context, self) {
             Some(url) => format!("{url}"),
-            None => format!("{}", self.java.name()),
+            None => self.java.name().to_string(),
         };
 
         let throwable = context.throwable_rust_path(mod_);

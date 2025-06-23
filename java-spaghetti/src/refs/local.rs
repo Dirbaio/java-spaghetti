@@ -43,7 +43,7 @@ impl<'env, T: ReferenceType> Local<'env, T> {
     /// - `object` references an instance of type `T`.
     pub unsafe fn from_raw(env: Env<'env>, object: jobject) -> Self {
         Self {
-            ref_: Ref::from_raw(env, object),
+            ref_: unsafe { Ref::from_raw(env, object) },
         }
     }
 

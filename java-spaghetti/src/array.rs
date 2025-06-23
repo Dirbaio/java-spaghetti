@@ -34,6 +34,11 @@ where
     /// Uses JNI `GetArrayLength` to get the length of the Java array.
     fn len(self: &Ref<'_, Self>) -> usize;
 
+    /// Uses JNI `GetArrayLength` to get the length of the Java array, returns `true` if it is 0.
+    fn is_empty(self: &Ref<'_, Self>) -> bool {
+        self.len() == 0
+    }
+
     /// Uses JNI `Get{Type}ArrayRegion` to read the contents of the Java array within `[start .. start + elements.len()]`.
     ///
     /// Panics if the index is out of bound.
@@ -100,7 +105,7 @@ macro_rules! primitive_array {
 
         impl PrimitiveArray<$type> for $name {
             fn new<'env>(env: Env<'env>, size: usize) -> Local<'env, Self> {
-                assert!(size <= std::i32::MAX as usize); // jsize == jint == i32
+                assert!(size <= i32::MAX as usize); // jsize == jint == i32
                 let size = size as jsize;
                 let jnienv = env.as_raw();
                 unsafe {
@@ -127,8 +132,8 @@ macro_rules! primitive_array {
             }
 
             fn get_region(self: &Ref<'_, Self>, start: usize, elements: &mut [$type]) {
-                assert!(start <= std::i32::MAX as usize); // jsize == jint == i32
-                assert!(elements.len() <= std::i32::MAX as usize); // jsize == jint == i32
+                assert!(start <= i32::MAX as usize); // jsize == jint == i32
+                assert!(elements.len() <= i32::MAX as usize); // jsize == jint == i32
                 let self_len = self.len() as jsize;
                 let elements_len = elements.len() as jsize;
 
@@ -150,8 +155,8 @@ macro_rules! primitive_array {
             }
 
             fn set_region(self: &Ref<'_, Self>, start: usize, elements: &[$type]) {
-                assert!(start <= std::i32::MAX as usize); // jsize == jint == i32
-                assert!(elements.len() <= std::i32::MAX as usize); // jsize == jint == i32
+                assert!(start <= i32::MAX as usize); // jsize == jint == i32
+                assert!(elements.len() <= i32::MAX as usize); // jsize == jint == i32
                 let self_len = self.len() as jsize;
                 let elements_len = elements.len() as jsize;
 
@@ -210,7 +215,7 @@ unsafe impl<T: ReferenceType, E: ThrowableType> JniType for ObjectArray<T, E> {
 impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
     /// Uses JNI `NewObjectArray` to create a new Java object array.
     pub fn new<'env>(env: Env<'env>, size: usize) -> Local<'env, Self> {
-        assert!(size <= std::i32::MAX as usize); // jsize == jint == i32
+        assert!(size <= i32::MAX as usize); // jsize == jint == i32
         let class = T::static_with_jni_type(|t| unsafe { env.require_class(t) });
         let size = size as jsize;
 
@@ -221,6 +226,11 @@ impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
         };
         // Only sane exception here is an OOM exception
         env.exception_check::<E>().map_err(|_| "OOM").unwrap();
+
+        unsafe {
+            let env = env.as_raw();
+            ((**env).v1_2.DeleteLocalRef)(env, class);
+        }
         unsafe { Local::from_raw(env, object) }
     }
 
@@ -235,10 +245,7 @@ impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
 
     /// Uses JNI `NewObjectArray` to create a new Java object array of the exact size, then sets its items
     /// with the iterator of JNI (null?) references.
-    pub fn new_from<'env>(
-        env: Env<'env>,
-        elements: impl ExactSizeIterator + Iterator<Item = impl AsArg<T>>,
-    ) -> Local<'env, Self> {
+    pub fn new_from<'env>(env: Env<'env>, elements: impl ExactSizeIterator<Item = impl AsArg<T>>) -> Local<'env, Self> {
         let size = elements.len();
         let array = Self::new(env, size);
         let env = array.env().as_raw();
@@ -260,7 +267,7 @@ impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
     ///
     /// XXX: Expose this via `std::ops::Index`.
     pub fn get<'env>(self: &Ref<'env, Self>, index: usize) -> Result<Option<Local<'env, T>>, Local<'env, E>> {
-        assert!(index <= std::i32::MAX as usize); // jsize == jint == i32 XXX: Should maybe be treated as an exception?
+        assert!(index <= i32::MAX as usize); // jsize == jint == i32 XXX: Should maybe be treated as an exception?
         let index = index as jsize;
         let env = self.env();
         let result = unsafe {
@@ -279,7 +286,7 @@ impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
     ///
     /// XXX: I don't think there's a way to expose this via `std::ops::IndexMut` sadly?
     pub fn set<'env>(self: &Ref<'env, Self>, index: usize, value: impl AsArg<T>) -> Result<(), Local<'env, E>> {
-        assert!(index <= std::i32::MAX as usize); // jsize == jint == i32 XXX: Should maybe be treated as an exception?
+        assert!(index <= i32::MAX as usize); // jsize == jint == i32 XXX: Should maybe be treated as an exception?
         let index = index as jsize;
         let env = self.env();
         unsafe {

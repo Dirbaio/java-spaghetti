@@ -114,8 +114,8 @@ impl Class {
         };
 
         let docs = match KnownDocsUrl::from_class(context, self.java.path()) {
-            Some(url) => format!("{} {} {}", visibility, keyword, url),
-            None => format!("{} {} {}", visibility, keyword, self.java.path().as_str()),
+            Some(url) => format!("{visibility} {keyword} {url}"),
+            None => format!("{visibility} {keyword} {}", self.java.path().as_str()),
         };
 
         let rust_name = format_ident!("{}", &self.rust.struct_name);
@@ -235,7 +235,7 @@ impl Class {
 
         out.extend(quote!(impl #rust_name { #contents }));
 
-        if context.proxy_included(&self.java.path().as_str()) {
+        if context.proxy_included(self.java.path().as_str()) {
             out.extend(self.write_proxy(context, &methods)?);
         }
 
