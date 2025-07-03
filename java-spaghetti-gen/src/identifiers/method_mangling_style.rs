@@ -1,7 +1,7 @@
 use cafebabe::descriptors::{FieldType, MethodDescriptor};
 use serde_derive::Deserialize;
 
-use super::rust_identifier::{IdentifierManglingError, javaify_identifier, rustify_identifier};
+use super::rust_identifier::{IdentifierManglingError, javaify_identifier};
 use crate::parser_util::{Id, IdPart};
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Hash)]
@@ -39,36 +39,6 @@ pub enum MethodManglingStyle {
     /// | getFoo    | getFoo_int            |
     /// | \<init\>  | new_java_lang_Object  |
     JavaLongSignature,
-
-    /// Rename the method to use rust style naming conventions.
-    ///
-    /// # Examples:
-    ///
-    /// | Java      | Rust      |
-    /// | --------- | --------- |
-    /// | getFoo    | get_foo   |
-    /// | \<init\>  | new       |
-    Rustify,
-
-    /// Rename the method to use rust style naming conventions, with unqualified typenames appended for disambiguation.
-    ///
-    /// # Examples:
-    ///
-    /// | Java      | Rust          |
-    /// | --------- | ------------- |
-    /// | getFoo    | get_foo_int   |
-    /// | \<init\>  | new_object    |
-    RustifyShortSignature,
-
-    /// Rename the method to use rust style naming conventions, with qualified typenames appended for disambiguation.
-    ///
-    /// # Examples:
-    ///
-    /// | Java      | Rust                  |
-    /// | --------- | --------------------- |
-    /// | getFoo    | get_foo_int           |
-    /// | \<init\>  | new_java_lang_object  |
-    RustifyLongSignature,
 }
 
 #[test]
@@ -98,57 +68,24 @@ fn method_mangling_style_mangle_test() {
         return_type: ReturnDescriptor::Void,
     };
 
-    for &(name, sig, java, java_short, java_long, rust, rust_short, rust_long) in &[
-        (
-            "getFoo",
-            &desc_no_arg_ret_v,
-            "getFoo",
-            "getFoo",
-            "getFoo",
-            "get_foo",
-            "get_foo",
-            "get_foo",
-        ),
-        (
-            "getFoo",
-            &desc_arg_i_ret_v,
-            "getFoo",
-            "getFoo_int",
-            "getFoo_int",
-            "get_foo",
-            "get_foo_int",
-            "get_foo_int",
-        ),
+    for &(name, sig, java, java_short, java_long) in &[
+        ("getFoo", &desc_no_arg_ret_v, "getFoo", "getFoo", "getFoo"),
+        ("getFoo", &desc_arg_i_ret_v, "getFoo", "getFoo_int", "getFoo_int"),
         (
             "getFoo",
             &desc_arg_obj_ret_v,
             "getFoo",
             "getFoo_Object",
             "getFoo_java_lang_Object",
-            "get_foo",
-            "get_foo_object",
-            "get_foo_java_lang_object",
         ),
-        ("<init>", &desc_no_arg_ret_v, "new", "new", "new", "new", "new", "new"),
-        (
-            "<init>",
-            &desc_arg_i_ret_v,
-            "new",
-            "new_int",
-            "new_int",
-            "new",
-            "new_int",
-            "new_int",
-        ),
+        ("<init>", &desc_no_arg_ret_v, "new", "new", "new"),
+        ("<init>", &desc_arg_i_ret_v, "new", "new_int", "new_int"),
         (
             "<init>",
             &desc_arg_obj_ret_v,
             "new",
             "new_Object",
             "new_java_lang_Object",
-            "new",
-            "new_object",
-            "new_java_lang_object",
         ),
         // TODO: get1DFoo
         // TODO: array types (primitive + non-primitive)
@@ -162,16 +99,6 @@ fn method_mangling_style_mangle_test() {
             MethodManglingStyle::JavaLongSignature.mangle(name, sig).unwrap(),
             java_long
         );
-
-        assert_eq!(MethodManglingStyle::Rustify.mangle(name, sig).unwrap(), rust);
-        assert_eq!(
-            MethodManglingStyle::RustifyShortSignature.mangle(name, sig).unwrap(),
-            rust_short
-        );
-        assert_eq!(
-            MethodManglingStyle::RustifyLongSignature.mangle(name, sig).unwrap(),
-            rust_long
-        );
     }
 }
 
@@ -184,17 +111,14 @@ fn mangle_method_name_test() {
         return_type: ReturnDescriptor::Void,
     };
 
+    assert_eq!(MethodManglingStyle::Java.mangle("isFooBar", &desc).unwrap(), "isFooBar");
     assert_eq!(
-        MethodManglingStyle::Rustify.mangle("isFooBar", &desc).unwrap(),
-        "is_foo_bar"
+        MethodManglingStyle::Java.mangle("XMLHttpRequest", &desc).unwrap(),
+        "XMLHttpRequest"
     );
     assert_eq!(
-        MethodManglingStyle::Rustify.mangle("XMLHttpRequest", &desc).unwrap(),
-        "xml_http_request"
-    );
-    assert_eq!(
-        MethodManglingStyle::Rustify.mangle("getFieldID_Input", &desc).unwrap(),
-        "get_field_id_input"
+        MethodManglingStyle::Java.mangle("getFieldID_Input", &desc).unwrap(),
+        "getFieldID_Input"
     );
 }
 
@@ -211,13 +135,10 @@ impl MethodManglingStyle {
             name => name,
         };
 
-        let (rustify, long_sig) = match self {
+        let long_sig = match self {
             MethodManglingStyle::Java => return javaify_identifier(name),
-            MethodManglingStyle::Rustify => return rustify_identifier(name),
-            MethodManglingStyle::JavaShortSignature => (false, false),
-            MethodManglingStyle::JavaLongSignature => (false, true),
-            MethodManglingStyle::RustifyShortSignature => (true, false),
-            MethodManglingStyle::RustifyLongSignature => (true, true),
+            MethodManglingStyle::JavaShortSignature => false,
+            MethodManglingStyle::JavaLongSignature => true,
         };
 
         let mut buffer = name.to_string();
@@ -268,10 +189,6 @@ impl MethodManglingStyle {
             }
         }
 
-        if rustify {
-            rustify_identifier(&buffer)
-        } else {
-            javaify_identifier(&buffer)
-        }
+        javaify_identifier(&buffer)
     }
 }

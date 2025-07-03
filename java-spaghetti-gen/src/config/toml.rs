@@ -8,10 +8,10 @@ use serde_derive::Deserialize;
 use crate::identifiers::{FieldManglingStyle, MethodManglingStyle};
 
 fn default_method_naming_style() -> MethodManglingStyle {
-    MethodManglingStyle::Rustify
+    MethodManglingStyle::Java
 }
 fn default_method_naming_style_collision() -> MethodManglingStyle {
-    MethodManglingStyle::RustifyShortSignature
+    MethodManglingStyle::JavaLongSignature
 }
 
 fn default_proxy_path_prefix() -> String {
@@ -206,7 +206,7 @@ pub struct Rename {
 /// [codegen]
 /// static_env                      = "implicit"
 /// method_naming_style             = "java"
-/// method_naming_style_collision   = "rustify_long_signature"
+/// method_naming_style_collision   = "java_long_signature"
 ///
 /// [logging]
 /// verbose = true
@@ -361,7 +361,7 @@ fn load_well_configured_toml() {
         [codegen]
         static_env                      = "explicit"
         method_naming_style             = "java"
-        method_naming_style_collision   = "rustify_long_signature"
+        method_naming_style_collision   = "java_long_signature"
 
         [logging]
         verbose = true
@@ -422,7 +422,7 @@ fn load_well_configured_toml() {
     assert_eq!(file.codegen.method_naming_style, MethodManglingStyle::Java);
     assert_eq!(
         file.codegen.method_naming_style_collision,
-        MethodManglingStyle::RustifyLongSignature
+        MethodManglingStyle::JavaLongSignature
     );
 
     assert!(file.logging.verbose);
@@ -500,10 +500,10 @@ fn load_minimal_toml() {
     "#;
     let file = File::read_str(minimal_toml).unwrap();
 
-    assert_eq!(file.codegen.method_naming_style, MethodManglingStyle::Rustify);
+    assert_eq!(file.codegen.method_naming_style, MethodManglingStyle::Java);
     assert_eq!(
         file.codegen.method_naming_style_collision,
-        MethodManglingStyle::RustifyShortSignature
+        MethodManglingStyle::JavaLongSignature
     );
 
     assert!(!file.logging.verbose);

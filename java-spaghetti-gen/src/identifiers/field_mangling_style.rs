@@ -1,6 +1,6 @@
 use serde_derive::Deserialize;
 
-use crate::identifiers::{IdentifierManglingError, constify_identifier, javaify_identifier, rustify_identifier};
+use crate::identifiers::{IdentifierManglingError, javaify_identifier};
 use crate::parser_util::JavaField;
 
 pub enum FieldMangling<'a> {
@@ -11,7 +11,6 @@ pub enum FieldMangling<'a> {
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Hash)]
 pub struct FieldManglingStyle {
     pub const_finals: bool,     // Default: true
-    pub rustify_names: bool,    // Default: true
     pub getter_pattern: String, // Default: "{NAME}", might consider "get_{NAME}"
     pub setter_pattern: String, // Default: "set_{NAME}"
 }
@@ -20,7 +19,6 @@ impl Default for FieldManglingStyle {
     fn default() -> Self {
         Self {
             const_finals: true,
-            rustify_names: true,
             getter_pattern: String::from("{NAME}"),
             setter_pattern: String::from("set_{NAME}"),
         }
@@ -37,8 +35,6 @@ impl FieldManglingStyle {
         if let (Some(value), true) = (field.constant().as_ref(), self.const_finals) {
             let name = if renamed_to.is_some() {
                 Ok(field_name.to_owned()) // Don't remangle renames
-            } else if self.rustify_names {
-                constify_identifier(field_name)
             } else {
                 javaify_identifier(field_name)
             }?;
@@ -53,10 +49,6 @@ impl FieldManglingStyle {
     }
 
     fn mangle_identifier(&self, ident: &str) -> Result<String, IdentifierManglingError> {
-        if self.rustify_names {
-            rustify_identifier(ident)
-        } else {
-            javaify_identifier(ident)
-        }
+        javaify_identifier(ident)
     }
 }
