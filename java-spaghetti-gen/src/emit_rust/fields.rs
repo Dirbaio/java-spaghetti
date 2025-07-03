@@ -205,7 +205,7 @@ pub fn emit_constant(constant: &LiteralConstant<'_>, descriptor: &FieldDescripto
     if descriptor.field_type == FieldType::Char && descriptor.dimensions == 0 {
         return match constant {
             LiteralConstant::Integer(value) => {
-                let value = *value as i16;
+                let value = *value as u16;
                 quote!(#value)
             }
             _ => panic!("invalid constant for char {constant:?}"),
