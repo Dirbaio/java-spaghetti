@@ -190,28 +190,119 @@ fn resolve_file(path: &Path, dir: &Path) -> PathBuf {
 }
 
 fn expand_vars(string: &str) -> String {
-    let mut buf = String::new();
+    let mut result = String::new();
+    let mut chars = string.chars().peekable();
 
-    let mut expanding = false;
-    for segment in string.split('%') {
-        if expanding {
-            if let Ok(replacement) = std::env::var(segment) {
-                buf.push_str(&replacement[..]);
+    while let Some(ch) = chars.next() {
+        if ch == '$' {
+            if let Some(&next_ch) = chars.peek() {
+                if next_ch == '{' {
+                    // ${VAR} format
+                    chars.next(); // consume '{'
+                    let mut var_name = String::new();
+                    let mut found_close = false;
+
+                    while let Some(var_ch) = chars.next() {
+                        if var_ch == '}' {
+                            found_close = true;
+                            break;
+                        }
+                        var_name.push(var_ch);
+                    }
+
+                    if found_close && !var_name.is_empty() {
+                        if let Ok(value) = std::env::var(&var_name) {
+                            result.push_str(&value);
+                        } else {
+                            // If variable not found, panic
+                            panic!("Environment variable '{}' not found", var_name);
+                        }
+                    } else {
+                        // Malformed ${...}, keep as is
+                        result.push('$');
+                        result.push('{');
+                        result.push_str(&var_name);
+                        if found_close {
+                            result.push('}');
+                        }
+                    }
+                } else if next_ch.is_ascii_alphabetic() || next_ch == '_' {
+                    // $VAR format (alphanumeric and underscore)
+                    let mut var_name = String::new();
+
+                    while let Some(&var_ch) = chars.peek() {
+                        if var_ch.is_ascii_alphanumeric() || var_ch == '_' {
+                            var_name.push(chars.next().unwrap());
+                        } else {
+                            break;
+                        }
+                    }
+
+                    if !var_name.is_empty() {
+                        if let Ok(value) = std::env::var(&var_name) {
+                            result.push_str(&value);
+                        } else {
+                            // If variable not found, panic
+                            panic!("Environment variable '{}' not found", var_name);
+                        }
+                    } else {
+                        result.push('$');
+                    }
+                } else {
+                    // $ followed by something else, keep as is
+                    result.push('$');
+                }
             } else {
-                println!("cargo:rerun-if-env-changed={segment}");
-                buf.push('%');
-                buf.push_str(segment);
-                buf.push('%');
+                // $ at end of string
+                result.push('$');
             }
         } else {
-            buf.push_str(segment);
+            result.push(ch);
         }
-        expanding = !expanding;
     }
-    assert!(
-        expanding,
-        "Uneven number of %s in path: {:?}, would mis-expand into: {:?}",
-        &string, &buf
-    );
-    buf
+
+    result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_expand_vars() {
+        // Test ${VAR} format
+        unsafe { std::env::set_var("TEST_VAR", "hello") };
+        assert_eq!(expand_vars("${TEST_VAR}"), "hello");
+        assert_eq!(expand_vars("prefix_${TEST_VAR}_suffix"), "prefix_hello_suffix");
+
+        // Test $VAR format
+        assert_eq!(expand_vars("$TEST_VAR"), "hello");
+        // Note: In shell, $VAR_suffix would try to expand VAR_suffix, not VAR + _suffix
+        // This is correct behavior - use ${VAR}_suffix for the latter
+        assert_eq!(expand_vars("prefix_${TEST_VAR}/suffix"), "prefix_hello/suffix");
+
+        // Test literal $ characters
+        assert_eq!(expand_vars("$"), "$");
+        assert_eq!(expand_vars("$$"), "$$");
+        assert_eq!(expand_vars("$123"), "$123");
+
+        // Test malformed syntax
+        assert_eq!(expand_vars("${"), "${");
+        assert_eq!(expand_vars("${unclosed"), "${unclosed");
+
+        // Clean up
+        unsafe { std::env::remove_var("TEST_VAR") };
+    }
+
+    #[test]
+    #[should_panic(expected = "Environment variable 'NONEXISTENT' not found")]
+    fn test_expand_vars_panic_on_missing_var_braces() {
+        expand_vars("${NONEXISTENT}");
+    }
+
+    #[test]
+    #[should_panic(expected = "Environment variable 'NONEXISTENT' not found")]
+    fn test_expand_vars_panic_on_missing_var_dollar() {
+        expand_vars("$NONEXISTENT");
+    }
 }
