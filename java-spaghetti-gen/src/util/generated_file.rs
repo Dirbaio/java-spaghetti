@@ -15,6 +15,19 @@ pub fn write_generated(context: &emit::Context, path: &impl AsRef<Path>, content
         .ok_or_else(|| io_data_error!("{:?} has no parent directory", path))?;
     let _ = create_dir_all(dir);
 
+    // Determine comment prefix based on file extension
+    let comment_prefix = match path.extension().and_then(|ext| ext.to_str()) {
+        Some("rs") => "// ",
+        Some("java") => "// ",
+        Some("py") => "# ",
+        Some("sh") => "# ",
+        _ => "// ", // Default to // for unknown extensions
+    };
+
+    // Create content with marker comment at the top
+    let marker_line = format!("{}{}\n", comment_prefix, MARKER_COMMENT);
+    let full_contents = [marker_line.as_bytes(), contents].concat();
+
     match File::open(path) {
         Ok(file) => {
             let mut original = BufReader::new(file);
@@ -38,7 +51,7 @@ pub fn write_generated(context: &emit::Context, path: &impl AsRef<Path>, content
                 );
             }
 
-            let difference = Difference::find(&mut original, &mut Cursor::new(contents))?;
+            let difference = Difference::find(&mut original, &mut Cursor::new(&full_contents))?;
             match difference {
                 None => {
                     context
@@ -69,7 +82,7 @@ pub fn write_generated(context: &emit::Context, path: &impl AsRef<Path>, content
         }
     };
 
-    fs::write(path, contents)
+    fs::write(path, &full_contents)
 }
 
 fn read_line_no_eol(reader: &mut impl BufRead, buffer: &mut String) -> io::Result<usize> {
