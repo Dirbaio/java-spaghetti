@@ -249,6 +249,13 @@ impl Config {
         }
     }
 
+    /// Read configuration from a specific file path.
+    pub fn from_file(path: &Path) -> io::Result<Self> {
+        let mut file = fs::File::open(path)?;
+        let config_dir = path.parent().unwrap_or(Path::new("."));
+        Self::read(&mut file, config_dir)
+    }
+
     pub fn resolve_class(&self, class: &str) -> ClassConfig<'_> {
         let mut res = ClassConfig {
             include: false,

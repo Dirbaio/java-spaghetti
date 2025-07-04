@@ -6,14 +6,12 @@ mod emit;
 mod identifiers;
 mod parser_util;
 
-fn main() {
-    entry::main();
-}
-
 use std::error::Error;
 use std::fs::File;
 use std::io::{self, Read};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+use clap::{Parser, Subcommand};
 
 use crate::config::Config;
 use crate::parser_util::JavaClass;
@@ -97,49 +95,48 @@ fn gather_file(context: &mut emit::Context, path: &Path) -> Result<(), Box<dyn E
     Ok(())
 }
 
-mod entry {
-    use std::path::PathBuf;
+/// Autogenerate glue code for access Android JVM APIs from Rust
+#[derive(Parser, Debug)]
+#[command(version, about)]
+struct Cli {
+    #[command(subcommand)]
+    cmd: Cmd,
+}
 
-    use clap::{Parser, Subcommand};
+/// Doc comment
+#[derive(Subcommand, Debug)]
+enum Cmd {
+    Generate(GenerateCmd),
+}
 
-    use crate::{config, run};
+#[derive(Parser, Debug)]
+struct GenerateCmd {
+    /// Log in more detail
+    #[arg(short, long)]
+    verbose: bool,
 
-    /// Autogenerate glue code for access Android JVM APIs from Rust
-    #[derive(Parser, Debug)]
-    #[command(version, about)]
-    struct Cli {
-        #[command(subcommand)]
-        cmd: Cmd,
-    }
+    /// Sets a custom config file
+    #[arg(short, long)]
+    config: Option<PathBuf>,
+}
 
-    /// Doc comment
-    #[derive(Subcommand, Debug)]
-    enum Cmd {
-        Generate(GenerateCmd),
-    }
+pub fn main() {
+    let cli = Cli::parse();
 
-    #[derive(Parser, Debug)]
-    struct GenerateCmd {
-        /// Log in more detail
-        #[arg(short, long)]
-        verbose: bool,
+    match cli.cmd {
+        Cmd::Generate(cmd) => {
+            let mut config = if let Some(config_path) = cmd.config {
+                // Use specified config file
+                config::Config::from_file(&config_path).unwrap()
+            } else {
+                // Search from current working directory
+                config::Config::from_current_directory().unwrap()
+            };
 
-        /// Sets a custom directory
-        #[arg(short, long, default_value = ".")]
-        directory: PathBuf,
-    }
-
-    pub fn main() {
-        let cli = Cli::parse();
-
-        match cli.cmd {
-            Cmd::Generate(cmd) => {
-                let mut config = config::Config::from_directory(&cmd.directory).unwrap();
-                if cmd.verbose {
-                    config.logging_verbose = true;
-                }
-                run(config).unwrap();
+            if cmd.verbose {
+                config.logging_verbose = true;
             }
+            run(config).unwrap();
         }
     }
 }
