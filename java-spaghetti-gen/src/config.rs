@@ -100,7 +100,8 @@ pub struct Rule {
     /// | java.lang.*               | jni_prefix = "java/lang/"
     /// | name.spaces.OuterClass.*  | jni_prefix = "name/spaces/OuterClass$"
     #[serde(default)]
-    pub prefix: String,
+    #[serde(rename = "match")]
+    pub matches: Vec<String>,
 
     #[serde(default)]
     pub include: Option<bool>,
@@ -161,7 +162,10 @@ impl Config {
             serde_yaml::from_str(buffer).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
         if config.rules.is_empty() {
-            config.rules.push(Rule::default())
+            config.rules.push(Rule {
+                matches: vec!["".to_string()],
+                ..Default::default()
+            })
         }
 
         config.output = resolve_file(&config.output, dir);
@@ -213,7 +217,7 @@ impl Config {
         };
 
         for r in &self.rules {
-            if class.starts_with(&r.prefix) {
+            if r.matches.iter().any(|p| class.starts_with(p)) {
                 if let Some(include) = r.include {
                     res.include = include;
                 }
