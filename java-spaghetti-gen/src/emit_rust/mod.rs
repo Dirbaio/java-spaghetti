@@ -119,9 +119,6 @@ impl<'a> Context<'a> {
     }
 
     pub fn add_class(&mut self, class: parser_util::JavaClass) -> Result<(), Box<dyn Error>> {
-        if self.config.ignore_classes.contains(class.path().as_str()) {
-            return Ok(());
-        }
         if !self.class_included(class.path().as_str()) {
             return Ok(());
         }

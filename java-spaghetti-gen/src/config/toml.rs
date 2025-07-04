@@ -157,25 +157,7 @@ pub struct Logging {
     pub verbose: bool,
 }
 
-/// An \[[ignore\]] section.
-#[derive(Debug, Clone, Deserialize, Default)]
-pub struct Ignore {
-    pub class: String,
-    pub field: Option<String>,
-    pub method: Option<String>,
-    pub signature: Option<String>,
-}
-
 /// A \[[rename\]] section.
-#[derive(Debug, Clone, Deserialize, Default)]
-pub struct Rename {
-    pub to: String,
-    pub class: String,
-    pub field: Option<String>,
-    pub method: Option<String>,
-    pub signature: Option<String>,
-}
-
 /// Format for a `java-spaghetti.toml` file or in-memory settings.
 ///
 /// # Example File
@@ -213,36 +195,6 @@ pub struct Rename {
 /// [output]
 /// path = "android28.rs"
 ///
-///
-///
-/// [[ignore]]
-/// class = "some/java/Class"
-///
-/// [[ignore]]
-/// class = "some/java/Class"
-/// method = "someMethod"
-///
-/// [[ignore]]
-/// class = "some/java/Class"
-/// method = "someOtherMethod"
-/// signature = "()V"
-///
-///
-///
-/// [[rename]]
-/// class = "some/java/Class"
-/// to    = "class"
-///
-/// [[rename]]
-/// class  = "some/java/Class"
-/// method = "someMethod"
-/// to     = "some_method"
-///
-/// [[rename]]
-/// class     = "some/java/Class"
-/// method    = "someOtherMethod"
-/// signature = "()V"
-/// to        = "some_other_method"
 /// ```
 #[derive(Debug, Clone, Deserialize)]
 pub struct File {
@@ -272,16 +224,6 @@ pub struct File {
     #[serde(rename = "include_proxy")]
     #[serde(default = "Vec::new")]
     pub include_proxies: Vec<String>,
-
-    /// Classes and class methods to ignore.
-    #[serde(rename = "ignore")]
-    #[serde(default = "Vec::new")]
-    pub ignores: Vec<Ignore>,
-
-    /// Classes and class methods to rename.
-    #[serde(rename = "rename")]
-    #[serde(default = "Vec::new")]
-    pub renames: Vec<Rename>,
 }
 
 impl File {
@@ -366,21 +308,6 @@ fn load_well_configured_toml() {
         path = "android28.rs"
 
 
-
-        [[ignore]]
-        class = "some/java/Class"
-
-        [[ignore]]
-        class  = "some/java/Class"
-        method = "someMethod"
-
-        [[ignore]]
-        class     = "some/java/Class"
-        method    = "someOtherMethod"
-        signature = "()V"
-
-
-
         [[rename]]
         class = "some/java/Class"
         to    = "class"
@@ -429,37 +356,6 @@ fn load_well_configured_toml() {
         &[Path::new("%LOCALAPPDATA%/Android/Sdk/platforms/android-28/android.jar")]
     );
     assert_eq!(file.output.path, Path::new("android28.rs"));
-
-    assert_eq!(file.ignores.len(), 3);
-
-    assert_eq!(file.ignores[0].class, "some/java/Class");
-    assert_eq!(file.ignores[0].method, None);
-    assert_eq!(file.ignores[0].signature, None);
-
-    assert_eq!(file.ignores[1].class, "some/java/Class");
-    assert_eq!(file.ignores[1].method, Some("someMethod".to_owned()));
-    assert_eq!(file.ignores[1].signature, None);
-
-    assert_eq!(file.ignores[2].class, "some/java/Class");
-    assert_eq!(file.ignores[2].method, Some("someOtherMethod".to_owned()));
-    assert_eq!(file.ignores[2].signature, Some("()V".to_owned()));
-
-    assert_eq!(file.renames.len(), 3);
-
-    assert_eq!(file.renames[0].class, "some/java/Class");
-    assert_eq!(file.renames[0].method, None);
-    assert_eq!(file.renames[0].signature, None);
-    assert_eq!(file.renames[0].to, "class");
-
-    assert_eq!(file.renames[1].class, "some/java/Class");
-    assert_eq!(file.renames[1].method, Some("someMethod".to_owned()));
-    assert_eq!(file.renames[1].signature, None);
-    assert_eq!(file.renames[1].to, "some_method");
-
-    assert_eq!(file.renames[2].class, "some/java/Class");
-    assert_eq!(file.renames[2].method, Some("someOtherMethod".to_owned()));
-    assert_eq!(file.renames[2].signature, Some("()V".to_owned()));
-    assert_eq!(file.renames[2].to, "some_other_method");
 }
 
 #[test]
@@ -480,8 +376,6 @@ fn load_minimal_toml() {
         &[Path::new("%LOCALAPPDATA%/Android/Sdk/platforms/android-28/android.jar")]
     );
     assert_eq!(file.output.path, Path::new("android28.rs"));
-    assert_eq!(file.ignores.len(), 0);
-    assert_eq!(file.renames.len(), 0);
 }
 
 /// A [File] + context (directory path continaing the [File]).

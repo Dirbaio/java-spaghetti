@@ -43,28 +43,9 @@ impl<'a> Method<'a> {
     pub fn emit(&self, context: &Context, mod_: &str) -> anyhow::Result<TokenStream> {
         let mut emit_reject_reasons = Vec::new();
 
-        let java_class_method = format!("{}\x1f{}", self.class.path().as_str(), self.java.name());
-        let java_class_method_sig = format!(
-            "{}\x1f{}\x1f{}",
-            self.class.path().as_str(),
-            self.java.name(),
-            self.java.descriptor()
-        );
-
-        let ignored = context.config.ignore_class_methods.contains(&java_class_method)
-            || context.config.ignore_class_method_sigs.contains(&java_class_method_sig);
-
-        let renamed_to = context
-            .config
-            .rename_class_methods
-            .get(&java_class_method)
-            .or_else(|| context.config.rename_class_method_sigs.get(&java_class_method_sig));
-
         let descriptor = self.java.descriptor();
 
-        let method_name = if let Some(renamed_to) = renamed_to {
-            renamed_to.clone()
-        } else if let Some(name) = self.rust_name() {
+        let method_name = if let Some(name) = self.rust_name() {
             name.to_owned()
         } else {
             emit_reject_reasons.push("ERROR:  Failed to mangle method name");
@@ -79,9 +60,6 @@ impl<'a> Method<'a> {
         }
         if self.java.is_static_init() {
             emit_reject_reasons.push("Static class constructor - never needs to be called by Rust.");
-        }
-        if ignored {
-            emit_reject_reasons.push("[[ignore]]d");
         }
 
         // Parameter names may or may not be available as extra debug information.  Example:

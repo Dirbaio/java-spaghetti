@@ -14,19 +14,10 @@ pub struct Field<'a> {
     pub class: &'a JavaClass,
     pub java: JavaField<'a>,
     pub rust_names: Result<FieldMangling<'a>, IdentifierManglingError>,
-    pub ignored: bool,
 }
 
 impl<'a> Field<'a> {
     pub fn new(context: &Context, class: &'a JavaClass, java: &'a cafebabe::FieldInfo<'a>) -> Self {
-        let java_class_field = format!("{}\x1f{}", class.path().as_str(), &java.name);
-        let ignored = context.config.ignore_class_fields.contains(&java_class_field);
-        let renamed_to = context
-            .config
-            .rename_class_fields
-            .get(&java_class_field)
-            .map(|s| s.as_str());
-
         Self {
             class,
             java: JavaField::from(java),
@@ -34,8 +25,7 @@ impl<'a> Field<'a> {
                 .config
                 .codegen
                 .field_naming_style
-                .mangle(JavaField::from(java), renamed_to),
-            ignored,
+                .mangle(JavaField::from(java), None),
         }
     }
 
@@ -44,9 +34,6 @@ impl<'a> Field<'a> {
 
         if !self.java.is_public() {
             emit_reject_reasons.push("Non-public field");
-        }
-        if self.ignored {
-            emit_reject_reasons.push("[[ignore]]d");
         }
 
         let descriptor = &self.java.descriptor();

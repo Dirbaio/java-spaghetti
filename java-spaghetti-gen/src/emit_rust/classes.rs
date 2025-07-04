@@ -64,23 +64,13 @@ impl Class {
         Ok(buf)
     }
 
-    pub(crate) fn name_for(context: &Context, class: Id) -> Result<String, Box<dyn Error>> {
-        let rename_to = context
-            .config
-            .rename_classes
-            .get(class.as_str())
-            .map(|name| name.as_str())
-            .ok_or(());
+    pub(crate) fn name_for(_context: &Context, class: Id) -> Result<String, Box<dyn Error>> {
         let mut buf = String::new();
         for component in class.iter() {
             match component {
                 IdPart::Namespace(_) => {}
                 IdPart::ContainingClass(id) => write!(&mut buf, "{}_", rust_id(id)?)?,
-                IdPart::LeafClass(id) => write!(
-                    &mut buf,
-                    "{}",
-                    rename_to.map(ToString::to_string).or_else(|_| rust_id(id))?
-                )?,
+                IdPart::LeafClass(id) => write!(&mut buf, "{}", rust_id(id)?)?,
             }
         }
         Ok(buf)
