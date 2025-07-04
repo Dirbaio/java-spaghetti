@@ -3,10 +3,10 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
 use super::cstring;
-use super::fields::{RustTypeFlavor, emit_fragment_type, emit_rust_type};
+use super::fields::{RustTypeFlavor, emit_fragment_type, emit_type};
 use super::known_docs_url::KnownDocsUrl;
 use crate::config::ClassConfig;
-use crate::emit_rust::Context;
+use crate::emit::Context;
 use crate::identifiers::MethodManglingStyle;
 use crate::parser_util::{JavaClass, JavaMethod};
 
@@ -74,14 +74,14 @@ impl<'a> Method<'a> {
 
         for (arg_idx, arg) in descriptor.parameters.iter().enumerate() {
             let arg_name = format_ident!("arg{}", arg_idx);
-            let arg_type = emit_rust_type(arg, context, mod_, RustTypeFlavor::ImplAsArg, &mut emit_reject_reasons)?;
+            let arg_type = emit_type(arg, context, mod_, RustTypeFlavor::ImplAsArg, &mut emit_reject_reasons)?;
 
             params_array.extend(quote!(::java_spaghetti::AsJValue::as_jvalue(&#arg_name),));
             params_decl.extend(quote!(#arg_name: #arg_type,));
         }
 
         let mut ret_decl = if let ReturnDescriptor::Return(desc) = &descriptor.return_type {
-            emit_rust_type(
+            emit_type(
                 desc,
                 context,
                 mod_,

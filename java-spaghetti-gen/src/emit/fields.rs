@@ -7,7 +7,7 @@ use quote::{format_ident, quote};
 use super::cstring;
 use super::known_docs_url::KnownDocsUrl;
 use crate::config::ClassConfig;
-use crate::emit_rust::Context;
+use crate::emit::Context;
 use crate::identifiers::{FieldMangling, IdentifierManglingError, mangle_field};
 use crate::parser_util::{Id, JavaClass, JavaField};
 
@@ -31,14 +31,14 @@ impl<'a> Field<'a> {
 
         let descriptor = &self.java.descriptor();
 
-        let rust_set_type = emit_rust_type(
+        let rust_set_type = emit_type(
             descriptor,
             context,
             mod_,
             RustTypeFlavor::ImplAsArg,
             &mut emit_reject_reasons,
         )?;
-        let rust_get_type = emit_rust_type(
+        let rust_get_type = emit_type(
             descriptor,
             context,
             mod_,
@@ -249,7 +249,7 @@ fn flavorify(ty: TokenStream, flavor: RustTypeFlavor) -> TokenStream {
 }
 
 /// Generates the corresponding Rust type for the Java field type.
-pub fn emit_rust_type(
+pub fn emit_type(
     descriptor: &FieldDescriptor,
     context: &Context<'_>,
     mod_: &str,

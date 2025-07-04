@@ -7,7 +7,7 @@ use std::rc::Rc;
 use proc_macro2::{Delimiter, Spacing, TokenStream, TokenTree};
 
 use super::classes::Class;
-use crate::emit_rust::Context;
+use crate::emit::Context;
 
 #[derive(Debug, Default)]
 pub(crate) struct Module {

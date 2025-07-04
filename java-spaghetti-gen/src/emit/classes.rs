@@ -9,7 +9,7 @@ use super::cstring;
 use super::fields::Field;
 use super::known_docs_url::KnownDocsUrl;
 use super::methods::Method;
-use crate::emit_rust::Context;
+use crate::emit::Context;
 use crate::identifiers::{FieldMangling, RustIdentifier};
 use crate::parser_util::{Id, IdPart, JavaClass};
 

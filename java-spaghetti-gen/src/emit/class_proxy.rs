@@ -8,8 +8,8 @@ use super::classes::Class;
 use super::cstring;
 use super::fields::RustTypeFlavor;
 use super::methods::Method;
-use crate::emit_rust::Context;
-use crate::emit_rust::fields::emit_rust_type;
+use crate::emit::Context;
+use crate::emit::fields::emit_type;
 use crate::parser_util::Id;
 
 impl Class {
@@ -63,7 +63,7 @@ impl Class {
 
             let ret = match &method.java.descriptor.return_type {
                 ReturnDescriptor::Void => quote!(()),
-                ReturnDescriptor::Return(desc) => emit_rust_type(
+                ReturnDescriptor::Return(desc) => emit_type(
                     desc,
                     context,
                     &self.rust.mod_,
@@ -79,7 +79,7 @@ impl Class {
             for (arg_idx, arg) in method.java.descriptor.parameters.iter().enumerate() {
                 let arg_name = format_ident!("arg{}", arg_idx);
 
-                let trait_arg_type = emit_rust_type(
+                let trait_arg_type = emit_type(
                     arg,
                     context,
                     &self.rust.mod_,
@@ -88,7 +88,7 @@ impl Class {
                 )?;
                 trait_args.extend(quote!(#arg_name: #trait_arg_type,));
 
-                let native_arg_type = emit_rust_type(
+                let native_arg_type = emit_type(
                     arg,
                     context,
                     &self.rust.mod_,

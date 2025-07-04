@@ -2,7 +2,7 @@
 mod util;
 
 mod config;
-mod emit_rust;
+mod emit;
 mod identifiers;
 mod parser_util;
 
@@ -23,7 +23,7 @@ pub fn run(config: impl Into<Config>) -> Result<(), Box<dyn Error>> {
     let config: Config = config.into();
     println!("output: {}", config.output.display());
 
-    let mut context = emit_rust::Context::new(&config);
+    let mut context = emit::Context::new(&config);
     for file in config.input.iter() {
         gather_file(&mut context, file)?;
     }
@@ -35,7 +35,7 @@ pub fn run(config: impl Into<Config>) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn gather_file(context: &mut emit_rust::Context, path: &Path) -> Result<(), Box<dyn Error>> {
+fn gather_file(context: &mut emit::Context, path: &Path) -> Result<(), Box<dyn Error>> {
     let verbose = context.config.logging_verbose;
 
     context
