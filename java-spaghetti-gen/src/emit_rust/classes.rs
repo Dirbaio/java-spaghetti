@@ -259,10 +259,10 @@ impl Class {
 
             // Upgrade methods that have collisions to the next mangling style
             for method in methods.iter_mut() {
-                if let Some(name) = method.rust_name() {
-                    if name_counts.get(name).unwrap_or(&0) >= &2 {
-                        method.set_mangling_style(style);
-                    }
+                if let Some(name) = method.rust_name()
+                    && name_counts.get(name).unwrap_or(&0) >= &2
+                {
+                    method.set_mangling_style(style);
                 }
             }
         }

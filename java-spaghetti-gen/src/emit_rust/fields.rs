@@ -7,7 +7,7 @@ use quote::{format_ident, quote};
 use super::cstring;
 use super::known_docs_url::KnownDocsUrl;
 use crate::emit_rust::Context;
-use crate::identifiers::{FieldMangling, IdentifierManglingError};
+use crate::identifiers::{FieldMangling, IdentifierManglingError, mangle_field};
 use crate::parser_util::{Id, JavaClass, JavaField};
 
 pub struct Field<'a> {
@@ -17,15 +17,11 @@ pub struct Field<'a> {
 }
 
 impl<'a> Field<'a> {
-    pub fn new(context: &Context, class: &'a JavaClass, java: &'a cafebabe::FieldInfo<'a>) -> Self {
+    pub fn new(_context: &Context, class: &'a JavaClass, java: &'a cafebabe::FieldInfo<'a>) -> Self {
         Self {
             class,
             java: JavaField::from(java),
-            rust_names: context
-                .config
-                .codegen
-                .field_naming_style
-                .mangle(JavaField::from(java), None),
+            rust_names: mangle_field(JavaField::from(java)),
         }
     }
 

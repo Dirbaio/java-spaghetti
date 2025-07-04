@@ -5,8 +5,6 @@ use std::{fs, io};
 
 use serde_derive::Deserialize;
 
-use crate::identifiers::FieldManglingStyle;
-
 fn default_proxy_path_prefix() -> String {
     "java_spaghetti/proxy".to_string()
 }
@@ -14,10 +12,6 @@ fn default_proxy_path_prefix() -> String {
 /// The \[codegen\] section.
 #[derive(Debug, Clone, Deserialize)]
 pub struct CodeGen {
-    /// How fields should be named.
-    #[serde(default = "Default::default")]
-    pub field_naming_style: FieldManglingStyle,
-
     #[serde(default = "default_proxy_path_prefix")]
     pub proxy_path_prefix: String,
 }
@@ -25,7 +19,6 @@ pub struct CodeGen {
 impl Default for CodeGen {
     fn default() -> Self {
         Self {
-            field_naming_style: Default::default(),
             proxy_path_prefix: default_proxy_path_prefix(),
         }
     }
