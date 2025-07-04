@@ -14,11 +14,11 @@ clap = { version = "4", features = ["derive"] }
 bitflags = "2.8.0"
 serde = "1.0.197"
 serde_derive = "1.0.197"
-toml = "0.8.10"
 zip = "4.1.0"
 quote = "1.0.40"
 proc-macro2 = "1.0.95"
 anyhow = "1.0.98"
+serde_yaml = "0.9.34"
 
 [dev-dependencies]
 jni-sys  = "0.4.0"

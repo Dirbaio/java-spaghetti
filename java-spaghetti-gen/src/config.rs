@@ -1,4 +1,4 @@
-//! java-spaghetti.toml configuration file structures and parsing APIs.
+//! java-spaghetti.yaml configuration file structures and parsing APIs.
 
 use std::path::{Path, PathBuf};
 use std::{fs, io};
@@ -135,18 +135,19 @@ pub struct Config {
 }
 
 impl Config {
-    /// Read from I/O, under the assumption that it's in the "java-spaghetti.toml" file format.
-    /// `directory` is the directory that contained the `java-spaghetti.toml` file, against which paths should be resolved.
+    /// Read from I/O, under the assumption that it's in the "java-spaghetti.yaml" file format.
+    /// `directory` is the directory that contained the `java-spaghetti.yaml` file, against which paths should be resolved.
     pub fn read(file: &mut impl io::Read, dir: &Path) -> io::Result<Self> {
         let mut buffer = String::new();
-        file.read_to_string(&mut buffer)?; // Apparently toml can't stream.
+        file.read_to_string(&mut buffer)?; // Apparently yaml can't stream.
         Self::read_str(&buffer[..], dir)
     }
 
-    /// Read from a memory buffer, under the assumption that it's in the "java-spaghetti.toml" file format.
-    /// `directory` is the directory that contained the `java-spaghetti.toml` file, against which paths should be resolved.
+    /// Read from a memory buffer, under the assumption that it's in the "java-spaghetti.yaml" file format.
+    /// `directory` is the directory that contained the `java-spaghetti.yaml` file, against which paths should be resolved.
     pub fn read_str(buffer: &str, dir: &Path) -> io::Result<Self> {
-        let mut config: Config = toml::from_str(buffer).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        let mut config: Config =
+            serde_yaml::from_str(buffer).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
         if config.rules.is_empty() {
             config.rules.push(Rule {
@@ -165,20 +166,20 @@ impl Config {
         Ok(config)
     }
 
-    /// Search the current directory - or failing that, it's ancestors - until we find "java-spaghetti.toml" or reach the
+    /// Search the current directory - or failing that, it's ancestors - until we find "java-spaghetti.yaml" or reach the
     /// root of the filesystem and cannot continue.
     #[allow(dead_code)]
     pub fn from_current_directory() -> io::Result<Self> {
         Self::from_directory(std::env::current_dir()?.as_path())
     }
 
-    /// Search the specified directory - or failing that, it's ancestors - until we find "java-spaghetti.toml" or reach the
+    /// Search the specified directory - or failing that, it's ancestors - until we find "java-spaghetti.yaml" or reach the
     /// root of the filesystem and cannot continue.
     pub fn from_directory(path: &Path) -> io::Result<Self> {
         let original = path;
         let mut path = path.to_owned();
         loop {
-            path.push("java-spaghetti.toml");
+            path.push("java-spaghetti.yaml");
             println!("cargo:rerun-if-changed={}", path.display());
             if path.exists() {
                 return Config::read(&mut fs::File::open(&path)?, path.parent().unwrap());
@@ -187,7 +188,7 @@ impl Config {
                 Err(io::Error::new(
                     io::ErrorKind::NotFound,
                     format!(
-                        "Failed to find java-spaghetti.toml in \"{}\" or any of it's parent directories.",
+                        "Failed to find java-spaghetti.yaml in \"{}\" or any of it's parent directories.",
                         original.display()
                     ),
                 ))?;
