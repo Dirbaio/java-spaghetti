@@ -3,7 +3,7 @@ use std::fmt::{self, Display, Formatter};
 use cafebabe::descriptors::{FieldDescriptor, FieldType};
 
 use super::methods::Method;
-use crate::emit_rust::Context;
+use crate::config::ClassConfig;
 use crate::parser_util::Id;
 
 pub(crate) struct KnownDocsUrl {
@@ -18,13 +18,9 @@ impl Display for KnownDocsUrl {
 }
 
 impl KnownDocsUrl {
-    pub(crate) fn from_class(context: &Context, java_class: Id) -> Option<KnownDocsUrl> {
+    pub(crate) fn from_class(config: &ClassConfig, java_class: Id) -> Option<KnownDocsUrl> {
         let java_class = java_class.as_str();
-        let pattern = context
-            .config
-            .doc_patterns
-            .iter()
-            .find(|pattern| java_class.starts_with(pattern.jni_prefix.as_str()))?;
+        let pattern = config.doc_pattern?;
 
         for ch in java_class.chars() {
             match ch {
@@ -56,14 +52,10 @@ impl KnownDocsUrl {
         })
     }
 
-    pub(crate) fn from_method(context: &Context, method: &Method) -> Option<KnownDocsUrl> {
+    pub(crate) fn from_method(config: &ClassConfig, method: &Method) -> Option<KnownDocsUrl> {
         let is_constructor = method.java.is_constructor();
 
-        let pattern = context
-            .config
-            .doc_patterns
-            .iter()
-            .find(|pattern| method.class.path().as_str().starts_with(pattern.jni_prefix.as_str()))?;
+        let pattern = config.doc_pattern?;
         let url_pattern = if is_constructor {
             pattern
                 .constructor_url_pattern
@@ -188,16 +180,12 @@ impl KnownDocsUrl {
     }
 
     pub(crate) fn from_field(
-        context: &Context,
+        config: &ClassConfig,
         java_class: &str,
         java_field: &str,
         _java_descriptor: FieldDescriptor,
     ) -> Option<KnownDocsUrl> {
-        let pattern = context
-            .config
-            .doc_patterns
-            .iter()
-            .find(|pattern| java_class.starts_with(pattern.jni_prefix.as_str()))?;
+        let pattern = config.doc_pattern?;
         let field_url_pattern = pattern.field_url_pattern.as_ref()?;
 
         for ch in java_class.chars() {

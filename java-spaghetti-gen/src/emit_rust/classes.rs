@@ -20,10 +20,10 @@ pub(crate) struct StructPaths {
 }
 
 impl StructPaths {
-    pub(crate) fn new(context: &Context, class: Id) -> Result<Self, Box<dyn Error>> {
+    pub(crate) fn new(class: Id) -> Result<Self, Box<dyn Error>> {
         Ok(Self {
-            mod_: Class::mod_for(context, class)?,
-            struct_name: Class::name_for(context, class)?,
+            mod_: Class::mod_for(class)?,
+            struct_name: Class::name_for(class)?,
         })
     }
 }
@@ -47,7 +47,7 @@ fn rust_id(id: &str) -> Result<String, Box<dyn Error>> {
 }
 
 impl Class {
-    pub(crate) fn mod_for(_context: &Context, class: Id) -> Result<String, Box<dyn Error>> {
+    pub(crate) fn mod_for(class: Id) -> Result<String, Box<dyn Error>> {
         let mut buf = String::new();
         for component in class {
             match component {
@@ -64,7 +64,7 @@ impl Class {
         Ok(buf)
     }
 
-    pub(crate) fn name_for(_context: &Context, class: Id) -> Result<String, Box<dyn Error>> {
+    pub(crate) fn name_for(class: Id) -> Result<String, Box<dyn Error>> {
         let mut buf = String::new();
         for component in class.iter() {
             match component {
@@ -76,13 +76,15 @@ impl Class {
         Ok(buf)
     }
 
-    pub(crate) fn new(context: &mut Context, java: JavaClass) -> Result<Self, Box<dyn Error>> {
-        let rust = StructPaths::new(context, java.path())?;
+    pub(crate) fn new(java: JavaClass) -> Result<Self, Box<dyn Error>> {
+        let rust = StructPaths::new(java.path())?;
 
         Ok(Self { rust, java })
     }
 
     pub(crate) fn write(&self, context: &Context) -> anyhow::Result<TokenStream> {
+        let cc = context.config.resolve_class(self.java.path().as_str());
+
         // Ignored access_flags: SUPER, SYNTHETIC, ANNOTATION, ABSTRACT
 
         let keyword = if self.java.is_interface() {
@@ -103,7 +105,7 @@ impl Class {
             false => quote!(),
         };
 
-        let docs = match KnownDocsUrl::from_class(context, self.java.path()) {
+        let docs = match KnownDocsUrl::from_class(&cc, self.java.path()) {
             Some(url) => format!("{visibility} {keyword} {url}"),
             None => format!("{visibility} {keyword} {}", self.java.path().as_str()),
         };
@@ -174,31 +176,31 @@ impl Class {
         let mut methods: Vec<Method> = self
             .java
             .methods()
-            .map(|m| Method::new(context, &self.java, m))
+            .map(|m| Method::new(&self.java, m))
             .filter(|m| m.java.is_public() && !m.java.is_bridge())
             .collect();
         let mut fields: Vec<Field> = self
             .java
             .fields()
-            .map(|f| Field::new(context, &self.java, f))
+            .map(|f| Field::new(&self.java, f))
             .filter(|f| f.java.is_public())
             .collect();
 
         self.resolve_collisions(&mut methods, &fields)?;
 
         for method in &mut methods {
-            let res = method.emit(context, &self.rust.mod_).unwrap();
+            let res = method.emit(context, &cc, &self.rust.mod_).unwrap();
             contents.extend(res);
         }
 
         for field in &mut fields {
-            let res = field.emit(context, &self.rust.mod_).unwrap();
+            let res = field.emit(context, &cc, &self.rust.mod_).unwrap();
             contents.extend(res);
         }
 
         out.extend(quote!(impl #rust_name { #contents }));
 
-        if context.proxy_included(self.java.path().as_str()) {
+        if cc.proxy {
             out.extend(self.write_proxy(context, &methods)?);
         }
 

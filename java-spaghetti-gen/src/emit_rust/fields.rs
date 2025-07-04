@@ -6,6 +6,7 @@ use quote::{format_ident, quote};
 
 use super::cstring;
 use super::known_docs_url::KnownDocsUrl;
+use crate::config::ClassConfig;
 use crate::emit_rust::Context;
 use crate::identifiers::{FieldMangling, IdentifierManglingError, mangle_field};
 use crate::parser_util::{Id, JavaClass, JavaField};
@@ -17,7 +18,7 @@ pub struct Field<'a> {
 }
 
 impl<'a> Field<'a> {
-    pub fn new(_context: &Context, class: &'a JavaClass, java: &'a cafebabe::FieldInfo<'a>) -> Self {
+    pub fn new(class: &'a JavaClass, java: &'a cafebabe::FieldInfo<'a>) -> Self {
         Self {
             class,
             java: JavaField::from(java),
@@ -25,7 +26,7 @@ impl<'a> Field<'a> {
         }
     }
 
-    pub fn emit(&self, context: &Context, mod_: &str) -> anyhow::Result<TokenStream> {
+    pub fn emit(&self, context: &Context, cc: &ClassConfig, mod_: &str) -> anyhow::Result<TokenStream> {
         let mut emit_reject_reasons = Vec::new();
 
         if !self.java.is_public() {
@@ -91,7 +92,7 @@ impl<'a> Field<'a> {
         };
 
         let docs = match KnownDocsUrl::from_field(
-            context,
+            cc,
             self.class.path().as_str(),
             self.java.name(),
             self.java.descriptor().clone(),

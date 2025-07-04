@@ -1,6 +1,5 @@
 //! java-spaghetti.toml configuration file structures and parsing APIs.
 
-use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 
@@ -10,9 +9,6 @@ fn default_proxy_path_prefix() -> String {
     "java_spaghetti/proxy".to_string()
 }
 
-fn default_empty() -> String {
-    String::new()
-}
 fn default_slash() -> String {
     String::from("/")
 }
@@ -73,16 +69,6 @@ pub struct DocPattern {
     /// | jni_prefix = ""       | field_url_pattern = "https://developer.android.com/reference/{CLASS}.html#{FIELD}"
     pub field_url_pattern: Option<String>,
 
-    /// What java class(es) to match against.  This takes the form of a simple prefix to a JNI path with no wildcards.
-    ///
-    /// | To Match:                 | Use a JNI Prefix:                     |
-    /// | ------------------------- | ------------------------------------- |
-    /// | *                         | jni_prefix = ""
-    /// | java.lang.*               | jni_prefix = "java/lang/"
-    /// | name.spaces.OuterClass.*  | jni_prefix = "name/spaces/OuterClass$"
-    #[serde(default = "default_empty")]
-    pub jni_prefix: String,
-
     /// What to use in the {CLASS} portion of URLs to separate namespaces.  Defaults to "/".
     #[serde(default = "default_slash")]
     pub class_namespace_separator: String,
@@ -105,6 +91,35 @@ pub struct DocPattern {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct Rule {
+    /// What java class(es) to match against.  This takes the form of a simple prefix to a JNI path with no wildcards.
+    ///
+    /// | To Match:                 | Use a JNI Prefix:                     |
+    /// | ------------------------- | ------------------------------------- |
+    /// | *                         | jni_prefix = ""
+    /// | java.lang.*               | jni_prefix = "java/lang/"
+    /// | name.spaces.OuterClass.*  | jni_prefix = "name/spaces/OuterClass$"
+    #[serde(default)]
+    pub prefix: String,
+
+    #[serde(default)]
+    pub include: Option<bool>,
+
+    #[serde(default)]
+    pub proxy: Option<bool>,
+
+    #[serde(default)]
+    pub doc_pattern: Option<DocPattern>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ClassConfig<'a> {
+    pub include: bool,
+    pub proxy: bool,
+    pub doc_pattern: Option<&'a DocPattern>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct Config {
     #[serde(default = "default_proxy_path_prefix")]
     pub proxy_path_prefix: String,
@@ -113,17 +128,10 @@ pub struct Config {
     pub(crate) output: PathBuf,
 
     #[serde(default)]
-    pub(crate) doc_patterns: Vec<DocPattern>,
-    #[serde(default)]
     pub(crate) logging_verbose: bool,
 
-    #[serde(rename = "include")]
     #[serde(default)]
-    pub(crate) include_classes: HashSet<String>,
-
-    #[serde(rename = "include_proxy")]
-    #[serde(default = "HashSet::new")]
-    pub(crate) include_proxies: HashSet<String>,
+    pub(crate) rules: Vec<Rule>,
 }
 
 impl Config {
@@ -140,8 +148,13 @@ impl Config {
     pub fn read_str(buffer: &str, dir: &Path) -> io::Result<Self> {
         let mut config: Config = toml::from_str(buffer).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-        if config.include_classes.is_empty() {
-            config.include_classes.insert("*".to_string());
+        if config.rules.is_empty() {
+            config.rules.push(Rule {
+                prefix: "".to_string(),
+                include: Some(true),
+                doc_pattern: None,
+                proxy: None,
+            })
         }
 
         config.output = resolve_file(&config.output, dir);
@@ -180,6 +193,30 @@ impl Config {
                 ))?;
             }
         }
+    }
+
+    pub fn resolve_class(&self, class: &str) -> ClassConfig<'_> {
+        let mut res = ClassConfig {
+            include: false,
+            proxy: false,
+            doc_pattern: None,
+        };
+
+        for r in &self.rules {
+            if class.starts_with(&r.prefix) {
+                if let Some(include) = r.include {
+                    res.include = include;
+                }
+                if let Some(proxy) = r.proxy {
+                    res.proxy = proxy;
+                }
+                if let Some(doc_pattern) = &r.doc_pattern {
+                    res.doc_pattern = Some(doc_pattern);
+                }
+            }
+        }
+
+        res
     }
 }
 

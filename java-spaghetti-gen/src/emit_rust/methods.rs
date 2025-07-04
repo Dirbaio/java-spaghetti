@@ -5,6 +5,7 @@ use quote::{format_ident, quote};
 use super::cstring;
 use super::fields::{RustTypeFlavor, emit_fragment_type, emit_rust_type};
 use super::known_docs_url::KnownDocsUrl;
+use crate::config::ClassConfig;
 use crate::emit_rust::Context;
 use crate::identifiers::MethodManglingStyle;
 use crate::parser_util::{JavaClass, JavaMethod};
@@ -17,7 +18,7 @@ pub struct Method<'a> {
 }
 
 impl<'a> Method<'a> {
-    pub fn new(_context: &Context, class: &'a JavaClass, java: &'a cafebabe::MethodInfo<'a>) -> Self {
+    pub fn new(class: &'a JavaClass, java: &'a cafebabe::MethodInfo<'a>) -> Self {
         let mut result = Self {
             class,
             java: JavaMethod::from(java),
@@ -40,7 +41,7 @@ impl<'a> Method<'a> {
             .ok()
     }
 
-    pub fn emit(&self, context: &Context, mod_: &str) -> anyhow::Result<TokenStream> {
+    pub fn emit(&self, context: &Context, cc: &ClassConfig, mod_: &str) -> anyhow::Result<TokenStream> {
         let mut emit_reject_reasons = Vec::new();
 
         let descriptor = self.java.descriptor();
@@ -123,7 +124,7 @@ impl<'a> Method<'a> {
             quote!()
         };
 
-        let docs = match KnownDocsUrl::from_method(context, self) {
+        let docs = match KnownDocsUrl::from_method(cc, self) {
             Some(url) => format!("{url}"),
             None => self.java.name().to_string(),
         };

@@ -8,7 +8,7 @@ mod methods;
 mod modules;
 mod preamble;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::error::Error;
 use std::ffi::CString;
 use std::io;
@@ -50,8 +50,8 @@ impl<'a> Context<'a> {
     }
 
     pub fn java_to_rust_path(&self, java_class: parser_util::Id, mod_: &str) -> Result<TokenStream, Box<dyn Error>> {
-        let m = Class::mod_for(self, java_class)?;
-        let s = Class::name_for(self, java_class)?;
+        let m = Class::mod_for(java_class)?;
+        let s = Class::name_for(java_class)?;
         let fqn = format!("{m}::{s}");
 
         // Calculate relative path from B to A.
@@ -84,47 +84,14 @@ impl<'a> Context<'a> {
         Ok(res)
     }
 
-    fn class_included(&self, path: &str) -> bool {
-        self.included(path, &self.config.include_classes)
-    }
-
-    fn proxy_included(&self, path: &str) -> bool {
-        self.included(path, &self.config.include_proxies)
-    }
-
-    fn included(&self, path: &str, set: &HashSet<String>) -> bool {
-        if set.contains(path) {
-            return true;
-        }
-        if set.contains("*") {
-            return true;
-        }
-
-        let mut pat = String::new();
-        for p in path.split('/') {
-            pat.push_str(p);
-            if pat.len() == path.len() {
-                break;
-            }
-
-            pat.push('/');
-            pat.push('*');
-            if set.contains(&pat) {
-                return true;
-            }
-            pat.pop();
-        }
-
-        false
-    }
-
     pub fn add_class(&mut self, class: parser_util::JavaClass) -> Result<(), Box<dyn Error>> {
-        if !self.class_included(class.path().as_str()) {
+        let cc = self.config.resolve_class(class.path().as_str());
+        if !cc.include {
             return Ok(());
         }
 
         let java_path = class.path().as_str().to_string();
-        let s = Rc::new(Class::new(self, class)?);
+        let s = Rc::new(Class::new(class)?);
 
         self.all_classes.insert(java_path, s.clone());
 
