@@ -9,7 +9,7 @@ use super::fields::Field;
 use super::known_docs_url::KnownDocsUrl;
 use super::methods::Method;
 use crate::emit::Context;
-use crate::identifiers::{FieldMangling, RustIdentifier};
+use crate::identifiers::{FieldMangling, rust_ident};
 use crate::parser_util::{Id, IdPart, JavaClass};
 
 #[derive(Debug, Default)]
@@ -33,18 +33,6 @@ pub(crate) struct Class {
     pub java: JavaClass,
 }
 
-fn rust_id(id: &str) -> Result<String, anyhow::Error> {
-    Ok(match RustIdentifier::from_str(id) {
-        RustIdentifier::Identifier(id) => id,
-        RustIdentifier::KeywordRawSafe(id) => id,
-        RustIdentifier::KeywordUnderscorePostfix(id) => id,
-        RustIdentifier::NonIdentifier(id) => io_data_err!(
-            "Unable to add_class(): java identifier {:?} has no rust equivalent (yet?)",
-            id
-        )?,
-    })
-}
-
 impl Class {
     pub(crate) fn mod_for(class: Id) -> Result<String, anyhow::Error> {
         let mut buf = String::new();
@@ -54,7 +42,7 @@ impl Class {
                     if !buf.is_empty() {
                         buf.push_str("::");
                     }
-                    buf.push_str(&rust_id(id)?);
+                    buf.push_str(&rust_ident(id)?);
                 }
                 IdPart::ContainingClass(_) => {}
                 IdPart::LeafClass(_) => {}
@@ -68,8 +56,8 @@ impl Class {
         for component in class.iter() {
             match component {
                 IdPart::Namespace(_) => {}
-                IdPart::ContainingClass(id) => write!(&mut buf, "{}_", rust_id(id)?)?,
-                IdPart::LeafClass(id) => write!(&mut buf, "{}", rust_id(id)?)?,
+                IdPart::ContainingClass(id) => write!(&mut buf, "{}_", rust_ident(id)?)?,
+                IdPart::LeafClass(id) => write!(&mut buf, "{}", rust_ident(id)?)?,
             }
         }
         Ok(buf)

@@ -8,13 +8,13 @@ use super::cstring;
 use super::known_docs_url::KnownDocsUrl;
 use crate::config::ClassConfig;
 use crate::emit::Context;
-use crate::identifiers::{FieldMangling, IdentifierManglingError, mangle_field};
+use crate::identifiers::{FieldMangling, mangle_field};
 use crate::parser_util::{Id, JavaClass, JavaField};
 
 pub struct Field<'a> {
     pub class: &'a JavaClass,
     pub java: JavaField<'a>,
-    pub rust_names: Result<FieldMangling<'a>, IdentifierManglingError>,
+    pub rust_names: Result<FieldMangling<'a>, anyhow::Error>,
 }
 
 impl<'a> Field<'a> {

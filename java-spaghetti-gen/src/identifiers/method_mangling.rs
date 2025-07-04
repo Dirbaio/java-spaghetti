@@ -1,7 +1,8 @@
+use anyhow::bail;
 use cafebabe::descriptors::{FieldType, MethodDescriptor};
 use serde_derive::Deserialize;
 
-use super::rust_identifier::{IdentifierManglingError, javaify_identifier};
+use super::rust_identifier::rust_ident;
 use crate::parser_util::{Id, IdPart};
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Hash)]
@@ -123,20 +124,20 @@ fn mangle_method_name_test() {
 }
 
 impl MethodManglingStyle {
-    pub fn mangle(&self, name: &str, descriptor: &MethodDescriptor) -> Result<String, IdentifierManglingError> {
+    pub fn mangle(&self, name: &str, descriptor: &MethodDescriptor) -> Result<String, anyhow::Error> {
         let name = match name {
             "" => {
-                return Err(IdentifierManglingError::EmptyString);
+                bail!("empty string")
             }
             "<init>" => "new",
             "<clinit>" => {
-                return Err(IdentifierManglingError::NotApplicable("Static type ctor"));
+                bail!("not applicable: Static type ctor")
             }
             name => name,
         };
 
         let long_sig = match self {
-            MethodManglingStyle::Java => return javaify_identifier(name),
+            MethodManglingStyle::Java => return rust_ident(name),
             MethodManglingStyle::JavaShortSignature => false,
             MethodManglingStyle::JavaLongSignature => true,
         };
@@ -189,6 +190,6 @@ impl MethodManglingStyle {
             }
         }
 
-        javaify_identifier(&buffer)
+        rust_ident(&buffer)
     }
 }

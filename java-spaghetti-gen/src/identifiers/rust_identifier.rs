@@ -1,227 +1,89 @@
-/// Categorizes a rust [identifier](https://doc.rust-lang.org/reference/identifiers.html) for use in rust codegen.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum RustIdentifier {
-    /// Meets the criteria for a Rust [NON_KEYWORD_IDENTIFIER](https://doc.rust-lang.org/reference/identifiers.html)
-    Identifier(String),
+use anyhow::bail;
 
-    /// Not a rust-safe [identifier](https://doc.rust-lang.org/reference/identifiers.html).  Unicode, strange ASCII
-    /// values, relatively normal ASCII values... you name it.
-    NonIdentifier(String),
+/// Takes an arbitrary string and tries to treat it as a Rust identifier, doing minor escaping for keywords.
+pub fn rust_ident(s: &str) -> Result<String, anyhow::Error> {
+    match s {
+        // [Strict keywords](https://doc.rust-lang.org/reference/keywords.html#strict-keywords) that *are not* valid
+        // [RAW_IDENTIFIER](https://doc.rust-lang.org/reference/identifiers.html)s
+        "crate" | "extern" | "self" | "super" | "Self" => Ok(format!("{s}_")),
 
-    /// A [keyword](https://doc.rust-lang.org/reference/keywords.html) that has had `r#` prepended to it, because it can
-    /// be used as a [RAW_IDENTIFIER](https://doc.rust-lang.org/reference/identifiers.html)
-    KeywordRawSafe(String),
+        // [Strict keywords](https://doc.rust-lang.org/reference/keywords.html#strict-keywords) that *are* valid
+        // [RAW_IDENTIFIER](https://doc.rust-lang.org/reference/identifiers.html)s
+        "as" | "break" | "const" | "continue" | "else" | "enum" | "false" | "fn" | "for" | "if" | "impl" | "in"
+        | "let" | "loop" | "match" | "mod" | "move" | "mut" | "pub" | "ref" | "return" | "static" | "struct"
+        | "trait" | "true" | "type" | "unsafe" | "use" | "where" | "while" | "dyn" |
 
-    /// A [keyword](https://doc.rust-lang.org/reference/keywords.html) that has had `_` postpended to it, because it can
-    /// *not* be used as a [RAW_IDENTIFIER](https://doc.rust-lang.org/reference/identifiers.html).
-    KeywordUnderscorePostfix(String),
-}
+        // [Reserved keywords](https://doc.rust-lang.org/reference/keywords.html#reserved-keywords) that *are* valid
+        // [RAW_IDENTIFIER](https://doc.rust-lang.org/reference/identifiers.html)s
+        "abstract" | "become" | "box" | "do" | "final" | "macro" | "override" | "priv" | "typeof" | "unsized"
+        | "virtual" | "yield" |
 
-impl RustIdentifier {
-    /// Takes an arbitrary string and tries to treat it as a Rust identifier, doing minor escaping for keywords.
-    pub fn from_str(s: &str) -> RustIdentifier {
-        match s {
-            // [Strict keywords](https://doc.rust-lang.org/reference/keywords.html#strict-keywords) that *are not* valid
-            // [RAW_IDENTIFIER](https://doc.rust-lang.org/reference/identifiers.html)s
-            "crate" => RustIdentifier::KeywordUnderscorePostfix("crate_".to_string()),
-            "extern" => RustIdentifier::KeywordUnderscorePostfix("extern_".to_string()),
-            "self" => RustIdentifier::KeywordUnderscorePostfix("self_".to_string()),
-            "super" => RustIdentifier::KeywordUnderscorePostfix("super_".to_string()),
-            "Self" => RustIdentifier::KeywordUnderscorePostfix("Self_".to_string()),
+        // 2018 edition
+        "async" | "await" | "try" |
 
-            // [Strict keywords](https://doc.rust-lang.org/reference/keywords.html#strict-keywords) that *are* valid
-            // [RAW_IDENTIFIER](https://doc.rust-lang.org/reference/identifiers.html)s
-            "as" => RustIdentifier::KeywordRawSafe("r#as".to_string()),
-            "break" => RustIdentifier::KeywordRawSafe("r#break".to_string()),
-            "const" => RustIdentifier::KeywordRawSafe("r#const".to_string()),
-            "continue" => RustIdentifier::KeywordRawSafe("r#continue".to_string()),
-            "else" => RustIdentifier::KeywordRawSafe("r#else".to_string()),
-            "enum" => RustIdentifier::KeywordRawSafe("r#enum".to_string()),
-            "false" => RustIdentifier::KeywordRawSafe("r#false".to_string()),
-            "fn" => RustIdentifier::KeywordRawSafe("r#fn".to_string()),
-            "for" => RustIdentifier::KeywordRawSafe("r#for".to_string()),
-            "if" => RustIdentifier::KeywordRawSafe("r#if".to_string()),
-            "impl" => RustIdentifier::KeywordRawSafe("r#impl".to_string()),
-            "in" => RustIdentifier::KeywordRawSafe("r#in".to_string()),
-            "let" => RustIdentifier::KeywordRawSafe("r#let".to_string()),
-            "loop" => RustIdentifier::KeywordRawSafe("r#loop".to_string()),
-            "match" => RustIdentifier::KeywordRawSafe("r#match".to_string()),
-            "mod" => RustIdentifier::KeywordRawSafe("r#mod".to_string()),
-            "move" => RustIdentifier::KeywordRawSafe("r#move".to_string()),
-            "mut" => RustIdentifier::KeywordRawSafe("r#mut".to_string()),
-            "pub" => RustIdentifier::KeywordRawSafe("r#pub".to_string()),
-            "ref" => RustIdentifier::KeywordRawSafe("r#ref".to_string()),
-            "return" => RustIdentifier::KeywordRawSafe("r#return".to_string()),
-            "static" => RustIdentifier::KeywordRawSafe("r#static".to_string()),
-            "struct" => RustIdentifier::KeywordRawSafe("r#struct".to_string()),
-            "trait" => RustIdentifier::KeywordRawSafe("r#trait".to_string()),
-            "true" => RustIdentifier::KeywordRawSafe("r#true".to_string()),
-            "type" => RustIdentifier::KeywordRawSafe("r#type".to_string()),
-            "unsafe" => RustIdentifier::KeywordRawSafe("r#unsafe".to_string()),
-            "use" => RustIdentifier::KeywordRawSafe("r#use".to_string()),
-            "where" => RustIdentifier::KeywordRawSafe("r#where".to_string()),
-            "while" => RustIdentifier::KeywordRawSafe("r#while".to_string()),
-            "dyn" => RustIdentifier::KeywordRawSafe("r#dyn".to_string()),
+        // 2024 edition
+        "gen" |
 
-            // [Reserved keywords](https://doc.rust-lang.org/reference/keywords.html#reserved-keywords) that *are* valid
-            // [RAW_IDENTIFIER](https://doc.rust-lang.org/reference/identifiers.html)s
-            "abstract" => RustIdentifier::KeywordRawSafe("r#abstract".to_string()),
-            "become" => RustIdentifier::KeywordRawSafe("r#become".to_string()),
-            "box" => RustIdentifier::KeywordRawSafe("r#box".to_string()),
-            "do" => RustIdentifier::KeywordRawSafe("r#do".to_string()),
-            "final" => RustIdentifier::KeywordRawSafe("r#final".to_string()),
-            "macro" => RustIdentifier::KeywordRawSafe("r#macro".to_string()),
-            "override" => RustIdentifier::KeywordRawSafe("r#override".to_string()),
-            "priv" => RustIdentifier::KeywordRawSafe("r#priv".to_string()),
-            "typeof" => RustIdentifier::KeywordRawSafe("r#typeof".to_string()),
-            "unsized" => RustIdentifier::KeywordRawSafe("r#unsized".to_string()),
-            "virtual" => RustIdentifier::KeywordRawSafe("r#virtual".to_string()),
-            "yield" => RustIdentifier::KeywordRawSafe("r#yield".to_string()),
-            // 2018 edition
-            "async" => RustIdentifier::KeywordRawSafe("r#async".to_string()),
-            "await" => RustIdentifier::KeywordRawSafe("r#await".to_string()),
-            "try" => RustIdentifier::KeywordRawSafe("r#try".to_string()),
+        // [Weak keywords](https://doc.rust-lang.org/reference/keywords.html#weak-keywords) that *are* valid
+        // [RAW_IDENTIFIER](https://doc.rust-lang.org/reference/identifiers.html)s
+        "union" => Ok(format!("r#{s}")),
 
-            // [Weak keywords](https://doc.rust-lang.org/reference/keywords.html#weak-keywords) that *are* valid
-            // [RAW_IDENTIFIER](https://doc.rust-lang.org/reference/identifiers.html)s
-            "union" => RustIdentifier::KeywordRawSafe("r#union".to_string()),
-
-            // Not a keyword, but not a valid [IDENTIFIER](https://doc.rust-lang.org/reference/identifiers.html) either.
-            "" => RustIdentifier::NonIdentifier(s.to_string()),
-            "_" => RustIdentifier::NonIdentifier(s.to_string()),
-            s if is_rust_identifier(s) => RustIdentifier::Identifier(s.to_string()),
-            s if is_rust_identifier(&format!("_{s}")) => RustIdentifier::Identifier(format!("_{s}")),
-            s => RustIdentifier::NonIdentifier(s.to_string()),
-        }
+        s if is_rust_ident(s) => Ok(s.to_string()),
+        s if is_rust_ident(&format!("_{s}")) => Ok(format!("_{s}")),
+        s => bail!("invalid rust identifier '{s}'"),
     }
 }
 
-#[test]
-fn rust_identifier_from_str() {
-    assert_eq!(
-        RustIdentifier::from_str("foo"),
-        RustIdentifier::Identifier("foo".to_string())
-    );
-    assert_eq!(
-        RustIdentifier::from_str("crate"),
-        RustIdentifier::KeywordUnderscorePostfix("crate_".to_string())
-    );
-    assert_eq!(
-        RustIdentifier::from_str("match"),
-        RustIdentifier::KeywordRawSafe("r#match".to_string())
-    );
-    assert_eq!(
-        RustIdentifier::from_str("föo"),
-        RustIdentifier::NonIdentifier("föo".to_string())
-    );
-    assert_eq!(
-        RustIdentifier::from_str(""),
-        RustIdentifier::NonIdentifier("".to_string())
-    );
-    assert_eq!(
-        RustIdentifier::from_str("_"),
-        RustIdentifier::NonIdentifier("_".to_string())
-    );
-    assert_eq!(
-        RustIdentifier::from_str("_f"),
-        RustIdentifier::Identifier("_f".to_string())
-    );
-    assert_eq!(
-        RustIdentifier::from_str("_1"),
-        RustIdentifier::Identifier("_1".to_string())
-    );
-    assert_eq!(
-        RustIdentifier::from_str("1_"),
-        RustIdentifier::Identifier("_1_".to_string())
-    );
-    assert_eq!(
-        RustIdentifier::from_str("1"),
-        RustIdentifier::Identifier("_1".to_string())
-    );
-}
-
-fn is_rust_identifier(s: &str) -> bool {
+fn is_rust_ident(s: &str) -> bool {
     // https://doc.rust-lang.org/reference/identifiers.html
-    let mut chars = s.chars();
-
-    // First char
-    let first_char = if let Some(ch) = chars.next() { ch } else { return false };
-    match first_char {
-        'a'..='z' => {}
-        'A'..='Z' => {}
-        '_' => {
-            if s == "_" {
-                return false;
+    !s.is_empty()
+        && s != "_"
+        && s.chars().enumerate().all(|(i, ch)| {
+            if i == 0 {
+                ch.is_ascii_alphabetic() || ch == '_'
+            } else {
+                ch.is_ascii_alphanumeric() || ch == '_'
             }
-        }
-        _ => return false,
-    }
-
-    // Subsequent chars
-    for ch in chars {
-        match ch {
-            'a'..='z' => {}
-            'A'..='Z' => {}
-            '0'..='9' => {}
-            '_' => {}
-            _ => return false,
-        }
-    }
-
-    true
+        })
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum IdentifierManglingError {
-    NotApplicable(&'static str),
-    EmptyString,
-    NotRustSafe,
-    UnexpectedCharacter(char),
-}
+#[cfg(test)]
+mod test {
+    use super::*;
 
-impl std::error::Error for IdentifierManglingError {}
-impl std::fmt::Display for IdentifierManglingError {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-        std::fmt::Debug::fmt(self, fmt)
+    #[test]
+    fn rust_ident_test() {
+        assert_eq!(rust_ident("foo").unwrap(), "foo");
+        assert_eq!(rust_ident("crate").unwrap(), "crate_");
+        assert_eq!(rust_ident("match").unwrap(), "r#match");
+        assert!(rust_ident("föo").is_err());
+        assert!(rust_ident("").is_err());
+        assert_eq!(rust_ident("_").unwrap(), "__");
+        assert_eq!(rust_ident("_f").unwrap(), "_f");
+        assert_eq!(rust_ident("_1").unwrap(), "_1");
+        assert_eq!(rust_ident("1_").unwrap(), "_1_");
+        assert_eq!(rust_ident("1").unwrap(), "_1");
     }
-}
 
-pub fn javaify_identifier(name: &str) -> Result<String, IdentifierManglingError> {
-    if name == "_" {
-        Ok(String::from("__"))
-    } else {
-        let mut chars = name.chars();
+    #[test]
+    fn is_rust_ident_test() {
+        // Valid identifiers
+        assert!(is_rust_ident("foo"));
+        assert!(is_rust_ident("_foo"));
+        assert!(is_rust_ident("foo_bar"));
+        assert!(is_rust_ident("foo123"));
+        assert!(is_rust_ident("_123"));
+        assert!(is_rust_ident("__"));
+        assert!(is_rust_ident("a"));
 
-        // First character
-        if let Some(ch) = chars.next() {
-            match ch {
-                'a'..='z' => {}
-                'A'..='Z' => {}
-                '_' => {}
-                _ => {
-                    return Err(IdentifierManglingError::UnexpectedCharacter(ch));
-                }
-            }
-        }
-
-        // Subsequent characters
-        for ch in chars {
-            match ch {
-                'a'..='z' => {}
-                'A'..='Z' => {}
-                '0'..='9' => {}
-                '_' => {}
-                _ => {
-                    return Err(IdentifierManglingError::UnexpectedCharacter(ch));
-                }
-            }
-        }
-
-        match RustIdentifier::from_str(name) {
-            RustIdentifier::Identifier(_) => Ok(name.to_owned()),
-            RustIdentifier::NonIdentifier(_) => Err(IdentifierManglingError::NotRustSafe),
-            RustIdentifier::KeywordRawSafe(s) => Ok(s.to_owned()),
-            RustIdentifier::KeywordUnderscorePostfix(s) => Ok(s.to_owned()),
-        }
+        // Invalid identifiers
+        assert!(!is_rust_ident("")); // empty string
+        assert!(!is_rust_ident("_")); // single underscore
+        assert!(!is_rust_ident("123")); // starts with digit
+        assert!(!is_rust_ident("123foo")); // starts with digit
+        assert!(!is_rust_ident("foo-bar")); // contains hyphen
+        assert!(!is_rust_ident("foo.bar")); // contains dot
+        assert!(!is_rust_ident("föo")); // non-ASCII character
+        assert!(!is_rust_ident("foo bar")); // contains space
     }
 }
