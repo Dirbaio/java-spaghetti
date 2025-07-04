@@ -6,9 +6,13 @@ use cafebabe::descriptors::{FieldDescriptor, FieldType, ReturnDescriptor};
 use super::classes::Class;
 use super::methods::Method;
 use crate::emit::Context;
+use crate::util;
 
 impl Class {
-    pub(crate) fn write_java_proxy(&self, context: &Context, methods: &[Method]) -> anyhow::Result<String> {
+    pub(crate) fn write_java_proxy(&self, context: &Context) -> anyhow::Result<String> {
+        // Collect methods for this class
+        let methods: Vec<Method> = self.java.methods().map(|m| Method::new(&self.java, m)).collect();
+
         let java_proxy_path = format!(
             "{}/{}",
             context.config.proxy_package,
@@ -172,11 +176,7 @@ pub fn write_java_proxy_files(context: &Context, output_dir: &Path) -> anyhow::R
             continue;
         }
 
-        // Collect methods for this class
-        let mut methods = Vec::new();
-        methods.extend(class.java.methods().map(|m| Method::new(&class.java, m)));
-
-        let java_code = class.write_java_proxy(context, &methods)?;
+        let java_code = class.write_java_proxy(context)?;
 
         // Calculate output file path
         let java_proxy_path = class.java.path().as_str().replace("$", "_");
@@ -184,15 +184,8 @@ pub fn write_java_proxy_files(context: &Context, output_dir: &Path) -> anyhow::R
         let relative_path = format!("{java_proxy_path}.java");
         let output_file = output_dir.join(&relative_path);
 
-        // Create directory if it doesn't exist
-        if let Some(parent) = output_file.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-
         // Write Java file
-        std::fs::write(&output_file, java_code)?;
-
-        println!("Generated Java proxy: {}", output_file.display());
+        util::write_generated(context, &output_file, java_code.as_bytes())?;
     }
 
     Ok(())
