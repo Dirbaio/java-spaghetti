@@ -202,7 +202,7 @@ fn expand_vars(string: &str) -> String {
                     let mut var_name = String::new();
                     let mut found_close = false;
 
-                    while let Some(var_ch) = chars.next() {
+                    for var_ch in chars.by_ref() {
                         if var_ch == '}' {
                             found_close = true;
                             break;
@@ -215,7 +215,7 @@ fn expand_vars(string: &str) -> String {
                             result.push_str(&value);
                         } else {
                             // If variable not found, panic
-                            panic!("Environment variable '{}' not found", var_name);
+                            panic!("Environment variable '{var_name}' not found");
                         }
                     } else {
                         // Malformed ${...}, keep as is
@@ -243,7 +243,7 @@ fn expand_vars(string: &str) -> String {
                             result.push_str(&value);
                         } else {
                             // If variable not found, panic
-                            panic!("Environment variable '{}' not found", var_name);
+                            panic!("Environment variable '{var_name}' not found");
                         }
                     } else {
                         result.push('$');

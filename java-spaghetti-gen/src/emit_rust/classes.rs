@@ -184,7 +184,7 @@ impl Class {
             .filter(|f| f.java.is_public())
             .collect();
 
-        self.resolve_collisions(&mut methods, &mut fields)?;
+        self.resolve_collisions(&mut methods, &fields)?;
 
         for method in &mut methods {
             let res = method.emit(context, &self.rust.mod_).unwrap();
