@@ -25,7 +25,7 @@ pub fn write_generated(context: &emit::Context, path: &impl AsRef<Path>, content
     };
 
     // Create content with marker comment at the top
-    let marker_line = format!("{}{}\n", comment_prefix, MARKER_COMMENT);
+    let marker_line = format!("{comment_prefix}{MARKER_COMMENT}\n");
     let full_contents = [marker_line.as_bytes(), contents].concat();
 
     match File::open(path) {

@@ -44,7 +44,7 @@ impl Class {
             "class {} {} {} {{",
             class_name,
             parent_type,
-            self.java.path().as_str().replace('/', ".").replace('$', ".")
+            self.java.path().as_str().replace(['/', '$'], ".")
         )?;
 
         // ptr field
@@ -153,7 +153,7 @@ fn java_type_name(desc: &FieldDescriptor) -> anyhow::Result<String> {
             // Convert JNI path to Java path
             return Ok(format!(
                 "{}{}",
-                path.replace('/', ".").replace('$', "."),
+                path.replace(['/', '$'], "."),
                 "[]".repeat(desc.dimensions as usize)
             ));
         }
