@@ -19,6 +19,7 @@ quote = "1.0.40"
 proc-macro2 = "1.0.95"
 anyhow = "1.0.98"
 serde_yaml = "0.9.34"
+glob = "0.3"
 
 [dev-dependencies]
 jni-sys  = "0.4.0"

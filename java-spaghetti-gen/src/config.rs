@@ -99,27 +99,44 @@ pub enum ClassMatch {
 
 impl Default for ClassMatch {
     fn default() -> Self {
-        Self::One("".to_string())
+        Self::One("**".to_string())
     }
 }
 impl ClassMatch {
     fn matches(&self, class: &str) -> bool {
+        let options = glob::MatchOptions {
+            case_sensitive: true,
+            require_literal_separator: true,
+            require_literal_leading_dot: false,
+        };
+
         match self {
-            Self::One(p) => class.starts_with(p),
-            Self::Many(pp) => pp.iter().any(|p| class.starts_with(p)),
+            Self::One(p) => {
+                let pattern = glob::Pattern::new(p).unwrap_or_else(|e| panic!("Invalid glob pattern '{p}': {e}"));
+                pattern.matches_with(class, options)
+            }
+            Self::Many(pp) => pp.iter().any(|p| {
+                let pattern = glob::Pattern::new(p).unwrap_or_else(|e| panic!("Invalid glob pattern '{p}': {e}"));
+                pattern.matches_with(class, options)
+            }),
         }
     }
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct Rule {
-    /// What java class(es) to match against.  This takes the form of a simple prefix to a JNI path with no wildcards.
+    /// What java class(es) to match against.  This takes the form of a glob pattern matching JNI paths.
     ///
-    /// | To Match:                 | Use a JNI Prefix:                     |
+    /// Glob patterns are case-sensitive and require literal path separators (/ cannot be matched by *).
+    /// Use ** to match across directory boundaries.
+    ///
+    /// | To Match:                 | Use a glob pattern:                   |
     /// | ------------------------- | ------------------------------------- |
-    /// | *                         | jni_prefix = ""
-    /// | java.lang.*               | jni_prefix = "java/lang/"
-    /// | name.spaces.OuterClass.*  | jni_prefix = "name/spaces/OuterClass$"
+    /// | *                         | "*"
+    /// | java.lang.*               | "java/lang/**"
+    /// | name.spaces.OuterClass.*  | "name/spaces/OuterClass$*"
+    /// | Specific class            | "com/example/MyClass"
+    /// | Multiple specific classes | ["com/example/Class1", "com/example/Class2"]
     #[serde(rename = "match")]
     pub matches: ClassMatch,
 
@@ -385,5 +402,58 @@ mod tests {
     #[should_panic(expected = "Environment variable 'NONEXISTENT' not found")]
     fn test_expand_vars_panic_on_missing_var_dollar() {
         expand_vars("$NONEXISTENT");
+    }
+
+    #[test]
+    fn test_class_match_glob_patterns() {
+        // Test exact match
+        let match_exact = ClassMatch::One("com/example/MyClass".to_string());
+        assert!(match_exact.matches("com/example/MyClass"));
+        assert!(!match_exact.matches("com/example/MyOtherClass"));
+
+        // Test wildcard patterns
+        let match_wildcard = ClassMatch::One("com/example/*".to_string());
+        assert!(match_wildcard.matches("com/example/MyClass"));
+        assert!(match_wildcard.matches("com/example/MyOtherClass"));
+        assert!(!match_wildcard.matches("com/other/MyClass"));
+
+        // Test question mark pattern
+        let match_question = ClassMatch::One("com/example/MyClass?".to_string());
+        assert!(match_question.matches("com/example/MyClass1"));
+        assert!(match_question.matches("com/example/MyClassA"));
+        assert!(!match_question.matches("com/example/MyClass"));
+        assert!(!match_question.matches("com/example/MyClass12"));
+
+        // Test multiple patterns
+        let match_many = ClassMatch::Many(vec!["com/example/*".to_string(), "org/test/specific/Class".to_string()]);
+        assert!(match_many.matches("com/example/MyClass"));
+        assert!(match_many.matches("org/test/specific/Class"));
+        assert!(!match_many.matches("org/other/MyClass"));
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid glob pattern")]
+    fn test_class_match_invalid_pattern_panics() {
+        let match_invalid = ClassMatch::One("[invalid".to_string());
+        match_invalid.matches("any_class");
+    }
+    #[test]
+    fn test_class_match_literal_separator() {
+        // Test that require_literal_separator: true prevents * from matching /
+        let match_pattern = ClassMatch::One("com/example*".to_string());
+        assert!(match_pattern.matches("com/example"));
+        assert!(match_pattern.matches("com/exampleClass"));
+        assert!(!match_pattern.matches("com/example/SubClass")); // * should not match /
+
+        // Test that we can use ** to match across directories
+        let match_recursive = ClassMatch::One("com/**/MyClass".to_string());
+        assert!(match_recursive.matches("com/example/MyClass"));
+        assert!(match_recursive.matches("com/deep/nested/path/MyClass"));
+        assert!(match_recursive.matches("com/MyClass")); // ** can match zero directories too
+
+        // Test that * within a directory works
+        let match_single_dir = ClassMatch::One("com/*/MyClass".to_string());
+        assert!(match_single_dir.matches("com/example/MyClass"));
+        assert!(!match_single_dir.matches("com/deep/nested/MyClass")); // single * doesn't cross /
     }
 }
