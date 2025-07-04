@@ -49,8 +49,7 @@ mod entry {
 
         match cli.cmd {
             Cmd::Generate(cmd) => {
-                let config_file = config::toml::File::from_directory(&cmd.directory).unwrap();
-                let mut config: config::runtime::Config = config_file.into();
+                let mut config = config::Config::from_directory(&cmd.directory).unwrap();
                 if cmd.verbose {
                     config.logging_verbose = true;
                 }

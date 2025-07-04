@@ -26,14 +26,14 @@ use self::preamble::write_preamble;
 use crate::{config, parser_util, util};
 
 pub struct Context<'a> {
-    pub(crate) config: &'a config::runtime::Config,
+    pub(crate) config: &'a config::Config,
     pub(crate) module: Module,
     pub(crate) all_classes: HashMap<String, Rc<Class>>,
     pub(crate) progress: Mutex<util::Progress>,
 }
 
 impl<'a> Context<'a> {
-    pub fn new(config: &'a config::runtime::Config) -> Self {
+    pub fn new(config: &'a config::Config) -> Self {
         Self {
             config,
             module: Default::default(),

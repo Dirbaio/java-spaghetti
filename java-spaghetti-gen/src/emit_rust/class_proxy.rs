@@ -33,7 +33,7 @@ impl Class {
 
         let java_proxy_path = format!(
             "{}/{}",
-            context.config.codegen.proxy_path_prefix,
+            context.config.proxy_path_prefix,
             self.java.path().as_str().replace("$", "_")
         );
 

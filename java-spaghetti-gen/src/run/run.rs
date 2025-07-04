@@ -3,24 +3,24 @@ use std::fs::File;
 use std::io::{self, Read};
 use std::path::Path;
 
-use crate::config::runtime::Config;
+use crate::config::Config;
 use crate::parser_util::JavaClass;
 use crate::{emit_rust, util};
 
 /// The core function of this library: Generate Rust code to access Java APIs.
 pub fn run(config: impl Into<Config>) -> Result<(), Box<dyn Error>> {
     let config: Config = config.into();
-    println!("output: {}", config.output_path.display());
+    println!("output: {}", config.output.display());
 
     let mut context = emit_rust::Context::new(&config);
-    for file in config.input_files.iter() {
+    for file in config.input.iter() {
         gather_file(&mut context, file)?;
     }
 
     {
         let mut out = Vec::with_capacity(4096);
         context.write(&mut out)?;
-        util::write_generated(&context, &config.output_path, &out[..])?;
+        util::write_generated(&context, &config.output, &out[..])?;
     }
 
     Ok(())
