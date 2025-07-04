@@ -5,7 +5,7 @@ use std::{fs, io};
 
 use serde_derive::Deserialize;
 
-fn default_proxy_path_prefix() -> String {
+fn default_proxy_package() -> String {
     "java_spaghetti/proxy".to_string()
 }
 
@@ -170,17 +170,19 @@ pub struct ClassConfig<'a> {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
-    #[serde(default = "default_proxy_path_prefix")]
-    pub proxy_path_prefix: String,
+    pub input: Vec<PathBuf>,
+    pub output: PathBuf,
 
-    pub(crate) input: Vec<PathBuf>,
-    pub(crate) output: PathBuf,
+    #[serde(default = "default_proxy_package")]
+    pub proxy_package: String,
+    #[serde(default)]
+    pub proxy_output: Option<PathBuf>,
 
     #[serde(default)]
-    pub(crate) logging_verbose: bool,
+    pub logging_verbose: bool,
 
     #[serde(default)]
-    pub(crate) rules: Vec<Rule>,
+    pub rules: Vec<Rule>,
 }
 
 impl Config {
@@ -207,6 +209,9 @@ impl Config {
         }
 
         config.output = resolve_file(&config.output, dir);
+        if let Some(proxy_output) = &mut config.proxy_output {
+            *proxy_output = resolve_file(proxy_output, dir);
+        }
         for f in &mut config.input {
             *f = resolve_file(f, dir);
         }

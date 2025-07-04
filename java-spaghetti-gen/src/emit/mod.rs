@@ -3,6 +3,7 @@
 mod class_proxy;
 mod classes;
 mod fields;
+pub mod java_proxy;
 mod known_docs_url;
 mod methods;
 mod modules;

@@ -32,6 +32,11 @@ pub fn run(config: impl Into<Config>) -> Result<(), Box<dyn Error>> {
     context.write(&mut out)?;
     util::write_generated(&context, &config.output, &out[..])?;
 
+    // Generate Java proxy files if proxy_output is specified
+    if let Some(proxy_output) = &config.proxy_output {
+        emit::java_proxy::write_java_proxy_files(&context, proxy_output)?;
+    }
+
     Ok(())
 }
 
