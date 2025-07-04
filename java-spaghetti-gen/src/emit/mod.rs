@@ -10,7 +10,6 @@ mod modules;
 mod preamble;
 
 use std::collections::HashMap;
-use std::error::Error;
 use std::ffi::CString;
 use std::io;
 use std::rc::Rc;
@@ -50,7 +49,7 @@ impl<'a> Context<'a> {
             .unwrap()
     }
 
-    pub fn java_to_rust_path(&self, java_class: parser_util::Id, mod_: &str) -> Result<TokenStream, Box<dyn Error>> {
+    pub fn java_to_rust_path(&self, java_class: parser_util::Id, mod_: &str) -> Result<TokenStream, anyhow::Error> {
         let m = Class::mod_for(java_class)?;
         let s = Class::name_for(java_class)?;
         let fqn = format!("{m}::{s}");
@@ -85,7 +84,7 @@ impl<'a> Context<'a> {
         Ok(res)
     }
 
-    pub fn add_class(&mut self, class: parser_util::JavaClass) -> Result<(), Box<dyn Error>> {
+    pub fn add_class(&mut self, class: parser_util::JavaClass) -> Result<(), anyhow::Error> {
         let cc = self.config.resolve_class(class.path().as_str());
         if !cc.include {
             return Ok(());

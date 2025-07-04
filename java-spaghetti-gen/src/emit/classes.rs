@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::error::Error;
 use std::fmt::Write;
 
 use proc_macro2::TokenStream;
@@ -20,7 +19,7 @@ pub(crate) struct StructPaths {
 }
 
 impl StructPaths {
-    pub(crate) fn new(class: Id) -> Result<Self, Box<dyn Error>> {
+    pub(crate) fn new(class: Id) -> Result<Self, anyhow::Error> {
         Ok(Self {
             mod_: Class::mod_for(class)?,
             struct_name: Class::name_for(class)?,
@@ -34,7 +33,7 @@ pub(crate) struct Class {
     pub java: JavaClass,
 }
 
-fn rust_id(id: &str) -> Result<String, Box<dyn Error>> {
+fn rust_id(id: &str) -> Result<String, anyhow::Error> {
     Ok(match RustIdentifier::from_str(id) {
         RustIdentifier::Identifier(id) => id,
         RustIdentifier::KeywordRawSafe(id) => id,
@@ -47,7 +46,7 @@ fn rust_id(id: &str) -> Result<String, Box<dyn Error>> {
 }
 
 impl Class {
-    pub(crate) fn mod_for(class: Id) -> Result<String, Box<dyn Error>> {
+    pub(crate) fn mod_for(class: Id) -> Result<String, anyhow::Error> {
         let mut buf = String::new();
         for component in class {
             match component {
@@ -64,7 +63,7 @@ impl Class {
         Ok(buf)
     }
 
-    pub(crate) fn name_for(class: Id) -> Result<String, Box<dyn Error>> {
+    pub(crate) fn name_for(class: Id) -> Result<String, anyhow::Error> {
         let mut buf = String::new();
         for component in class.iter() {
             match component {
@@ -76,7 +75,7 @@ impl Class {
         Ok(buf)
     }
 
-    pub(crate) fn new(java: JavaClass) -> Result<Self, Box<dyn Error>> {
+    pub(crate) fn new(java: JavaClass) -> Result<Self, anyhow::Error> {
         let rust = StructPaths::new(java.path())?;
 
         Ok(Self { rust, java })

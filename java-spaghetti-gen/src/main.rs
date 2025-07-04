@@ -6,7 +6,6 @@ mod emit;
 mod identifiers;
 mod parser_util;
 
-use std::error::Error;
 use std::fs::File;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
@@ -17,7 +16,7 @@ use crate::config::Config;
 use crate::parser_util::JavaClass;
 
 /// The core function of this library: Generate Rust code to access Java APIs.
-pub fn run(config: impl Into<Config>) -> Result<(), Box<dyn Error>> {
+pub fn run(config: impl Into<Config>) -> Result<(), anyhow::Error> {
     let config: Config = config.into();
     println!("output: {}", config.output.display());
 
@@ -38,7 +37,7 @@ pub fn run(config: impl Into<Config>) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn gather_file(context: &mut emit::Context, path: &Path) -> Result<(), Box<dyn Error>> {
+fn gather_file(context: &mut emit::Context, path: &Path) -> Result<(), anyhow::Error> {
     let verbose = context.config.logging_verbose;
 
     context
