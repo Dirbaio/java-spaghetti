@@ -2,6 +2,25 @@
 
 Generate type-safe bindings for calling Java APIs from Rust, so you can fearlessly make your humongous Java spaghetti code aglomeration trascend language barriers and occupy an even larger fraction of the universe's space-time.
 
+## Features
+
+- Generates fully safe Rust bindings to call Java APIs.
+- Smart pointers based on `feature(arbitrary_self_types)`: `Global`, `Local`, `Arg`, `Return`.
+- Supports static and nonstatic methods, fields.
+- Constant fields (`static final`) are converted to Rust constants.
+- Allows implementing Java interfaces or subclassing Java classes using a "proxy" mechanism. Useful for callback/listener APIs. It generates:
+    - a Rust trait matching the Java interface/class for you to implement
+    - a proxy Java class where all methods call into Rust
+    - Rust glue to receive and forward calls to the Rust trait
+- Flexible configuration based on glob rules matching Java classes. All matching rules are merged.
+
+## Users 
+
+The following crates use java-spaghetti in the wild. You can use them as examples.
+
+- [`rnfc-android`](https://github.com/embassy-rs/rnfc/tree/master/rnfc-android)
+- [`bluest`](https://github.com/akiles-dev/bluest/tree/update-spaghetti/src/android)
+
 ## Differences vs `jni-bindgen`
 
 This project originally started out as a fork of [`jni-bindgen`](https://github.com/MaulingMonkey/jni-bindgen).
@@ -40,8 +59,3 @@ at your option.
 Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
 dual licensed as above, without any additional terms or conditions.
-
-<!-- https://doc.rust-lang.org/1.4.0/complement-project-faq.html#why-dual-mit/asl2-license? -->
-<!-- https://rust-lang-nursery.github.io/api-guidelines/necessities.html#crate-and-its-dependencies-have-a-permissive-license-c-permissive -->
-<!-- https://choosealicense.com/licenses/apache-2.0/ -->
-<!-- https://choosealicense.com/licenses/mit/ -->
