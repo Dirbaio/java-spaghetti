@@ -99,15 +99,19 @@ impl Class {
             "class"
         };
 
-        let visibility = if self.java.is_public() { quote!(pub) } else { quote!() };
+        let visibility = if self.java.is_public() || cc.include_private_classes {
+            quote!(pub)
+        } else {
+            quote!()
+        };
         let attributes = match self.java.deprecated() {
             true => quote!(#[deprecated] ),
             false => quote!(),
         };
 
         let docs = match KnownDocsUrl::from_class(&cc, self.java.path()) {
-            Some(url) => format!("{visibility} {keyword} {url}"),
-            None => format!("{visibility} {keyword} {}", self.java.path().as_str()),
+            Some(url) => format!("{keyword} {url}"),
+            None => format!("{keyword} {}", self.java.path().as_str()),
         };
 
         let rust_name = format_ident!("{}", &self.rust.struct_name);
@@ -177,13 +181,13 @@ impl Class {
             .java
             .methods()
             .map(|m| Method::new(&self.java, m))
-            .filter(|m| m.java.is_public() && !m.java.is_bridge())
+            .filter(|m| (m.java.is_public() || cc.include_private_methods) && !m.java.is_bridge())
             .collect();
         let mut fields: Vec<Field> = self
             .java
             .fields()
             .map(|f| Field::new(&self.java, f))
-            .filter(|f| f.java.is_public())
+            .filter(|f| f.java.is_public() || cc.include_private_fields)
             .collect();
 
         self.resolve_collisions(&mut methods, &fields)?;

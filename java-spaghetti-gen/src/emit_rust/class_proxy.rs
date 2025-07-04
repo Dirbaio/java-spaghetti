@@ -20,7 +20,6 @@ impl Class {
         let mut out = TokenStream::new();
         let mut contents = TokenStream::new();
 
-        let visibility = if self.java.is_public() { quote!(pub) } else { quote!() };
         let rust_name = format_ident!("{}", &self.rust.struct_name);
 
         let object = context
@@ -137,7 +136,7 @@ impl Class {
         let native_name = format_ident!("{native_name}");
 
         out.extend(quote!(
-            #visibility trait #rust_proxy_name: ::std::marker::Send + ::std::marker::Sync + 'static {
+            pub trait #rust_proxy_name: ::std::marker::Send + ::std::marker::Sync + 'static {
                 #trait_methods
             }
 

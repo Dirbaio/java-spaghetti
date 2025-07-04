@@ -90,7 +90,7 @@ pub struct DocPattern {
     pub argument_seperator: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct Rule {
     /// What java class(es) to match against.  This takes the form of a simple prefix to a JNI path with no wildcards.
     ///
@@ -106,6 +106,13 @@ pub struct Rule {
     pub include: Option<bool>,
 
     #[serde(default)]
+    pub include_private_classes: Option<bool>,
+    #[serde(default)]
+    pub include_private_methods: Option<bool>,
+    #[serde(default)]
+    pub include_private_fields: Option<bool>,
+
+    #[serde(default)]
     pub proxy: Option<bool>,
 
     #[serde(default)]
@@ -115,6 +122,10 @@ pub struct Rule {
 #[derive(Debug, Clone)]
 pub struct ClassConfig<'a> {
     pub include: bool,
+
+    pub include_private_classes: bool,
+    pub include_private_methods: bool,
+    pub include_private_fields: bool,
     pub proxy: bool,
     pub doc_pattern: Option<&'a DocPattern>,
 }
@@ -150,12 +161,7 @@ impl Config {
             serde_yaml::from_str(buffer).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
         if config.rules.is_empty() {
-            config.rules.push(Rule {
-                prefix: "".to_string(),
-                include: Some(true),
-                doc_pattern: None,
-                proxy: None,
-            })
+            config.rules.push(Rule::default())
         }
 
         config.output = resolve_file(&config.output, dir);
@@ -199,6 +205,9 @@ impl Config {
     pub fn resolve_class(&self, class: &str) -> ClassConfig<'_> {
         let mut res = ClassConfig {
             include: false,
+            include_private_classes: false,
+            include_private_methods: false,
+            include_private_fields: false,
             proxy: false,
             doc_pattern: None,
         };
@@ -207,6 +216,15 @@ impl Config {
             if class.starts_with(&r.prefix) {
                 if let Some(include) = r.include {
                     res.include = include;
+                }
+                if let Some(include_private_classes) = r.include_private_classes {
+                    res.include_private_classes = include_private_classes;
+                }
+                if let Some(include_private_methods) = r.include_private_methods {
+                    res.include_private_methods = include_private_methods;
+                }
+                if let Some(include_private_fields) = r.include_private_fields {
+                    res.include_private_fields = include_private_fields;
                 }
                 if let Some(proxy) = r.proxy {
                     res.proxy = proxy;

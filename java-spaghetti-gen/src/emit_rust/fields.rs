@@ -29,10 +29,6 @@ impl<'a> Field<'a> {
     pub fn emit(&self, context: &Context, cc: &ClassConfig, mod_: &str) -> anyhow::Result<TokenStream> {
         let mut emit_reject_reasons = Vec::new();
 
-        if !self.java.is_public() {
-            emit_reject_reasons.push("Non-public field");
-        }
-
         let descriptor = &self.java.descriptor();
 
         let rust_set_type = emit_rust_type(

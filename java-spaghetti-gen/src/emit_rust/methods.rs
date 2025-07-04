@@ -53,9 +53,6 @@ impl<'a> Method<'a> {
             self.java.name().to_owned()
         };
 
-        if !self.java.is_public() {
-            emit_reject_reasons.push("Non-public method");
-        }
         if self.java.is_bridge() {
             emit_reject_reasons.push("Bridge method - type erasure");
         }
@@ -117,7 +114,6 @@ impl<'a> Method<'a> {
 
         let mut out = TokenStream::new();
 
-        let access = if self.java.is_public() { quote!(pub) } else { quote!() };
         let attributes = if self.java.deprecated() {
             quote!(#[deprecated])
         } else {
@@ -157,7 +153,7 @@ impl<'a> Method<'a> {
         out.extend(quote!(
             #[doc = #docs]
             #attributes
-            #access fn #method_name<'env>(#params_decl) -> ::std::result::Result<#ret_decl, ::java_spaghetti::Local<'env, #throwable>> {
+            pub fn #method_name<'env>(#params_decl) -> ::std::result::Result<#ret_decl, ::java_spaghetti::Local<'env, #throwable>> {
                 static __METHOD: ::std::sync::OnceLock<::java_spaghetti::JMethodID> = ::std::sync::OnceLock::new();
                 unsafe {
                     let __jni_args = [#params_array];
