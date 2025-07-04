@@ -5,14 +5,7 @@ use std::{fs, io};
 
 use serde_derive::Deserialize;
 
-use crate::identifiers::{FieldManglingStyle, MethodManglingStyle};
-
-fn default_method_naming_style() -> MethodManglingStyle {
-    MethodManglingStyle::Java
-}
-fn default_method_naming_style_collision() -> MethodManglingStyle {
-    MethodManglingStyle::JavaLongSignature
-}
+use crate::identifiers::FieldManglingStyle;
 
 fn default_proxy_path_prefix() -> String {
     "java_spaghetti/proxy".to_string()
@@ -21,14 +14,6 @@ fn default_proxy_path_prefix() -> String {
 /// The \[codegen\] section.
 #[derive(Debug, Clone, Deserialize)]
 pub struct CodeGen {
-    /// How methods should be named by default.
-    #[serde(default = "default_method_naming_style")]
-    pub method_naming_style: MethodManglingStyle,
-
-    /// How methods should be named on name collision.
-    #[serde(default = "default_method_naming_style_collision")]
-    pub method_naming_style_collision: MethodManglingStyle,
-
     /// How fields should be named.
     #[serde(default = "Default::default")]
     pub field_naming_style: FieldManglingStyle,
@@ -40,8 +25,6 @@ pub struct CodeGen {
 impl Default for CodeGen {
     fn default() -> Self {
         Self {
-            method_naming_style: default_method_naming_style(),
-            method_naming_style_collision: default_method_naming_style_collision(),
             field_naming_style: Default::default(),
             proxy_path_prefix: default_proxy_path_prefix(),
         }
@@ -205,8 +188,6 @@ pub struct Rename {
 ///
 /// [codegen]
 /// static_env                      = "implicit"
-/// method_naming_style             = "java"
-/// method_naming_style_collision   = "java_long_signature"
 ///
 /// [logging]
 /// verbose = true
@@ -360,8 +341,6 @@ fn load_well_configured_toml() {
 
         [codegen]
         static_env                      = "explicit"
-        method_naming_style             = "java"
-        method_naming_style_collision   = "java_long_signature"
 
         [logging]
         verbose = true
@@ -418,12 +397,6 @@ fn load_well_configured_toml() {
         to        = "some_other_method"
     "#;
     let file = File::read_str(well_configured_toml).unwrap();
-
-    assert_eq!(file.codegen.method_naming_style, MethodManglingStyle::Java);
-    assert_eq!(
-        file.codegen.method_naming_style_collision,
-        MethodManglingStyle::JavaLongSignature
-    );
 
     assert!(file.logging.verbose);
 
@@ -499,12 +472,6 @@ fn load_minimal_toml() {
         path = "android28.rs"
     "#;
     let file = File::read_str(minimal_toml).unwrap();
-
-    assert_eq!(file.codegen.method_naming_style, MethodManglingStyle::Java);
-    assert_eq!(
-        file.codegen.method_naming_style_collision,
-        MethodManglingStyle::JavaLongSignature
-    );
 
     assert!(!file.logging.verbose);
     assert_eq!(file.documentation.patterns.len(), 0);

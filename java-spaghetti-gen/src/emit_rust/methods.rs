@@ -17,14 +17,14 @@ pub struct Method<'a> {
 }
 
 impl<'a> Method<'a> {
-    pub fn new(context: &Context, class: &'a JavaClass, java: &'a cafebabe::MethodInfo<'a>) -> Self {
+    pub fn new(_context: &Context, class: &'a JavaClass, java: &'a cafebabe::MethodInfo<'a>) -> Self {
         let mut result = Self {
             class,
             java: JavaMethod::from(java),
             rust_name: None,
-            mangling_style: MethodManglingStyle::Java, // Immediately overwritten below
+            mangling_style: MethodManglingStyle::Java,
         };
-        result.set_mangling_style(context.config.codegen.method_naming_style); // rust_name + mangling_style
+        result.set_mangling_style(MethodManglingStyle::Java);
         result
     }
 
