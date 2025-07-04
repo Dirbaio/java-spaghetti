@@ -90,6 +90,27 @@ pub struct DocPattern {
     pub argument_seperator: String,
 }
 
+#[derive(Deserialize, Debug, Clone)]
+#[serde(untagged)]
+pub enum ClassMatch {
+    One(String),
+    Many(Vec<String>),
+}
+
+impl Default for ClassMatch {
+    fn default() -> Self {
+        Self::One("".to_string())
+    }
+}
+impl ClassMatch {
+    fn matches(&self, class: &str) -> bool {
+        match self {
+            Self::One(p) => class.starts_with(p),
+            Self::Many(pp) => pp.iter().any(|p| class.starts_with(p)),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct Rule {
     /// What java class(es) to match against.  This takes the form of a simple prefix to a JNI path with no wildcards.
@@ -99,9 +120,8 @@ pub struct Rule {
     /// | *                         | jni_prefix = ""
     /// | java.lang.*               | jni_prefix = "java/lang/"
     /// | name.spaces.OuterClass.*  | jni_prefix = "name/spaces/OuterClass$"
-    #[serde(default)]
     #[serde(rename = "match")]
-    pub matches: Vec<String>,
+    pub matches: ClassMatch,
 
     #[serde(default)]
     pub include: Option<bool>,
@@ -163,7 +183,8 @@ impl Config {
 
         if config.rules.is_empty() {
             config.rules.push(Rule {
-                matches: vec!["".to_string()],
+                matches: ClassMatch::default(),
+                include: Some(true),
                 ..Default::default()
             })
         }
@@ -217,7 +238,7 @@ impl Config {
         };
 
         for r in &self.rules {
-            if r.matches.iter().any(|p| class.starts_with(p)) {
+            if r.matches.matches(class) {
                 if let Some(include) = r.include {
                     res.include = include;
                 }
