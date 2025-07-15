@@ -28,6 +28,8 @@ impl<'env> StringChars<'env> {
         let chars = unsafe { env.get_string_chars(string) };
         let length = unsafe { env.get_string_length(string) };
 
+        debug_assert!(!chars.is_null() || length == 0);
+
         Self {
             env,
             string,

@@ -110,8 +110,7 @@ macro_rules! primitive_array {
                 let jnienv = env.as_raw();
                 unsafe {
                     let object = ((**jnienv).v1_2.$new_array)(jnienv, size);
-                    let exception = ((**jnienv).v1_2.ExceptionOccurred)(jnienv);
-                    assert!(exception.is_null()); // Only sane exception here is an OOM exception
+                    env.exception_check_raw().expect("OOM");
                     Local::from_raw(env, object)
                 }
             }

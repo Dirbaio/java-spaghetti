@@ -6,19 +6,19 @@ use std::sync::atomic::{AtomicPtr, Ordering};
 
 use jni_sys::*;
 
-use crate::{AsArg, Local, Ref, ReferenceType, StringChars, ThrowableType, VM};
+use crate::{AsArg, JMethodID, Local, Ref, ReferenceType, StringChars, ThrowableType, VM};
 
 /// FFI:  Use **Env** instead of `*const JNIEnv`.  This represents a per-thread Java exection environment.
 ///
 /// A "safe" alternative to `jni_sys::JNIEnv` raw pointers, with the following caveats:
 ///
-/// 1)  A null env will result in **undefined behavior**.  Java should not be invoking your native functions with a null
-///     *mut JNIEnv, however, so I don't believe this is a problem in practice unless you've bindgened the C header
+/// 1)  A null `env` will result in **undefined behavior**.  Java should not be invoking your native functions with a null
+///     `*mut JNIEnv`, however, so I don't believe this is a problem in practice unless you've bindgened the C header
 ///     definitions elsewhere, calling them (requiring `unsafe`), and passing null pointers (generally UB for JNI
 ///     functions anyways, so can be seen as a caller soundness issue.)
 ///
-/// 2)  Allowing the underlying JNIEnv to be modified is **undefined behavior**.  I don't believe the JNI libraries
-///     modify the JNIEnv, so as long as you're not accepting a *mut JNIEnv elsewhere, using unsafe to dereference it,
+/// 2)  Allowing the underlying `JNIEnv` to be modified is **undefined behavior**.  I don't believe the JNI libraries
+///     modify the `JNIEnv`, so as long as you're not accepting a `*mut JNIEnv` elsewhere, using `unsafe` to dereference it,
 ///     and mucking with the methods on it yourself, I believe this "should" be fine.
 ///
 /// Most methods of `Env` are supposed to be used by generated bindings.
@@ -148,13 +148,19 @@ impl<'env> Env<'env> {
     /// Note that there is `ExceptionCheck` in JNI functions, which does not create a
     /// local reference to the exception object.
     pub(crate) fn exception_check<E: ThrowableType>(self) -> Result<(), Local<'env, E>> {
+        self.exception_check_raw()
+            .map_err(|throwable| unsafe { Local::from_raw(self, throwable) })
+    }
+
+    /// The same as `exception_check`, except that it may return a raw local reference of the exception.
+    pub(crate) fn exception_check_raw(self) -> Result<(), jthrowable> {
         unsafe {
             let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
             if exception.is_null() {
                 Ok(())
             } else {
                 ((**self.env).v1_2.ExceptionClear)(self.env);
-                Err(Local::from_raw(self, exception))
+                Err(exception as jthrowable)
             }
         }
     }
@@ -164,37 +170,32 @@ impl<'env> Env<'env> {
         assert_eq!(res, 0);
     }
 
-    unsafe fn exception_to_string(self, exception: jobject) -> String {
-        static METHOD_GET_MESSAGE: OnceLock<usize> = OnceLock::new();
-        let throwable_get_message = *METHOD_GET_MESSAGE.get_or_init(|| {
+    unsafe fn raw_exception_to_string(self, exception: jobject) -> String {
+        static METHOD_GET_MESSAGE: OnceLock<JMethodID> = OnceLock::new();
+        let throwable_get_message = METHOD_GET_MESSAGE.get_or_init(|| {
             // use JNI FindClass to avoid infinte recursion.
-            let throwable_class = self.require_class_jni(c"java/lang/Throwable");
-            let method = self.require_method(throwable_class, c"getMessage", c"()Ljava/lang/String;");
-            ((**self.env).v1_2.DeleteLocalRef)(self.env, throwable_class);
-            method.addr()
-        }) as jmethodID; // it is a global ID
+            let throwable_class = self.require_class_jni(c"java/lang/Throwable").unwrap();
+            JMethodID::from_raw(self.require_method(throwable_class, c"getMessage", c"()Ljava/lang/String;"))
+        });
 
         let message =
-            ((**self.env).v1_2.CallObjectMethodA)(self.env, exception, throwable_get_message, ptr::null_mut());
-        let e2: *mut _jobject = ((**self.env).v1_2.ExceptionOccurred)(self.env);
-        if !e2.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
-            panic!("exception happened calling Throwable.getMessage()");
+            ((**self.env).v1_2.CallObjectMethodA)(self.env, exception, throwable_get_message.as_raw(), ptr::null_mut());
+        self.exception_check_raw()
+            .expect("exception happened calling Throwable.getMessage()");
+        if message.is_null() {
+            return "??? (Throwable.getMessage() returned null string)".to_string();
         }
+        let message_string = StringChars::from_env_jstring(self, message).to_string_lossy();
+        ((**self.env).v1_2.DeleteLocalRef)(self.env, message);
 
-        StringChars::from_env_jstring(self, message).to_string_lossy()
+        message_string
     }
 
     /// Note: the returned `jclass` is actually a new local reference of the class object.
     pub unsafe fn require_class(self, class: &CStr) -> jclass {
         // First try with JNI FindClass.
-        let c = ((**self.env).v1_2.FindClass)(self.env, class.as_ptr());
-        let exception: *mut _jobject = ((**self.env).v1_2.ExceptionOccurred)(self.env);
-        if !exception.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
-        }
-        if !c.is_null() {
-            return c;
+        if let Some(class) = self.require_class_jni(class) {
+            return class;
         }
 
         // If class is not found and we have a classloader set, try that.
@@ -208,25 +209,25 @@ impl<'env> Env<'env> {
                 .collect::<Vec<_>>();
             let string = unsafe { self.new_string(chars.as_ptr(), chars.len() as jsize) };
 
-            static CL_METHOD: OnceLock<usize> = OnceLock::new();
-            let cl_method = *CL_METHOD.get_or_init(|| {
+            static CL_METHOD: OnceLock<JMethodID> = OnceLock::new();
+            let cl_method = CL_METHOD.get_or_init(|| {
                 // We still use JNI FindClass for this, to avoid a chicken-and-egg situation.
                 // If the system class loader cannot find java.lang.ClassLoader, things are pretty broken!
-                let cl_class = self.require_class_jni(c"java/lang/ClassLoader");
-                let cl_method = self.require_method(cl_class, c"loadClass", c"(Ljava/lang/String;)Ljava/lang/Class;");
-                ((**self.env).v1_2.DeleteLocalRef)(self.env, cl_class);
-                cl_method.addr()
-            }) as jmethodID; // it is a global ID
+                let cl_class = self.require_class_jni(c"java/lang/ClassLoader").unwrap();
+                JMethodID::from_raw(self.require_method(
+                    cl_class,
+                    c"loadClass",
+                    c"(Ljava/lang/String;)Ljava/lang/Class;",
+                ))
+            });
 
             let args = [jvalue { l: string }];
             let result: *mut _jobject =
-                ((**self.env).v1_2.CallObjectMethodA)(self.env, classloader, cl_method, args.as_ptr());
-            let exception: *mut _jobject = ((**self.env).v1_2.ExceptionOccurred)(self.env);
-            if !exception.is_null() {
-                ((**self.env).v1_2.ExceptionClear)(self.env);
+                ((**self.env).v1_2.CallObjectMethodA)(self.env, classloader, cl_method.as_raw(), args.as_ptr());
+            if let Err(exception) = self.exception_check_raw() {
                 panic!(
                     "exception happened calling loadClass(): {}",
-                    self.exception_to_string(exception)
+                    self.raw_exception_to_string(exception)
                 );
             } else if result.is_null() {
                 panic!("loadClass() returned null");
@@ -241,51 +242,38 @@ impl<'env> Env<'env> {
         panic!("couldn't load class {class:?}");
     }
 
-    unsafe fn require_class_jni(self, class: &CStr) -> jclass {
-        let res = ((**self.env).v1_2.FindClass)(self.env, class.as_ptr());
-        if res.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
-            panic!("could not find class {class:?}");
+    unsafe fn require_class_jni(self, class: &CStr) -> Option<jclass> {
+        let cls = ((**self.env).v1_2.FindClass)(self.env, class.as_ptr());
+        self.exception_check_raw().ok()?;
+        if cls.is_null() {
+            return None;
         }
-        res
+        Some(cls)
     }
 
     // used only for debugging
     unsafe fn get_class_name(self, class: jclass) -> String {
-        let classclass = self.require_class_jni(c"java/lang/Class");
-
-        // don't use self.require_method() here to avoid recursion!
-        let method = ((**self.env).v1_2.GetMethodID)(
-            self.env,
-            classclass,
-            c"getName".as_ptr(),
-            c"()Ljava/lang/String;".as_ptr(),
-        );
-        if method.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
-            ((**self.env).v1_2.DeleteLocalRef)(self.env, classclass);
-            return "??? (couldn't get class getName method)".to_string();
+        static METHOD_GET_NAME: OnceLock<JMethodID> = OnceLock::new();
+        let method = METHOD_GET_NAME.get_or_init(|| {
+            // don't use `self.require_method()` here to avoid recursion!
+            let class_class = self.require_class_jni(c"java/lang/Class").unwrap();
+            let method = ((**self.env).v1_2.GetMethodID)(
+                self.env,
+                class_class,
+                c"getName".as_ptr(),
+                c"()Ljava/lang/String;".as_ptr(),
+            );
+            JMethodID::from_raw(method)
+        });
+        let jstring = ((**self.env).v1_2.CallObjectMethod)(self.env, class, method.as_raw());
+        self.exception_check_raw()
+            .expect("exception happened calling Class.getName()");
+        if jstring.is_null() {
+            return "??? (Class.getName() returned null string)".to_string();
         }
-
-        let string = ((**self.env).v1_2.CallObjectMethod)(self.env, class, method);
-        if string.is_null() {
-            return "??? (getName returned null string)".to_string();
-        }
-        let chars = ((**self.env).v1_2.GetStringUTFChars)(self.env, string, ptr::null_mut());
-        if chars.is_null() {
-            ((**self.env).v1_2.DeleteLocalRef)(self.env, string);
-            ((**self.env).v1_2.DeleteLocalRef)(self.env, classclass);
-            return "??? (GetStringUTFChars returned null chars)".to_string();
-        }
-
-        let cchars = CStr::from_ptr(chars);
-        let res = cchars.to_string_lossy().to_string();
-
-        ((**self.env).v1_2.ReleaseStringUTFChars)(self.env, string, chars);
-        ((**self.env).v1_2.DeleteLocalRef)(self.env, string);
-        ((**self.env).v1_2.DeleteLocalRef)(self.env, classclass);
-
-        res
+        let string = StringChars::from_env_jstring(self, jstring).to_string_lossy();
+        ((**self.env).v1_2.DeleteLocalRef)(self.env, jstring);
+        string
     }
 
     pub unsafe fn require_method(self, class: jclass, method: &CStr, descriptor: &CStr) -> jmethodID {

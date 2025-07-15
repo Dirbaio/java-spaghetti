@@ -198,10 +198,7 @@ impl<'env, T: ReferenceType> Drop for Monitor<'env, T> {
         let jnienv = env.as_raw();
         let result = unsafe { ((**jnienv).v1_2.MonitorExit)(jnienv, self.inner.as_raw()) };
         assert!(result == jni_sys::JNI_OK);
-        let exception = unsafe { ((**jnienv).v1_2.ExceptionOccurred)(jnienv) };
-        assert!(
-            exception.is_null(),
-            "exception happened calling JNI MonitorExit, the monitor is probably broken previously"
-        );
+        env.exception_check_raw()
+            .expect("exception happened calling JNI MonitorExit, the monitor is probably broken previously");
     }
 }
