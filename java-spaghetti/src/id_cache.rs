@@ -49,8 +49,16 @@ impl JClass {
         }
     }
 
+    /// Returns the raw JNI reference pointer.
     pub fn as_raw(&self) -> jclass {
         self.class
+    }
+
+    /// Turns it into a raw global reference; prevents `DeleteGlobalRef` from being called on dropping.
+    pub fn into_raw(self) -> jclass {
+        let class = self.class;
+        std::mem::forget(self); // Don't delete the object.
+        class
     }
 }
 

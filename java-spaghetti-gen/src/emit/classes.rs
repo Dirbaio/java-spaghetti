@@ -117,8 +117,8 @@ impl Class {
                     ::std::borrow::Cow::Borrowed(#java_path)
                 }
                 unsafe fn jni_class_cache_once_lock() -> &'static ::std::sync::OnceLock<::java_spaghetti::JClass> {
-                    static CLASS_CACHE: ::std::sync::OnceLock<::java_spaghetti::JClass> = ::std::sync::OnceLock::new();
-                    &CLASS_CACHE
+                    static __CLASS: ::std::sync::OnceLock<::java_spaghetti::JClass> = ::std::sync::OnceLock::new();
+                    &__CLASS
                 }
             }
         ));

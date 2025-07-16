@@ -1,4 +1,4 @@
-use std::ffi::CStr;
+use std::ffi::{CStr, c_char, c_void};
 use std::marker::PhantomData;
 use std::ptr::{self, null_mut};
 use std::sync::OnceLock;
@@ -172,7 +172,7 @@ impl<'env> Env<'env> {
         assert_eq!(res, 0);
     }
 
-    unsafe fn raw_exception_to_string(self, exception: jobject) -> String {
+    pub(crate) unsafe fn raw_exception_to_string(self, exception: jobject) -> String {
         static METHOD_GET_MESSAGE: OnceLock<JMethodID> = OnceLock::new();
         let throwable_get_message = METHOD_GET_MESSAGE.get_or_init(|| {
             // use JNI FindClass to avoid infinte recursion.
@@ -241,7 +241,7 @@ impl<'env> Env<'env> {
         Ok(JClass::from_raw(self, result as jclass))
     }
 
-    unsafe fn require_class_jni(self, class: &CStr) -> Result<JClass, ClassLoaderError> {
+    pub(crate) unsafe fn require_class_jni(self, class: &CStr) -> Result<JClass, ClassLoaderError> {
         // Note: the returned `cls` is actually a new local reference of the class object.
         let cls = ((**self.env).v1_2.FindClass)(self.env, class.as_ptr());
         if let Err(exception) = self.exception_check_raw() {
@@ -261,8 +261,8 @@ impl<'env> Env<'env> {
         Ok(JClass::from_raw(self, cls))
     }
 
-    // used only for debugging
-    unsafe fn get_class_name(self, class: &JClass) -> String {
+    /// Gets the binary name (not internal form) of the class with `Class.getName()`. Returns "??? (details)" on error.
+    pub unsafe fn get_class_name(self, class: &JClass) -> String {
         static METHOD_GET_NAME: OnceLock<JMethodID> = OnceLock::new();
         let method = METHOD_GET_NAME.get_or_init(|| {
             // don't use `self.require_method()` here to avoid recursion!
@@ -284,6 +284,44 @@ impl<'env> Env<'env> {
         let string = StringChars::from_env_jstring(self, jstring).to_string_lossy();
         ((**self.env).v1_2.DeleteLocalRef)(self.env, jstring);
         string
+    }
+
+    /// Binds the function pointer to the native method of `class` according to method name and signature.
+    /// Returns `false` if the method is not found or the JNI `RegisterNatives` returns a negative value.
+    ///
+    /// # Safety
+    ///
+    /// The native method pointer must be a valid, non-null pointer to a function that match the signature
+    /// of the corresponding Java method.
+    pub unsafe fn register_native_method(
+        &self,
+        class: &JClass,
+        method: &CStr,
+        descriptor: &CStr,
+        fn_ptr: *mut c_void,
+    ) -> bool {
+        // `RegisterNatives` shouldn't modify `name` and `signature`, but still clone them.
+        let (method, descriptor) = (method.to_owned(), descriptor.to_owned());
+        let mut native_methods = [JNINativeMethod {
+            name: method.as_ptr() as *mut c_char,
+            signature: descriptor.as_ptr() as *mut c_char,
+            fnPtr: fn_ptr,
+        }];
+        let jnienv = self.as_raw();
+        let res = ((**jnienv).v1_2.RegisterNatives)(jnienv, class.as_raw(), native_methods.as_mut_ptr(), 1);
+
+        if let Err(exception) = self.exception_check_raw() {
+            eprintln!(
+                "exception happened calling JNI RegisterNatives: {}",
+                self.raw_exception_to_string(exception)
+            );
+            ((**jnienv).v1_2.DeleteLocalRef)(jnienv, exception);
+            return false;
+        } else if res < 0 {
+            eprintln!("JNI RegisterNatives failed: returned value is {res}");
+            return false;
+        }
+        true
     }
 
     pub unsafe fn require_method(self, class: &JClass, method: &CStr, descriptor: &CStr) -> JMethodID {
