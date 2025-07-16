@@ -1,71 +1,80 @@
-use std::ffi::CStr;
+//! XXX: This type came from the original [jni-glue](https://docs.rs/jni-glue/0.0.10/src/jni_glue/jni_type.rs.html),
+//! I'm not sure of its possible funcationality in the future, but it's currently preserved.
+//!
+//! Side note: While primitive array type signatures like c"[I" can be passed to the JNI `FindClass`, a primitive "class"
+//! like `int.class` cannot be obtained by passing c"I" to `FindClass`. Primitive "classes" might be obtained from
+//! [java.lang.reflect.Method](https://docs.oracle.com/javase/8/docs/api/java/lang/reflect/Method.html#getParameterTypes).
+
+use std::borrow::Cow;
+use std::ffi::{CStr, CString};
 
 use jni_sys::*;
 
-/// JNI bindings rely on this type being accurate.
-///
-/// # Safety
-///
-/// **unsafe**: Passing the wrong type can cause unsoundness, since the code that interacts with JNI blindly trusts it's correct.
-///
-/// Why the awkward callback style instead of returning `&'static CStr`?  Arrays of arrays may need to dynamically
-/// construct their type strings, which would need to leak.  Worse, we can't easily intern those strings via
-/// lazy_static without running into:
-///
-/// ```text
-/// error[E0401]: can't use generic parameters from outer function
-/// ```
+use crate::ReferenceType;
+
+#[doc(hidden)]
 pub unsafe trait JniType {
-    fn static_with_jni_type<R>(callback: impl FnOnce(&CStr) -> R) -> R;
+    fn jni_type_name() -> Cow<'static, CStr>;
 }
 
 unsafe impl JniType for () {
-    fn static_with_jni_type<R>(callback: impl FnOnce(&CStr) -> R) -> R {
-        callback(c"V")
+    fn jni_type_name() -> Cow<'static, CStr> {
+        Cow::Borrowed(c"V")
     }
 }
 unsafe impl JniType for bool {
-    fn static_with_jni_type<R>(callback: impl FnOnce(&CStr) -> R) -> R {
-        callback(c"Z")
+    fn jni_type_name() -> Cow<'static, CStr> {
+        Cow::Borrowed(c"Z")
     }
 }
 unsafe impl JniType for jbyte {
-    fn static_with_jni_type<R>(callback: impl FnOnce(&CStr) -> R) -> R {
-        callback(c"B")
+    fn jni_type_name() -> Cow<'static, CStr> {
+        Cow::Borrowed(c"B")
     }
 }
 unsafe impl JniType for jchar {
-    fn static_with_jni_type<R>(callback: impl FnOnce(&CStr) -> R) -> R {
-        callback(c"C")
+    fn jni_type_name() -> Cow<'static, CStr> {
+        Cow::Borrowed(c"C")
     }
 }
 unsafe impl JniType for jshort {
-    fn static_with_jni_type<R>(callback: impl FnOnce(&CStr) -> R) -> R {
-        callback(c"S")
+    fn jni_type_name() -> Cow<'static, CStr> {
+        Cow::Borrowed(c"S")
     }
 }
 unsafe impl JniType for jint {
-    fn static_with_jni_type<R>(callback: impl FnOnce(&CStr) -> R) -> R {
-        callback(c"I")
+    fn jni_type_name() -> Cow<'static, CStr> {
+        Cow::Borrowed(c"I")
     }
 }
 unsafe impl JniType for jlong {
-    fn static_with_jni_type<R>(callback: impl FnOnce(&CStr) -> R) -> R {
-        callback(c"J")
+    fn jni_type_name() -> Cow<'static, CStr> {
+        Cow::Borrowed(c"J")
     }
 }
 unsafe impl JniType for jfloat {
-    fn static_with_jni_type<R>(callback: impl FnOnce(&CStr) -> R) -> R {
-        callback(c"F")
+    fn jni_type_name() -> Cow<'static, CStr> {
+        Cow::Borrowed(c"F")
     }
 }
 unsafe impl JniType for jdouble {
-    fn static_with_jni_type<R>(callback: impl FnOnce(&CStr) -> R) -> R {
-        callback(c"D")
+    fn jni_type_name() -> Cow<'static, CStr> {
+        Cow::Borrowed(c"D")
     }
 }
 unsafe impl JniType for &CStr {
-    fn static_with_jni_type<R>(callback: impl FnOnce(&CStr) -> R) -> R {
-        callback(c"Ljava/lang/String;")
+    fn jni_type_name() -> Cow<'static, CStr> {
+        Cow::Borrowed(c"Ljava/lang/String;")
+    }
+}
+
+unsafe impl<T: ReferenceType> JniType for T {
+    fn jni_type_name() -> Cow<'static, CStr> {
+        let type_name = Self::jni_reference_type_name();
+        if type_name.to_bytes()[0] != b'[' {
+            Cow::Owned(CString::new(format!("L{};", type_name.to_string_lossy())).unwrap())
+        } else {
+            type_name
+        }
     }
 }

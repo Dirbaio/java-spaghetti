@@ -141,27 +141,28 @@ impl<'a> Method<'a> {
         let method_name = format_ident!("{method_name}");
 
         let call = if self.java.is_constructor() {
-            quote!(__jni_env.new_object_a(__jni_class, __jni_method, __jni_args.as_ptr()))
+            quote!(__jni_env.new_object_a(__jni_class, __jni_method, __jni_args))
         } else if self.java.is_static() {
             let call = format_ident!("call_static_{ret_method_fragment}_method_a");
-            quote!(    __jni_env.#call(__jni_class, __jni_method, __jni_args.as_ptr()))
+            quote!(    __jni_env.#call(__jni_class, __jni_method, __jni_args))
         } else {
             let call = format_ident!("call_{ret_method_fragment}_method_a");
-            quote!(    __jni_env.#call(self.as_raw(), __jni_method, __jni_args.as_ptr()))
+            quote!(    __jni_env.#call(self, __jni_method, __jni_args))
         };
 
         out.extend(quote!(
             #[doc = #docs]
             #attributes
             pub fn #method_name<'env>(#params_decl) -> ::std::result::Result<#ret_decl, ::java_spaghetti::Local<'env, #throwable>> {
+                use ::java_spaghetti::ReferenceType;
                 static __METHOD: ::std::sync::OnceLock<::java_spaghetti::JMethodID> = ::std::sync::OnceLock::new();
                 unsafe {
-                    let __jni_args = [#params_array];
+                    let __jni_args = &[#params_array];
                     #env_let
-                    let __jni_class = Self::__class_global_ref(__jni_env);
-                    let __jni_method = __METHOD.get_or_init(||
-                        ::java_spaghetti::JMethodID::from_raw(__jni_env.#require_method(__jni_class, #java_name, #descriptor))
-                    ).as_raw();
+                    let __jni_class = Self::jni_get_class(__jni_env).unwrap();
+                    let __jni_method = *__METHOD.get_or_init(||
+                        __jni_env.#require_method(__jni_class, #java_name, #descriptor)
+                    );
 
                     #call
                 }

@@ -129,7 +129,7 @@ impl<'a> Field<'a> {
                 let set_field = format_ident!("set{static_fragment}_{field_fragment}_field");
 
                 let this_or_class = match self.java.is_static() {
-                    false => quote!(self.as_raw()),
+                    false => quote!(self),
                     true => quote!(__jni_class),
                 };
 
@@ -142,11 +142,12 @@ impl<'a> Field<'a> {
                     #[doc = #get_docs]
                     #attributes
                     pub fn #get<'env>(#env_param) -> #rust_get_type {
+                        use ::java_spaghetti::ReferenceType;
                         static __FIELD: ::std::sync::OnceLock<::java_spaghetti::JFieldID> = ::std::sync::OnceLock::new();
                         #env_let
-                        let __jni_class = Self::__class_global_ref(__jni_env);
+                        let __jni_class = Self::jni_get_class(__jni_env).unwrap();
                         unsafe {
-                            let __jni_field = __FIELD.get_or_init(|| ::java_spaghetti::JFieldID::from_raw(__jni_env.#require_field(__jni_class, #java_name, #descriptor))).as_raw();
+                            let __jni_field = *__FIELD.get_or_init(|| __jni_env.#require_field(__jni_class, #java_name, #descriptor));
                             __jni_env.#get_field(#this_or_class, __jni_field)
                         }
                     }
@@ -164,11 +165,12 @@ impl<'a> Field<'a> {
                         #[doc = #set_docs]
                         #attributes
                         pub fn #set<#lifetimes>(#env_param, value: #rust_set_type) {
+                            use ::java_spaghetti::ReferenceType;
                             static __FIELD: ::std::sync::OnceLock<::java_spaghetti::JFieldID> = ::std::sync::OnceLock::new();
                             #env_let
-                            let __jni_class = Self::__class_global_ref(__jni_env);
+                            let __jni_class = Self::jni_get_class(__jni_env).unwrap();
                             unsafe {
-                                let __jni_field = __FIELD.get_or_init(|| ::java_spaghetti::JFieldID::from_raw(__jni_env.#require_field(__jni_class, #java_name, #descriptor))).as_raw();
+                                let __jni_field = *__FIELD.get_or_init(|| __jni_env.#require_field(__jni_class, #java_name, #descriptor));
                                 __jni_env.#set_field(#this_or_class, __jni_field, value);
                             }
                         }

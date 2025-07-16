@@ -1,11 +1,14 @@
+use std::borrow::Cow;
+use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::marker::PhantomData;
 use std::ops::{Bound, RangeBounds};
 use std::ptr::null_mut;
+use std::sync::{LazyLock, OnceLock, RwLock};
 
 use jni_sys::*;
 
-use crate::{AsArg, Env, JniType, Local, Ref, ReferenceType, ThrowableType};
+use crate::{AsArg, Env, JClass, Local, Ref, ReferenceType, ThrowableType};
 
 /// A Java Array of some POD-like type such as `bool`, `jbyte`, `jchar`, `jshort`, `jint`, `jlong`, `jfloat`, or `jdouble`.
 ///
@@ -96,10 +99,13 @@ macro_rules! primitive_array {
         /// A [PrimitiveArray] implementation.
         pub enum $name {}
 
-        unsafe impl ReferenceType for $name {}
-        unsafe impl JniType for $name {
-            fn static_with_jni_type<R>(callback: impl FnOnce(&CStr) -> R) -> R {
-                callback($type_str)
+        unsafe impl ReferenceType for $name {
+            fn jni_reference_type_name() -> Cow<'static, CStr> {
+                Cow::Borrowed($type_str)
+            }
+            unsafe fn jni_class_cache_once_lock() -> &'static OnceLock<JClass> {
+                static CLASS_CACHE: OnceLock<JClass> = OnceLock::new();
+                &CLASS_CACHE
             }
         }
 
@@ -196,18 +202,33 @@ primitive_array! { DoubleArray,  c"[D", jdouble { NewDoubleArray  SetDoubleArray
 /// See also [PrimitiveArray] for arrays of reference types.
 pub struct ObjectArray<T: ReferenceType, E: ThrowableType>(core::convert::Infallible, PhantomData<(T, E)>);
 
-unsafe impl<T: ReferenceType, E: ThrowableType> ReferenceType for ObjectArray<T, E> {}
+// NOTE: This is a performance compromise for returning `&'static JClass`, still faster than non-cached `FindClass`.
+static OBJ_ARR_CLASSES: LazyLock<RwLock<HashMap<CString, &'static OnceLock<JClass>>>> =
+    LazyLock::new(|| RwLock::new(HashMap::new()));
 
-unsafe impl<T: ReferenceType, E: ThrowableType> JniType for ObjectArray<T, E> {
-    fn static_with_jni_type<R>(callback: impl FnOnce(&CStr) -> R) -> R {
-        T::static_with_jni_type(|inner| {
-            let inner = inner.to_bytes();
-            let mut buf = Vec::with_capacity(inner.len() + 4);
-            buf.extend_from_slice(b"[L");
-            buf.extend_from_slice(inner);
-            buf.extend_from_slice(b";");
-            callback(&CString::new(buf).unwrap())
-        })
+unsafe impl<T: ReferenceType, E: ThrowableType> ReferenceType for ObjectArray<T, E> {
+    fn jni_reference_type_name() -> Cow<'static, CStr> {
+        let item_type = T::jni_reference_type_name();
+        let item_type = item_type.to_string_lossy();
+        let array_type = if !item_type.starts_with('[') {
+            format!("[L{item_type};")
+        } else {
+            format!("[{item_type}")
+        };
+        Cow::Owned(CString::new(array_type).unwrap())
+    }
+
+    unsafe fn jni_class_cache_once_lock() -> &'static OnceLock<JClass> {
+        let t = Self::jni_reference_type_name();
+        let class_map_reader = OBJ_ARR_CLASSES.read().unwrap();
+        if let Some(&once_lock) = class_map_reader.get(t.as_ref()) {
+            once_lock
+        } else {
+            drop(class_map_reader);
+            let once_lock: &'static OnceLock<_> = Box::leak(Box::new(OnceLock::new()));
+            let _ = OBJ_ARR_CLASSES.write().unwrap().insert(t.into_owned(), once_lock);
+            once_lock
+        }
     }
 }
 
@@ -215,7 +236,7 @@ impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
     /// Uses JNI `NewObjectArray` to create a new Java object array.
     pub fn new<'env>(env: Env<'env>, size: usize) -> Local<'env, Self> {
         assert!(size <= i32::MAX as usize); // jsize == jint == i32
-        let class = T::static_with_jni_type(|t| unsafe { env.require_class(t) });
+        let class = T::jni_get_class(env).unwrap().as_raw();
         let size = size as jsize;
 
         let object = unsafe {
@@ -225,11 +246,6 @@ impl<T: ReferenceType, E: ThrowableType> ObjectArray<T, E> {
         };
         // Only sane exception here is an OOM exception
         env.exception_check::<E>().map_err(|_| "OOM").unwrap();
-
-        unsafe {
-            let env = env.as_raw();
-            ((**env).v1_2.DeleteLocalRef)(env, class);
-        }
         unsafe { Local::from_raw(env, object) }
     }
 
