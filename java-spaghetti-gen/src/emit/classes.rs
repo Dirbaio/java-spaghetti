@@ -103,11 +103,6 @@ impl Class {
 
         let rust_name = format_ident!("{}", &self.rust.struct_name);
 
-        let referencetype_impl = match self.java.is_static() {
-            true => quote!(),
-            false => quote!(unsafe impl ::java_spaghetti::ReferenceType for #rust_name {}),
-        };
-
         let mut out = TokenStream::new();
 
         let java_path = cstring(self.java.path().as_str());
@@ -117,11 +112,13 @@ impl Class {
             #attributes
             #visibility enum #rust_name {}
 
-            #referencetype_impl
-
-            unsafe impl ::java_spaghetti::JniType for #rust_name {
-                fn static_with_jni_type<R>(callback: impl FnOnce(&::std::ffi::CStr) -> R) -> R {
-                    callback(#java_path)
+            unsafe impl ::java_spaghetti::ReferenceType for #rust_name {
+                fn jni_reference_type_name() -> ::std::borrow::Cow<'static, ::std::ffi::CStr> {
+                    ::std::borrow::Cow::Borrowed(#java_path)
+                }
+                unsafe fn jni_class_cache_once_lock() -> &'static ::std::sync::OnceLock<::java_spaghetti::JClass> {
+                    static __CLASS: ::std::sync::OnceLock<::java_spaghetti::JClass> = ::std::sync::OnceLock::new();
+                    &__CLASS
                 }
             }
         ));
@@ -146,23 +143,6 @@ impl Class {
         }
 
         let mut contents = TokenStream::new();
-
-        let object = context
-            .java_to_rust_path(Id("java/lang/Object"), &self.rust.mod_)
-            .unwrap();
-
-        let class = cstring(self.java.path().as_str());
-
-        contents.extend(quote!(
-            fn __class_global_ref(__jni_env: ::java_spaghetti::Env) -> ::java_spaghetti::sys::jobject {
-                static __CLASS: ::std::sync::OnceLock<::java_spaghetti::Global<#object>> = ::std::sync::OnceLock::new();
-                __CLASS
-                    .get_or_init(|| unsafe {
-                        ::java_spaghetti::Local::from_raw(__jni_env, __jni_env.require_class(#class)).as_global()
-                    })
-                    .as_raw()
-            }
-        ));
 
         let mut methods: Vec<Method> = self
             .java

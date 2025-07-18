@@ -8,6 +8,8 @@
 
 #![feature(arbitrary_self_types)]
 
+use std::borrow::Cow;
+use std::ffi::CStr;
 use std::fmt;
 
 /// public jni-sys reexport.
@@ -47,7 +49,7 @@ pub use string_chars::*;
 pub use vm::*;
 
 /// Error returned on failed `.cast()`.`
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct CastError;
 
 impl std::error::Error for CastError {}
@@ -57,13 +59,52 @@ impl fmt::Display for CastError {
     }
 }
 
-/// A marker type indicating this is a valid exception type that all exceptions thrown by java should be compatible with
+/// Error returned on failed [Env::require_class].
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub struct ClassLoaderError(String);
+
+impl std::error::Error for ClassLoaderError {}
+impl fmt::Display for ClassLoaderError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "ClassLoader failed: {}", &self.0)
+    }
+}
+
+/// A marker type indicating this is a valid exception type that all exceptions thrown by Java should be compatible with.
 pub trait ThrowableType: ReferenceType {}
 
+/// A marker type indicating this is a Java reference type. JNI bindings rely on this type being accurate.
+///
 /// You should generally not be interacting with this type directly, but it must be public for codegen.
-#[doc(hidden)]
-#[warn(clippy::missing_safety_doc)]
-pub unsafe trait ReferenceType: JniType + Sized + 'static {}
+///
+/// # Safety
+///
+/// **unsafe**:  Passing the wrong type name may be a soundness bug as although the Android JVM will simply panic and abort,
+/// I have no idea if that is a guarantee or not.
+pub unsafe trait ReferenceType: JniType + Sized + 'static {
+    /// Returns a string value compatible with JNI
+    /// [FindClass](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#FindClass).
+    fn jni_reference_type_name() -> Cow<'static, CStr>;
+
+    /// Returns the reference to the `OnceLock` dedicated to this reference type.
+    ///
+    /// This should be initialized manually if the class is loaded dynamically with `dalvik.system.DexClassLoader`.
+    ///
+    /// # Safety
+    ///
+    /// It must be initialized by the class with the binary name returned by `jni_reference_type_name()`.
+    unsafe fn jni_class_cache_once_lock() -> &'static std::sync::OnceLock<JClass>;
+
+    /// Returns a cached `JClass` of the class object for this reference type.
+    fn jni_get_class<'env>(env: Env<'env>) -> Result<&'static JClass, ClassLoaderError> {
+        let once_lock = unsafe { Self::jni_class_cache_once_lock() };
+        if let Some(cls) = once_lock.get() {
+            return Ok(cls);
+        }
+        let required = unsafe { env.require_class(&Self::jni_reference_type_name()) }?;
+        Ok(once_lock.get_or_init(|| required))
+    }
+}
 
 /// Marker trait indicating `Self` can be assigned to `T`.
 ///

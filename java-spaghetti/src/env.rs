@@ -1,4 +1,4 @@
-use std::ffi::CStr;
+use std::ffi::{CStr, c_char, c_void};
 use std::marker::PhantomData;
 use std::ptr::{self, null_mut};
 use std::sync::OnceLock;
@@ -6,19 +6,21 @@ use std::sync::atomic::{AtomicPtr, Ordering};
 
 use jni_sys::*;
 
-use crate::{AsArg, Local, Ref, ReferenceType, StringChars, ThrowableType, VM};
+use crate::{
+    AsArg, ClassLoaderError, JClass, JFieldID, JMethodID, Local, Ref, ReferenceType, StringChars, ThrowableType, VM,
+};
 
 /// FFI:  Use **Env** instead of `*const JNIEnv`.  This represents a per-thread Java exection environment.
 ///
 /// A "safe" alternative to `jni_sys::JNIEnv` raw pointers, with the following caveats:
 ///
-/// 1)  A null env will result in **undefined behavior**.  Java should not be invoking your native functions with a null
-///     *mut JNIEnv, however, so I don't believe this is a problem in practice unless you've bindgened the C header
+/// 1)  A null `env` will result in **undefined behavior**.  Java should not be invoking your native functions with a null
+///     `*mut JNIEnv`, however, so I don't believe this is a problem in practice unless you've bindgened the C header
 ///     definitions elsewhere, calling them (requiring `unsafe`), and passing null pointers (generally UB for JNI
 ///     functions anyways, so can be seen as a caller soundness issue.)
 ///
-/// 2)  Allowing the underlying JNIEnv to be modified is **undefined behavior**.  I don't believe the JNI libraries
-///     modify the JNIEnv, so as long as you're not accepting a *mut JNIEnv elsewhere, using unsafe to dereference it,
+/// 2)  Allowing the underlying `JNIEnv` to be modified is **undefined behavior**.  I don't believe the JNI libraries
+///     modify the `JNIEnv`, so as long as you're not accepting a `*mut JNIEnv` elsewhere, using `unsafe` to dereference it,
 ///     and mucking with the methods on it yourself, I believe this "should" be fine.
 ///
 /// Most methods of `Env` are supposed to be used by generated bindings.
@@ -148,223 +150,316 @@ impl<'env> Env<'env> {
     /// Note that there is `ExceptionCheck` in JNI functions, which does not create a
     /// local reference to the exception object.
     pub(crate) fn exception_check<E: ThrowableType>(self) -> Result<(), Local<'env, E>> {
+        self.exception_check_raw()
+            .map_err(|throwable| unsafe { Local::from_raw(self, throwable) })
+    }
+
+    /// The same as `exception_check`, except that it may return an owned raw local reference of the exception.
+    pub(crate) fn exception_check_raw(self) -> Result<(), jthrowable> {
         unsafe {
             let exception = ((**self.env).v1_2.ExceptionOccurred)(self.env);
             if exception.is_null() {
                 Ok(())
             } else {
                 ((**self.env).v1_2.ExceptionClear)(self.env);
-                Err(Local::from_raw(self, exception))
+                Err(exception as jthrowable)
             }
         }
     }
 
-    unsafe fn exception_to_string(self, exception: jobject) -> String {
-        static METHOD_GET_MESSAGE: OnceLock<usize> = OnceLock::new();
-        let throwable_get_message = *METHOD_GET_MESSAGE.get_or_init(|| {
-            // use JNI FindClass to avoid infinte recursion.
-            let throwable_class = self.require_class_jni(c"java/lang/Throwable");
-            let method = self.require_method(throwable_class, c"getMessage", c"()Ljava/lang/String;");
-            ((**self.env).v1_2.DeleteLocalRef)(self.env, throwable_class);
-            method.addr()
-        }) as jmethodID; // it is a global ID
-
-        let message =
-            ((**self.env).v1_2.CallObjectMethodA)(self.env, exception, throwable_get_message, ptr::null_mut());
-        let e2: *mut _jobject = ((**self.env).v1_2.ExceptionOccurred)(self.env);
-        if !e2.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
-            panic!("exception happened calling Throwable.getMessage()");
-        }
-
-        StringChars::from_env_jstring(self, message).to_string_lossy()
+    pub fn throw<T: ReferenceType>(self, throwable: &Ref<T>) {
+        let res = unsafe { ((**self.env).v1_2.Throw)(self.env, throwable.as_raw()) };
+        assert_eq!(res, 0);
     }
 
-    /// Note: the returned `jclass` is actually a new local reference of the class object.
-    pub unsafe fn require_class(self, class: &CStr) -> jclass {
-        // First try with JNI FindClass.
-        let c = ((**self.env).v1_2.FindClass)(self.env, class.as_ptr());
-        let exception: *mut _jobject = ((**self.env).v1_2.ExceptionOccurred)(self.env);
-        if !exception.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
+    pub(crate) unsafe fn raw_exception_to_string(self, exception: jobject) -> String {
+        static METHOD_GET_MESSAGE: OnceLock<JMethodID> = OnceLock::new();
+        let throwable_get_message = METHOD_GET_MESSAGE.get_or_init(|| {
+            // use JNI FindClass to avoid infinte recursion.
+            let throwable_class = self.require_class_jni(c"java/lang/Throwable").unwrap();
+            self.require_method_forced(&throwable_class, c"getMessage", c"()Ljava/lang/String;")
+        });
+
+        let message =
+            ((**self.env).v1_2.CallObjectMethodA)(self.env, exception, throwable_get_message.as_raw(), ptr::null_mut());
+        self.exception_check_raw()
+            .expect("exception happened calling Throwable.getMessage()");
+        if message.is_null() {
+            return "??? (Throwable.getMessage() returned null string)".to_string();
         }
-        if !c.is_null() {
-            return c;
+        let message_string = StringChars::from_env_jstring(self, message).to_string_lossy();
+        ((**self.env).v1_2.DeleteLocalRef)(self.env, message);
+
+        message_string
+    }
+
+    pub unsafe fn require_class(self, class: &CStr) -> Result<JClass, ClassLoaderError> {
+        // First try with JNI FindClass.
+        let required = self.require_class_jni(class);
+        if let Ok(class) = required {
+            return Ok(class);
         }
 
         // If class is not found and we have a classloader set, try that.
         let classloader = CLASS_LOADER.load(Ordering::Relaxed);
-        if !classloader.is_null() {
-            let chars = class
-                .to_str()
-                .unwrap()
-                .replace('/', ".")
-                .encode_utf16()
-                .collect::<Vec<_>>();
-            let string = unsafe { self.new_string(chars.as_ptr(), chars.len() as jsize) };
-
-            static CL_METHOD: OnceLock<usize> = OnceLock::new();
-            let cl_method = *CL_METHOD.get_or_init(|| {
-                // We still use JNI FindClass for this, to avoid a chicken-and-egg situation.
-                // If the system class loader cannot find java.lang.ClassLoader, things are pretty broken!
-                let cl_class = self.require_class_jni(c"java/lang/ClassLoader");
-                let cl_method = self.require_method(cl_class, c"loadClass", c"(Ljava/lang/String;)Ljava/lang/Class;");
-                ((**self.env).v1_2.DeleteLocalRef)(self.env, cl_class);
-                cl_method.addr()
-            }) as jmethodID; // it is a global ID
-
-            let args = [jvalue { l: string }];
-            let result: *mut _jobject =
-                ((**self.env).v1_2.CallObjectMethodA)(self.env, classloader, cl_method, args.as_ptr());
-            let exception: *mut _jobject = ((**self.env).v1_2.ExceptionOccurred)(self.env);
-            if !exception.is_null() {
-                ((**self.env).v1_2.ExceptionClear)(self.env);
-                panic!(
-                    "exception happened calling loadClass(): {}",
-                    self.exception_to_string(exception)
-                );
-            } else if result.is_null() {
-                panic!("loadClass() returned null");
-            }
-
-            ((**self.env).v1_2.DeleteLocalRef)(self.env, string);
-
-            return result as jclass;
+        if classloader.is_null() {
+            return Err(required.unwrap_err());
         }
 
-        // If neither found the class, panic.
-        panic!("couldn't load class {class:?}");
-    }
+        let java_bin_name = class.to_str().unwrap().replace('/', ".");
+        let chars = java_bin_name.encode_utf16().collect::<Vec<_>>();
+        let string = unsafe { self.new_string(chars.as_ptr(), chars.len() as jsize) };
 
-    unsafe fn require_class_jni(self, class: &CStr) -> jclass {
-        let res = ((**self.env).v1_2.FindClass)(self.env, class.as_ptr());
-        if res.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
-            panic!("could not find class {class:?}");
-        }
-        res
-    }
+        static CL_METHOD: OnceLock<JMethodID> = OnceLock::new();
+        let cl_method = CL_METHOD.get_or_init(|| {
+            // We still use JNI FindClass for this, to avoid a chicken-and-egg situation.
+            // If the system class loader cannot find java.lang.ClassLoader, things are pretty broken!
+            let cl_class = self.require_class_jni(c"java/lang/ClassLoader").unwrap();
+            self.require_method_forced(&cl_class, c"loadClass", c"(Ljava/lang/String;)Ljava/lang/Class;")
+        });
 
-    // used only for debugging
-    unsafe fn get_class_name(self, class: jclass) -> String {
-        let classclass = self.require_class_jni(c"java/lang/Class");
-
-        // don't use self.require_method() here to avoid recursion!
-        let method = ((**self.env).v1_2.GetMethodID)(
-            self.env,
-            classclass,
-            c"getName".as_ptr(),
-            c"()Ljava/lang/String;".as_ptr(),
-        );
-        if method.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
-            ((**self.env).v1_2.DeleteLocalRef)(self.env, classclass);
-            return "??? (couldn't get class getName method)".to_string();
-        }
-
-        let string = ((**self.env).v1_2.CallObjectMethod)(self.env, class, method);
-        if string.is_null() {
-            return "??? (getName returned null string)".to_string();
-        }
-        let chars = ((**self.env).v1_2.GetStringUTFChars)(self.env, string, ptr::null_mut());
-        if chars.is_null() {
-            ((**self.env).v1_2.DeleteLocalRef)(self.env, string);
-            ((**self.env).v1_2.DeleteLocalRef)(self.env, classclass);
-            return "??? (GetStringUTFChars returned null chars)".to_string();
-        }
-
-        let cchars = CStr::from_ptr(chars);
-        let res = cchars.to_string_lossy().to_string();
-
-        ((**self.env).v1_2.ReleaseStringUTFChars)(self.env, string, chars);
+        let args = [jvalue { l: string }];
+        let result: *mut _jobject =
+            ((**self.env).v1_2.CallObjectMethodA)(self.env, classloader, cl_method.as_raw(), args.as_ptr());
+        let ex_check = self.exception_check_raw();
         ((**self.env).v1_2.DeleteLocalRef)(self.env, string);
-        ((**self.env).v1_2.DeleteLocalRef)(self.env, classclass);
 
-        res
+        if let Err(exception) = ex_check {
+            let err_msg = format!(
+                "exception happened calling loadClass(): {}",
+                self.raw_exception_to_string(exception)
+            );
+            ((**self.env).v1_2.DeleteLocalRef)(self.env, exception);
+            return Err(ClassLoaderError(err_msg));
+        } else if result.is_null() {
+            return Err(ClassLoaderError(format!(
+                "loadClass() returned null for {}",
+                class.to_string_lossy()
+            )));
+        }
+
+        Ok(JClass::from_raw(self, result as jclass))
     }
 
-    pub unsafe fn require_method(self, class: jclass, method: &CStr, descriptor: &CStr) -> jmethodID {
-        let res = ((**self.env).v1_2.GetMethodID)(self.env, class, method.as_ptr(), descriptor.as_ptr());
+    pub(crate) unsafe fn require_class_jni(self, class: &CStr) -> Result<JClass, ClassLoaderError> {
+        // Note: the returned `cls` is actually a new local reference of the class object.
+        let cls = ((**self.env).v1_2.FindClass)(self.env, class.as_ptr());
+        if let Err(exception) = self.exception_check_raw() {
+            let err_msg = format!(
+                "exception happened calling JNI FindClass: {}",
+                self.raw_exception_to_string(exception)
+            );
+            ((**self.env).v1_2.DeleteLocalRef)(self.env, exception);
+            return Err(ClassLoaderError(err_msg));
+        }
+        if cls.is_null() {
+            return Err(ClassLoaderError(format!(
+                "JNI FindClass returned null for {}",
+                class.to_string_lossy()
+            )));
+        }
+        Ok(JClass::from_raw(self, cls))
+    }
+
+    /// Gets the binary name (not internal form) of the class with `Class.getName()`. Returns "??? (details)" on error.
+    pub unsafe fn get_class_name(self, class: &JClass) -> String {
+        static METHOD_GET_NAME: OnceLock<JMethodID> = OnceLock::new();
+        let method = METHOD_GET_NAME.get_or_init(|| {
+            // don't use `self.require_method_forced()` here to avoid recursion!
+            let class_class = self.require_class_jni(c"java/lang/Class").unwrap();
+            let method_raw = ((**self.env).v1_2.GetMethodID)(
+                self.env,
+                class_class.as_raw(),
+                c"getName".as_ptr(),
+                c"()Ljava/lang/String;".as_ptr(),
+            );
+            JMethodID::from_raw(method_raw)
+        });
+        let jstring = ((**self.env).v1_2.CallObjectMethod)(self.env, class.as_raw(), method.as_raw());
+        self.exception_check_raw()
+            .expect("exception happened calling Class.getName()");
+        if jstring.is_null() {
+            return "??? (Class.getName() returned null string)".to_string();
+        }
+        let string = StringChars::from_env_jstring(self, jstring).to_string_lossy();
+        ((**self.env).v1_2.DeleteLocalRef)(self.env, jstring);
+        string
+    }
+
+    /// Binds the function pointer to the native method of `class` according to method name and signature.
+    /// Returns `false` if the method is not found or the JNI `RegisterNatives` returns a negative value.
+    ///
+    /// # Safety
+    ///
+    /// The native method pointer must be a valid, non-null pointer to a function that match the signature
+    /// of the corresponding Java method.
+    pub unsafe fn register_native_method(
+        &self,
+        class: &JClass,
+        method: &CStr,
+        descriptor: &CStr,
+        fn_ptr: *mut c_void,
+    ) -> bool {
+        // `RegisterNatives` shouldn't modify `name` and `signature`, but still clone them.
+        let (method, descriptor) = (method.to_owned(), descriptor.to_owned());
+        let mut native_methods = [JNINativeMethod {
+            name: method.as_ptr() as *mut c_char,
+            signature: descriptor.as_ptr() as *mut c_char,
+            fnPtr: fn_ptr,
+        }];
+        let jnienv = self.as_raw();
+        let res = ((**jnienv).v1_2.RegisterNatives)(jnienv, class.as_raw(), native_methods.as_mut_ptr(), 1);
+
+        if let Err(exception) = self.exception_check_raw() {
+            eprintln!(
+                "exception happened calling JNI RegisterNatives: {}",
+                self.raw_exception_to_string(exception)
+            );
+            ((**jnienv).v1_2.DeleteLocalRef)(jnienv, exception);
+            return false;
+        } else if res < 0 {
+            eprintln!("JNI RegisterNatives failed: returned value is {res}");
+            return false;
+        }
+        true
+    }
+
+    pub(crate) unsafe fn require_method_forced(self, class: &JClass, method: &CStr, descriptor: &CStr) -> JMethodID {
+        let res = ((**self.env).v1_2.GetMethodID)(self.env, class.as_raw(), method.as_ptr(), descriptor.as_ptr());
+        let _ = self.exception_check_raw();
         if res.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
             let class_name = self.get_class_name(class);
             panic!("could not find method {method:?} {descriptor:?} on class {class_name:?}");
         }
-        res
+        JMethodID::from_raw(res)
     }
 
-    pub unsafe fn require_static_method(self, class: jclass, method: &CStr, descriptor: &CStr) -> jmethodID {
-        let res = ((**self.env).v1_2.GetStaticMethodID)(self.env, class, method.as_ptr(), descriptor.as_ptr());
+    pub unsafe fn require_method<E: ThrowableType>(
+        self,
+        class: &JClass,
+        method: &CStr,
+        descriptor: &CStr,
+    ) -> Result<JMethodID, Local<'env, E>> {
+        let res = ((**self.env).v1_2.GetMethodID)(self.env, class.as_raw(), method.as_ptr(), descriptor.as_ptr());
+        self.exception_check()?;
         if res.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
+            let class_name = self.get_class_name(class);
+            panic!("could not find method {method:?} {descriptor:?} on class {class_name:?}");
+        }
+        Ok(JMethodID::from_raw(res))
+    }
+
+    pub unsafe fn require_static_method<E: ThrowableType>(
+        self,
+        class: &JClass,
+        method: &CStr,
+        descriptor: &CStr,
+    ) -> Result<JMethodID, Local<'env, E>> {
+        let res = ((**self.env).v1_2.GetStaticMethodID)(self.env, class.as_raw(), method.as_ptr(), descriptor.as_ptr());
+        self.exception_check()?;
+        if res.is_null() {
             let class_name = self.get_class_name(class);
             panic!("could not find static method {method:?} {descriptor:?} on class {class_name:?}");
         }
-        res
+        Ok(JMethodID::from_raw(res))
     }
 
-    pub unsafe fn require_field(self, class: jclass, field: &CStr, descriptor: &CStr) -> jfieldID {
-        let res = ((**self.env).v1_2.GetFieldID)(self.env, class, field.as_ptr(), descriptor.as_ptr());
+    pub unsafe fn require_field(self, class: &JClass, field: &CStr, descriptor: &CStr) -> JFieldID {
+        let res = ((**self.env).v1_2.GetFieldID)(self.env, class.as_raw(), field.as_ptr(), descriptor.as_ptr());
         if res.is_null() {
             ((**self.env).v1_2.ExceptionClear)(self.env);
             let class_name = self.get_class_name(class);
             panic!("could not find field {field:?} {descriptor:?} on class {class_name:?}");
         }
-        res
+        JFieldID::from_raw(res)
     }
 
-    pub unsafe fn require_static_field(self, class: jclass, field: &CStr, descriptor: &CStr) -> jfieldID {
-        let res = ((**self.env).v1_2.GetStaticFieldID)(self.env, class, field.as_ptr(), descriptor.as_ptr());
+    pub unsafe fn require_static_field(self, class: &JClass, field: &CStr, descriptor: &CStr) -> JFieldID {
+        let res = ((**self.env).v1_2.GetStaticFieldID)(self.env, class.as_raw(), field.as_ptr(), descriptor.as_ptr());
         if res.is_null() {
             ((**self.env).v1_2.ExceptionClear)(self.env);
             let class_name = self.get_class_name(class);
             panic!("could not find static field {field:?} {descriptor:?} on class {class_name:?}");
         }
-        res
+        JFieldID::from_raw(res)
     }
+}
 
-    // Multi-Query Methods
-    // XXX: Remove these unused functions.
+macro_rules! call_primitive_method_a {
+    ($name:ident, $ret_type:ident, $call:ident) => {
+        pub unsafe fn $name<T: ReferenceType, E: ThrowableType>(
+            self,
+            this: &Ref<'env, T>,
+            method: JMethodID,
+            args: &[jvalue],
+        ) -> Result<$ret_type, Local<'env, E>> {
+            let result = ((**self.env).v1_2.$call)(self.env, this.as_raw(), method.as_raw(), args.as_ptr());
+            self.exception_check()?;
+            Ok(result)
+        }
+    };
+}
 
-    pub unsafe fn require_class_method(self, class: &CStr, method: &CStr, descriptor: &CStr) -> (jclass, jmethodID) {
-        let class = self.require_class(class);
-        (class, self.require_method(class, method, descriptor))
-    }
+macro_rules! call_static_primitive_method_a {
+    ($name:ident, $ret_type:ident, $call:ident) => {
+        pub unsafe fn $name<E: ThrowableType>(
+            self,
+            class: &JClass,
+            method: JMethodID,
+            args: &[jvalue],
+        ) -> Result<$ret_type, Local<'env, E>> {
+            let result = ((**self.env).v1_2.$call)(self.env, class.as_raw(), method.as_raw(), args.as_ptr());
+            self.exception_check()?;
+            Ok(result)
+        }
+    };
+}
 
-    pub unsafe fn require_class_static_method(
-        self,
-        class: &CStr,
-        method: &CStr,
-        descriptor: &CStr,
-    ) -> (jclass, jmethodID) {
-        let class = self.require_class(class);
-        (class, self.require_static_method(class, method, descriptor))
-    }
+macro_rules! get_primitive_field {
+    ($name:ident, $ret_type:ident, $call:ident) => {
+        pub unsafe fn $name<T: ReferenceType>(self, this: &Ref<'env, T>, field: JFieldID) -> $ret_type {
+            ((**self.env).v1_2.$call)(self.env, this.as_raw(), field.as_raw())
+        }
+    };
+}
 
-    pub unsafe fn require_class_field(self, class: &CStr, method: &CStr, descriptor: &CStr) -> (jclass, jfieldID) {
-        let class = self.require_class(class);
-        (class, self.require_field(class, method, descriptor))
-    }
+macro_rules! set_primitive_field {
+    ($name:ident, $arg_type:ident, $call:ident) => {
+        pub unsafe fn $name<T: ReferenceType>(self, this: &Ref<'env, T>, field: JFieldID, value: $arg_type) {
+            ((**self.env).v1_2.$call)(self.env, this.as_raw(), field.as_raw(), value);
+        }
+    };
+}
 
-    pub unsafe fn require_class_static_field(
-        self,
-        class: &CStr,
-        method: &CStr,
-        descriptor: &CStr,
-    ) -> (jclass, jfieldID) {
-        let class = self.require_class(class);
-        (class, self.require_static_field(class, method, descriptor))
-    }
+macro_rules! get_static_primitive_field {
+    ($name:ident, $ret_type:ident, $call:ident) => {
+        pub unsafe fn $name(self, class: &JClass, field: JFieldID) -> $ret_type {
+            ((**self.env).v1_2.$call)(self.env, class.as_raw(), field.as_raw())
+        }
+    };
+}
 
-    // Constructor Methods
+macro_rules! set_static_primitive_field {
+    ($name:ident, $arg_type:ident, $call:ident) => {
+        pub unsafe fn $name(self, class: &JClass, field: JFieldID, value: $arg_type) {
+            ((**self.env).v1_2.$call)(self.env, class.as_raw(), field.as_raw(), value);
+        }
+    };
+}
 
+#[allow(non_camel_case_types)]
+type void = ();
+
+#[allow(clippy::missing_safety_doc)]
+#[allow(unsafe_op_in_unsafe_fn)]
+impl<'env> Env<'env> {
     pub unsafe fn new_object_a<R: ReferenceType, E: ThrowableType>(
         self,
-        class: jclass,
-        method: jmethodID,
-        args: *const jvalue,
+        class: &JClass,
+        method: JMethodID,
+        args: &[jvalue],
     ) -> Result<Local<'env, R>, Local<'env, E>> {
-        let result = ((**self.env).v1_2.NewObjectA)(self.env, class, method, args);
+        let result = ((**self.env).v1_2.NewObjectA)(self.env, class.as_raw(), method.as_raw(), args.as_ptr());
         self.exception_check()?;
         assert!(!result.is_null());
         Ok(Local::from_raw(self, result))
@@ -372,13 +467,13 @@ impl<'env> Env<'env> {
 
     // Instance Methods
 
-    pub unsafe fn call_object_method_a<R: ReferenceType, E: ThrowableType>(
+    pub unsafe fn call_object_method_a<T: ReferenceType, R: ReferenceType, E: ThrowableType>(
         self,
-        this: jobject,
-        method: jmethodID,
-        args: *const jvalue,
+        this: &Ref<'env, T>,
+        method: JMethodID,
+        args: &[jvalue],
     ) -> Result<Option<Local<'env, R>>, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallObjectMethodA)(self.env, this, method, args);
+        let result = ((**self.env).v1_2.CallObjectMethodA)(self.env, this.as_raw(), method.as_raw(), args.as_ptr());
         self.exception_check()?;
         if result.is_null() {
             Ok(None)
@@ -386,114 +481,27 @@ impl<'env> Env<'env> {
             Ok(Some(Local::from_raw(self, result)))
         }
     }
-
-    pub unsafe fn call_boolean_method_a<E: ThrowableType>(
-        self,
-        this: jobject,
-        method: jmethodID,
-        args: *const jvalue,
-    ) -> Result<bool, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallBooleanMethodA)(self.env, this, method, args);
-        self.exception_check()?;
-        Ok(result != JNI_FALSE)
-    }
-
-    pub unsafe fn call_byte_method_a<E: ThrowableType>(
-        self,
-        this: jobject,
-        method: jmethodID,
-        args: *const jvalue,
-    ) -> Result<jbyte, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallByteMethodA)(self.env, this, method, args);
-        self.exception_check()?;
-        Ok(result)
-    }
-
-    pub unsafe fn call_char_method_a<E: ThrowableType>(
-        self,
-        this: jobject,
-        method: jmethodID,
-        args: *const jvalue,
-    ) -> Result<jchar, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallCharMethodA)(self.env, this, method, args);
-        self.exception_check()?;
-        Ok(result)
-    }
-
-    pub unsafe fn call_short_method_a<E: ThrowableType>(
-        self,
-        this: jobject,
-        method: jmethodID,
-        args: *const jvalue,
-    ) -> Result<jshort, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallShortMethodA)(self.env, this, method, args);
-        self.exception_check()?;
-        Ok(result)
-    }
-
-    pub unsafe fn call_int_method_a<E: ThrowableType>(
-        self,
-        this: jobject,
-        method: jmethodID,
-        args: *const jvalue,
-    ) -> Result<jint, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallIntMethodA)(self.env, this, method, args);
-        self.exception_check()?;
-        Ok(result)
-    }
-
-    pub unsafe fn call_long_method_a<E: ThrowableType>(
-        self,
-        this: jobject,
-        method: jmethodID,
-        args: *const jvalue,
-    ) -> Result<jlong, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallLongMethodA)(self.env, this, method, args);
-        self.exception_check()?;
-        Ok(result)
-    }
-
-    pub unsafe fn call_float_method_a<E: ThrowableType>(
-        self,
-        this: jobject,
-        method: jmethodID,
-        args: *const jvalue,
-    ) -> Result<jfloat, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallFloatMethodA)(self.env, this, method, args);
-        self.exception_check()?;
-        Ok(result)
-    }
-
-    pub unsafe fn call_double_method_a<E: ThrowableType>(
-        self,
-        this: jobject,
-        method: jmethodID,
-        args: *const jvalue,
-    ) -> Result<jdouble, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallDoubleMethodA)(self.env, this, method, args);
-        self.exception_check()?;
-        Ok(result)
-    }
-
-    pub unsafe fn call_void_method_a<E: ThrowableType>(
-        self,
-        this: jobject,
-        method: jmethodID,
-        args: *const jvalue,
-    ) -> Result<(), Local<'env, E>> {
-        ((**self.env).v1_2.CallVoidMethodA)(self.env, this, method, args);
-        self.exception_check()
-    }
+    // See `pub type jboolean = bool;` in `jni_sys` 0.4.
+    call_primitive_method_a! { call_boolean_method_a, bool,    CallBooleanMethodA }
+    call_primitive_method_a! { call_byte_method_a,    jbyte,   CallByteMethodA    }
+    call_primitive_method_a! { call_char_method_a,    jchar,   CallCharMethodA    }
+    call_primitive_method_a! { call_short_method_a,   jshort,  CallShortMethodA   }
+    call_primitive_method_a! { call_int_method_a,     jint,    CallIntMethodA     }
+    call_primitive_method_a! { call_long_method_a,    jlong,   CallLongMethodA    }
+    call_primitive_method_a! { call_float_method_a,   jfloat,  CallFloatMethodA   }
+    call_primitive_method_a! { call_double_method_a,  jdouble, CallDoubleMethodA  }
+    call_primitive_method_a! { call_void_method_a,    void,    CallVoidMethodA    }
 
     // Static Methods
 
     pub unsafe fn call_static_object_method_a<R: ReferenceType, E: ThrowableType>(
         self,
-        class: jclass,
-        method: jmethodID,
-        args: *const jvalue,
+        class: &JClass,
+        method: JMethodID,
+        args: &[jvalue],
     ) -> Result<Option<Local<'env, R>>, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallStaticObjectMethodA)(self.env, class, method, args);
+        let result =
+            ((**self.env).v1_2.CallStaticObjectMethodA)(self.env, class.as_raw(), method.as_raw(), args.as_ptr());
         self.exception_check()?;
         if result.is_null() {
             Ok(None)
@@ -501,276 +509,93 @@ impl<'env> Env<'env> {
             Ok(Some(Local::from_raw(self, result)))
         }
     }
-
-    pub unsafe fn call_static_boolean_method_a<E: ThrowableType>(
-        self,
-        class: jclass,
-        method: jmethodID,
-        args: *const jvalue,
-    ) -> Result<bool, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallStaticBooleanMethodA)(self.env, class, method, args);
-        self.exception_check()?;
-        Ok(result != JNI_FALSE)
-    }
-
-    pub unsafe fn call_static_byte_method_a<E: ThrowableType>(
-        self,
-        class: jclass,
-        method: jmethodID,
-        args: *const jvalue,
-    ) -> Result<jbyte, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallStaticByteMethodA)(self.env, class, method, args);
-        self.exception_check()?;
-        Ok(result)
-    }
-
-    pub unsafe fn call_static_char_method_a<E: ThrowableType>(
-        self,
-        class: jclass,
-        method: jmethodID,
-        args: *const jvalue,
-    ) -> Result<jchar, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallStaticCharMethodA)(self.env, class, method, args);
-        self.exception_check()?;
-        Ok(result)
-    }
-
-    pub unsafe fn call_static_short_method_a<E: ThrowableType>(
-        self,
-        class: jclass,
-        method: jmethodID,
-        args: *const jvalue,
-    ) -> Result<jshort, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallStaticShortMethodA)(self.env, class, method, args);
-        self.exception_check()?;
-        Ok(result)
-    }
-
-    pub unsafe fn call_static_int_method_a<E: ThrowableType>(
-        self,
-        class: jclass,
-        method: jmethodID,
-        args: *const jvalue,
-    ) -> Result<jint, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallStaticIntMethodA)(self.env, class, method, args);
-        self.exception_check()?;
-        Ok(result)
-    }
-
-    pub unsafe fn call_static_long_method_a<E: ThrowableType>(
-        self,
-        class: jclass,
-        method: jmethodID,
-        args: *const jvalue,
-    ) -> Result<jlong, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallStaticLongMethodA)(self.env, class, method, args);
-        self.exception_check()?;
-        Ok(result)
-    }
-
-    pub unsafe fn call_static_float_method_a<E: ThrowableType>(
-        self,
-        class: jclass,
-        method: jmethodID,
-        args: *const jvalue,
-    ) -> Result<jfloat, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallStaticFloatMethodA)(self.env, class, method, args);
-        self.exception_check()?;
-        Ok(result)
-    }
-
-    pub unsafe fn call_static_double_method_a<E: ThrowableType>(
-        self,
-        class: jclass,
-        method: jmethodID,
-        args: *const jvalue,
-    ) -> Result<jdouble, Local<'env, E>> {
-        let result = ((**self.env).v1_2.CallStaticDoubleMethodA)(self.env, class, method, args);
-        self.exception_check()?;
-        Ok(result)
-    }
-
-    pub unsafe fn call_static_void_method_a<E: ThrowableType>(
-        self,
-        class: jclass,
-        method: jmethodID,
-        args: *const jvalue,
-    ) -> Result<(), Local<'env, E>> {
-        ((**self.env).v1_2.CallStaticVoidMethodA)(self.env, class, method, args);
-        self.exception_check()
-    }
+    call_static_primitive_method_a! { call_static_boolean_method_a, bool,    CallStaticBooleanMethodA }
+    call_static_primitive_method_a! { call_static_byte_method_a,    jbyte,   CallStaticByteMethodA    }
+    call_static_primitive_method_a! { call_static_char_method_a,    jchar,   CallStaticCharMethodA    }
+    call_static_primitive_method_a! { call_static_short_method_a,   jshort,  CallStaticShortMethodA   }
+    call_static_primitive_method_a! { call_static_int_method_a,     jint,    CallStaticIntMethodA     }
+    call_static_primitive_method_a! { call_static_long_method_a,    jlong,   CallStaticLongMethodA    }
+    call_static_primitive_method_a! { call_static_float_method_a,   jfloat,  CallStaticFloatMethodA   }
+    call_static_primitive_method_a! { call_static_double_method_a,  jdouble, CallStaticDoubleMethodA  }
+    call_static_primitive_method_a! { call_static_void_method_a,    void,    CallStaticVoidMethodA    }
 
     // Instance Fields
 
-    pub unsafe fn get_object_field<R: ReferenceType>(self, this: jobject, field: jfieldID) -> Option<Local<'env, R>> {
-        let result = ((**self.env).v1_2.GetObjectField)(self.env, this, field);
+    pub unsafe fn get_object_field<T: ReferenceType, R: ReferenceType>(
+        self,
+        this: &Ref<'env, T>,
+        field: JFieldID,
+    ) -> Option<Local<'env, R>> {
+        let result = ((**self.env).v1_2.GetObjectField)(self.env, this.as_raw(), field.as_raw());
         if result.is_null() {
             None
         } else {
             Some(Local::from_raw(self, result))
         }
     }
+    get_primitive_field! { get_boolean_field, bool,    GetBooleanField }
+    get_primitive_field! { get_byte_field,    jbyte,   GetByteField    }
+    get_primitive_field! { get_char_field,    jchar,   GetCharField    }
+    get_primitive_field! { get_short_field,   jshort,  GetShortField   }
+    get_primitive_field! { get_int_field,     jint,    GetIntField     }
+    get_primitive_field! { get_long_field,    jlong,   GetLongField    }
+    get_primitive_field! { get_float_field,   jfloat,  GetFloatField   }
+    get_primitive_field! { get_double_field,  jdouble, GetDoubleField  }
 
-    pub unsafe fn get_boolean_field(self, this: jobject, field: jfieldID) -> bool {
-        let result = ((**self.env).v1_2.GetBooleanField)(self.env, this, field);
-        result != JNI_FALSE
+    pub unsafe fn set_object_field<T: ReferenceType, R: ReferenceType>(
+        self,
+        this: &Ref<'env, T>,
+        field: JFieldID,
+        value: impl AsArg<R>,
+    ) {
+        ((**self.env).v1_2.SetObjectField)(self.env, this.as_raw(), field.as_raw(), value.as_arg());
     }
-
-    pub unsafe fn get_byte_field(self, this: jobject, field: jfieldID) -> jbyte {
-        ((**self.env).v1_2.GetByteField)(self.env, this, field)
-    }
-
-    pub unsafe fn get_char_field(self, this: jobject, field: jfieldID) -> jchar {
-        ((**self.env).v1_2.GetCharField)(self.env, this, field)
-    }
-
-    pub unsafe fn get_short_field(self, this: jobject, field: jfieldID) -> jshort {
-        ((**self.env).v1_2.GetShortField)(self.env, this, field)
-    }
-
-    pub unsafe fn get_int_field(self, this: jobject, field: jfieldID) -> jint {
-        ((**self.env).v1_2.GetIntField)(self.env, this, field)
-    }
-
-    pub unsafe fn get_long_field(self, this: jobject, field: jfieldID) -> jlong {
-        ((**self.env).v1_2.GetLongField)(self.env, this, field)
-    }
-
-    pub unsafe fn get_float_field(self, this: jobject, field: jfieldID) -> jfloat {
-        ((**self.env).v1_2.GetFloatField)(self.env, this, field)
-    }
-
-    pub unsafe fn get_double_field(self, this: jobject, field: jfieldID) -> jdouble {
-        ((**self.env).v1_2.GetDoubleField)(self.env, this, field)
-    }
-
-    pub unsafe fn set_object_field<R: ReferenceType>(self, this: jobject, field: jfieldID, value: impl AsArg<R>) {
-        ((**self.env).v1_2.SetObjectField)(self.env, this, field, value.as_arg());
-    }
-
-    pub unsafe fn set_boolean_field(self, this: jobject, field: jfieldID, value: bool) {
-        ((**self.env).v1_2.SetBooleanField)(self.env, this, field, if value { JNI_TRUE } else { JNI_FALSE });
-    }
-
-    pub unsafe fn set_byte_field(self, this: jobject, field: jfieldID, value: jbyte) {
-        ((**self.env).v1_2.SetByteField)(self.env, this, field, value);
-    }
-
-    pub unsafe fn set_char_field(self, this: jobject, field: jfieldID, value: jchar) {
-        ((**self.env).v1_2.SetCharField)(self.env, this, field, value);
-    }
-
-    pub unsafe fn set_short_field(self, this: jobject, field: jfieldID, value: jshort) {
-        ((**self.env).v1_2.SetShortField)(self.env, this, field, value);
-    }
-
-    pub unsafe fn set_int_field(self, this: jobject, field: jfieldID, value: jint) {
-        ((**self.env).v1_2.SetIntField)(self.env, this, field, value);
-    }
-
-    pub unsafe fn set_long_field(self, this: jobject, field: jfieldID, value: jlong) {
-        ((**self.env).v1_2.SetLongField)(self.env, this, field, value);
-    }
-
-    pub unsafe fn set_float_field(self, this: jobject, field: jfieldID, value: jfloat) {
-        ((**self.env).v1_2.SetFloatField)(self.env, this, field, value);
-    }
-
-    pub unsafe fn set_double_field(self, this: jobject, field: jfieldID, value: jdouble) {
-        ((**self.env).v1_2.SetDoubleField)(self.env, this, field, value);
-    }
+    set_primitive_field! { set_boolean_field, bool,    SetBooleanField }
+    set_primitive_field! { set_byte_field,    jbyte,   SetByteField    }
+    set_primitive_field! { set_char_field,    jchar,   SetCharField    }
+    set_primitive_field! { set_short_field,   jshort,  SetShortField   }
+    set_primitive_field! { set_int_field,     jint,    SetIntField     }
+    set_primitive_field! { set_long_field,    jlong,   SetLongField    }
+    set_primitive_field! { set_float_field,   jfloat,  SetFloatField   }
+    set_primitive_field! { set_double_field,  jdouble, SetDoubleField  }
 
     // Static Fields
 
     pub unsafe fn get_static_object_field<R: ReferenceType>(
         self,
-        class: jclass,
-        field: jfieldID,
+        class: &JClass,
+        field: JFieldID,
     ) -> Option<Local<'env, R>> {
-        let result = ((**self.env).v1_2.GetStaticObjectField)(self.env, class, field);
+        let result = ((**self.env).v1_2.GetStaticObjectField)(self.env, class.as_raw(), field.as_raw());
         if result.is_null() {
             None
         } else {
             Some(Local::from_raw(self, result))
         }
     }
-
-    pub unsafe fn get_static_boolean_field(self, class: jclass, field: jfieldID) -> bool {
-        let result = ((**self.env).v1_2.GetStaticBooleanField)(self.env, class, field);
-        result != JNI_FALSE
-    }
-
-    pub unsafe fn get_static_byte_field(self, class: jclass, field: jfieldID) -> jbyte {
-        ((**self.env).v1_2.GetStaticByteField)(self.env, class, field)
-    }
-
-    pub unsafe fn get_static_char_field(self, class: jclass, field: jfieldID) -> jchar {
-        ((**self.env).v1_2.GetStaticCharField)(self.env, class, field)
-    }
-
-    pub unsafe fn get_static_short_field(self, class: jclass, field: jfieldID) -> jshort {
-        ((**self.env).v1_2.GetStaticShortField)(self.env, class, field)
-    }
-
-    pub unsafe fn get_static_int_field(self, class: jclass, field: jfieldID) -> jint {
-        ((**self.env).v1_2.GetStaticIntField)(self.env, class, field)
-    }
-
-    pub unsafe fn get_static_long_field(self, class: jclass, field: jfieldID) -> jlong {
-        ((**self.env).v1_2.GetStaticLongField)(self.env, class, field)
-    }
-
-    pub unsafe fn get_static_float_field(self, class: jclass, field: jfieldID) -> jfloat {
-        ((**self.env).v1_2.GetStaticFloatField)(self.env, class, field)
-    }
-
-    pub unsafe fn get_static_double_field(self, class: jclass, field: jfieldID) -> jdouble {
-        ((**self.env).v1_2.GetStaticDoubleField)(self.env, class, field)
-    }
+    get_static_primitive_field! { get_static_boolean_field, bool,    GetStaticBooleanField }
+    get_static_primitive_field! { get_static_byte_field,    jbyte,   GetStaticByteField    }
+    get_static_primitive_field! { get_static_char_field,    jchar,   GetStaticCharField    }
+    get_static_primitive_field! { get_static_short_field,   jshort,  GetStaticShortField   }
+    get_static_primitive_field! { get_static_int_field,     jint,    GetStaticIntField     }
+    get_static_primitive_field! { get_static_long_field,    jlong,   GetStaticLongField    }
+    get_static_primitive_field! { get_static_float_field,   jfloat,  GetStaticFloatField   }
+    get_static_primitive_field! { get_static_double_field,  jdouble, GetStaticDoubleField  }
 
     pub unsafe fn set_static_object_field<R: ReferenceType>(
         self,
-        class: jclass,
-        field: jfieldID,
+        class: &JClass,
+        field: JFieldID,
         value: impl AsArg<R>,
     ) {
-        ((**self.env).v1_2.SetStaticObjectField)(self.env, class, field, value.as_arg());
+        ((**self.env).v1_2.SetStaticObjectField)(self.env, class.as_raw(), field.as_raw(), value.as_arg());
     }
-
-    pub unsafe fn set_static_boolean_field(self, class: jclass, field: jfieldID, value: bool) {
-        ((**self.env).v1_2.SetStaticBooleanField)(self.env, class, field, if value { JNI_TRUE } else { JNI_FALSE });
-    }
-
-    pub unsafe fn set_static_byte_field(self, class: jclass, field: jfieldID, value: jbyte) {
-        ((**self.env).v1_2.SetStaticByteField)(self.env, class, field, value);
-    }
-
-    pub unsafe fn set_static_char_field(self, class: jclass, field: jfieldID, value: jchar) {
-        ((**self.env).v1_2.SetStaticCharField)(self.env, class, field, value);
-    }
-
-    pub unsafe fn set_static_short_field(self, class: jclass, field: jfieldID, value: jshort) {
-        ((**self.env).v1_2.SetStaticShortField)(self.env, class, field, value);
-    }
-
-    pub unsafe fn set_static_int_field(self, class: jclass, field: jfieldID, value: jint) {
-        ((**self.env).v1_2.SetStaticIntField)(self.env, class, field, value);
-    }
-
-    pub unsafe fn set_static_long_field(self, class: jclass, field: jfieldID, value: jlong) {
-        ((**self.env).v1_2.SetStaticLongField)(self.env, class, field, value);
-    }
-
-    pub unsafe fn set_static_float_field(self, class: jclass, field: jfieldID, value: jfloat) {
-        ((**self.env).v1_2.SetStaticFloatField)(self.env, class, field, value);
-    }
-
-    pub unsafe fn set_static_double_field(self, class: jclass, field: jfieldID, value: jdouble) {
-        ((**self.env).v1_2.SetStaticDoubleField)(self.env, class, field, value);
-    }
-
-    pub fn throw<T: ReferenceType>(self, throwable: &Ref<T>) {
-        let res = unsafe { ((**self.env).v1_2.Throw)(self.env, throwable.as_raw()) };
-        assert_eq!(res, 0);
-    }
+    set_static_primitive_field! { set_static_boolean_field, bool,    SetStaticBooleanField }
+    set_static_primitive_field! { set_static_byte_field,    jbyte,   SetStaticByteField    }
+    set_static_primitive_field! { set_static_char_field,    jchar,   SetStaticCharField    }
+    set_static_primitive_field! { set_static_short_field,   jshort,  SetStaticShortField   }
+    set_static_primitive_field! { set_static_int_field,     jint,    SetStaticIntField     }
+    set_static_primitive_field! { set_static_long_field,    jlong,   SetStaticLongField    }
+    set_static_primitive_field! { set_static_float_field,   jfloat,  SetStaticFloatField   }
+    set_static_primitive_field! { set_static_double_field,  jdouble, SetStaticDoubleField  }
 }

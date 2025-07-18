@@ -10,7 +10,6 @@ use super::fields::RustTypeFlavor;
 use super::methods::Method;
 use crate::emit::Context;
 use crate::emit::fields::emit_type;
-use crate::parser_util::Id;
 
 impl Class {
     #[allow(clippy::vec_init_then_push)]
@@ -22,9 +21,6 @@ impl Class {
 
         let rust_name = format_ident!("{}", &self.rust.struct_name);
 
-        let object = context
-            .java_to_rust_path(Id("java/lang/Object"), &self.rust.mod_)
-            .unwrap();
         let throwable = context.throwable_rust_path(&self.rust.mod_);
         let rust_proxy_name = format_ident!("{}Proxy", &self.rust.struct_name);
 
@@ -36,6 +32,7 @@ impl Class {
             self.java.path().as_str().replace("$", "_")
         );
 
+        let mut native_regs = Vec::new();
         for method in methods {
             let Some(rust_name) = method.rust_name() else { continue };
             if method.java.is_static()
@@ -60,6 +57,14 @@ impl Class {
             );
             let native_name = format_ident!("{native_name}");
             let rust_name = format_ident!("{rust_name}");
+
+            let mut native_method_desc = method.java.descriptor().to_string();
+            native_method_desc.insert(1, 'J');
+            native_regs.push((
+                cstring(&format!("native_{}", method.java.name())),
+                cstring(&native_method_desc),
+                native_name.clone(),
+            ));
 
             let ret = match &method.java.descriptor.return_type {
                 ReturnDescriptor::Void => quote!(()),
@@ -146,45 +151,76 @@ impl Class {
                 _class: *mut (), // self class, ignore
                 ptr: i64,
             ) {
-                let ptr: *mut std::sync::Arc<dyn #rust_proxy_name> = ::std::ptr::with_exposed_provenance_mut(ptr as usize);
+                let ptr: *mut ::std::sync::Arc<dyn #rust_proxy_name> = ::std::ptr::with_exposed_provenance_mut(ptr as usize);
                 let _ = unsafe { Box::from_raw(ptr) };
             }
         ));
 
         let java_proxy_path = cstring(&java_proxy_path);
 
+        // XXX: use `OnceLock::get_or_try_init` for `__METHOD` when it becomes stable.
         contents.extend(quote!(
             pub fn new_proxy<'env>(
                 env: ::java_spaghetti::Env<'env>,
                 proxy: ::std::sync::Arc<dyn #rust_proxy_name>,
+                proxy_class: ::std::option::Option<::java_spaghetti::JClass>,
             ) -> Result<::java_spaghetti::Local<'env, Self>, ::java_spaghetti::Local<'env, #throwable>> {
-                static __CLASS: ::std::sync::OnceLock<::java_spaghetti::Global<#object>> =
-                    ::std::sync::OnceLock::new();
+                static __CLASS: ::std::sync::OnceLock<::java_spaghetti::JClass> = ::std::sync::OnceLock::new();
                 let __jni_class = __CLASS
                     .get_or_init(|| unsafe {
-                        ::java_spaghetti::Local::from_raw(env, env.require_class(#java_proxy_path),)
-                        .as_global()
-                    })
-                    .as_raw();
+                        let required = env.require_class(#java_proxy_path);
+                        if let Ok(proxy_class) = required {
+                            proxy_class
+                        } else if let Some(proxy_class) = proxy_class {
+                            let bin_name = env.get_class_name(&proxy_class).replace('.', "/");
+                            let expected = #java_proxy_path.to_string_lossy();
+                            if bin_name != expected {
+                                panic!("wrong proxy_class, expected: {}, provided: {}", expected, bin_name)
+                            }
+                            Self::register_proxy_methods(env, &proxy_class);
+                            proxy_class
+                        } else {
+                            panic!("{}", required.unwrap_err())
+                        }
+                    });
 
                 let b = ::std::boxed::Box::new(proxy);
                 let ptr = ::std::boxed::Box::into_raw(b);
 
                 static __METHOD: ::std::sync::OnceLock<::java_spaghetti::JMethodID> = ::std::sync::OnceLock::new();
                 unsafe {
-                    let __jni_args = [::java_spaghetti::sys::jvalue {
+                    let __jni_args = &[::java_spaghetti::sys::jvalue {
                         j: ptr.expose_provenance() as i64,
                     }];
-                    let __jni_method = __METHOD
-                        .get_or_init(|| {
-                            ::java_spaghetti::JMethodID::from_raw(env.require_method(
-                                __jni_class,
-                                c"<init>",
-                                c"(J)V",
-                            ))
-                        })
-                        .as_raw();
-                    env.new_object_a(__jni_class, __jni_method, __jni_args.as_ptr())
+                    let __jni_method = if let Some(&__jni_method) = __METHOD.get() {
+                        __jni_method
+                    } else {
+                        let __jni_method = env.require_method(__jni_class, c"<init>", c"(J)V")?;
+                        *__METHOD.get_or_init(|| __jni_method)
+                    };
+                    env.new_object_a(__jni_class, __jni_method, __jni_args)
+                }
+            }
+        ));
+
+        let mut register_calls = TokenStream::new();
+        for (native_method_name, descriptor, extern_name) in native_regs {
+            register_calls.extend(quote!(
+                {
+                    let method_name = #native_method_name;
+                    let descriptor = #descriptor;
+                    let fn_ptr = #extern_name as *mut _;
+                    let _ = env.register_native_method(proxy_class, method_name, descriptor, fn_ptr);
+                }
+            ));
+        }
+        contents.extend(quote!(
+            fn register_proxy_methods<'env>(
+                env: ::java_spaghetti::Env<'env>,
+                proxy_class: &::java_spaghetti::JClass,
+            ) {
+                unsafe {
+                    #register_calls
                 }
             }
         ));

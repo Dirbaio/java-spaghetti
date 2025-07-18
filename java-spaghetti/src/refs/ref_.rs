@@ -87,11 +87,8 @@ impl<'env, T: ReferenceType> Ref<'env, T> {
     pub(crate) fn check_assignable<U: ReferenceType>(&self) -> Result<(), crate::CastError> {
         let env = self.env();
         let jnienv = env.as_raw();
-        let class = U::static_with_jni_type(|t| unsafe { env.require_class(t) });
+        let class = U::jni_get_class(env).unwrap().as_raw();
         let assignable = unsafe { ((**jnienv).v1_2.IsInstanceOf)(jnienv, self.as_raw(), class) };
-        unsafe {
-            ((**jnienv).v1_2.DeleteLocalRef)(jnienv, class);
-        }
         if assignable { Ok(()) } else { Err(crate::CastError) }
     }
 
@@ -198,10 +195,7 @@ impl<'env, T: ReferenceType> Drop for Monitor<'env, T> {
         let jnienv = env.as_raw();
         let result = unsafe { ((**jnienv).v1_2.MonitorExit)(jnienv, self.inner.as_raw()) };
         assert!(result == jni_sys::JNI_OK);
-        let exception = unsafe { ((**jnienv).v1_2.ExceptionOccurred)(jnienv) };
-        assert!(
-            exception.is_null(),
-            "exception happened calling JNI MonitorExit, the monitor is probably broken previously"
-        );
+        env.exception_check_raw()
+            .expect("exception happened calling JNI MonitorExit, the monitor is probably broken previously");
     }
 }
