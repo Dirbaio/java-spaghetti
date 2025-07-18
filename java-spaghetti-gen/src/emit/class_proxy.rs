@@ -151,13 +151,14 @@ impl Class {
                 _class: *mut (), // self class, ignore
                 ptr: i64,
             ) {
-                let ptr: *mut std::sync::Arc<dyn #rust_proxy_name> = ::std::ptr::with_exposed_provenance_mut(ptr as usize);
+                let ptr: *mut ::std::sync::Arc<dyn #rust_proxy_name> = ::std::ptr::with_exposed_provenance_mut(ptr as usize);
                 let _ = unsafe { Box::from_raw(ptr) };
             }
         ));
 
         let java_proxy_path = cstring(&java_proxy_path);
 
+        // XXX: use `OnceLock::get_or_try_init` for `__METHOD` when it becomes stable.
         contents.extend(quote!(
             pub fn new_proxy<'env>(
                 env: ::java_spaghetti::Env<'env>,
@@ -191,7 +192,12 @@ impl Class {
                     let __jni_args = &[::java_spaghetti::sys::jvalue {
                         j: ptr.expose_provenance() as i64,
                     }];
-                    let __jni_method = *__METHOD.get_or_init(|| env.require_method(__jni_class, c"<init>", c"(J)V"));
+                    let __jni_method = if let Some(&__jni_method) = __METHOD.get() {
+                        __jni_method
+                    } else {
+                        let __jni_method = env.require_method(__jni_class, c"<init>", c"(J)V")?;
+                        *__METHOD.get_or_init(|| __jni_method)
+                    };
                     env.new_object_a(__jni_class, __jni_method, __jni_args)
                 }
             }

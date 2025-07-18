@@ -177,7 +177,7 @@ impl<'env> Env<'env> {
         let throwable_get_message = METHOD_GET_MESSAGE.get_or_init(|| {
             // use JNI FindClass to avoid infinte recursion.
             let throwable_class = self.require_class_jni(c"java/lang/Throwable").unwrap();
-            self.require_method(&throwable_class, c"getMessage", c"()Ljava/lang/String;")
+            self.require_method_forced(&throwable_class, c"getMessage", c"()Ljava/lang/String;")
         });
 
         let message =
@@ -215,7 +215,7 @@ impl<'env> Env<'env> {
             // We still use JNI FindClass for this, to avoid a chicken-and-egg situation.
             // If the system class loader cannot find java.lang.ClassLoader, things are pretty broken!
             let cl_class = self.require_class_jni(c"java/lang/ClassLoader").unwrap();
-            self.require_method(&cl_class, c"loadClass", c"(Ljava/lang/String;)Ljava/lang/Class;")
+            self.require_method_forced(&cl_class, c"loadClass", c"(Ljava/lang/String;)Ljava/lang/Class;")
         });
 
         let args = [jvalue { l: string }];
@@ -265,7 +265,7 @@ impl<'env> Env<'env> {
     pub unsafe fn get_class_name(self, class: &JClass) -> String {
         static METHOD_GET_NAME: OnceLock<JMethodID> = OnceLock::new();
         let method = METHOD_GET_NAME.get_or_init(|| {
-            // don't use `self.require_method()` here to avoid recursion!
+            // don't use `self.require_method_forced()` here to avoid recursion!
             let class_class = self.require_class_jni(c"java/lang/Class").unwrap();
             let method_raw = ((**self.env).v1_2.GetMethodID)(
                 self.env,
@@ -324,24 +324,44 @@ impl<'env> Env<'env> {
         true
     }
 
-    pub unsafe fn require_method(self, class: &JClass, method: &CStr, descriptor: &CStr) -> JMethodID {
+    pub(crate) unsafe fn require_method_forced(self, class: &JClass, method: &CStr, descriptor: &CStr) -> JMethodID {
         let res = ((**self.env).v1_2.GetMethodID)(self.env, class.as_raw(), method.as_ptr(), descriptor.as_ptr());
+        let _ = self.exception_check_raw();
         if res.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
             let class_name = self.get_class_name(class);
             panic!("could not find method {method:?} {descriptor:?} on class {class_name:?}");
         }
         JMethodID::from_raw(res)
     }
 
-    pub unsafe fn require_static_method(self, class: &JClass, method: &CStr, descriptor: &CStr) -> JMethodID {
-        let res = ((**self.env).v1_2.GetStaticMethodID)(self.env, class.as_raw(), method.as_ptr(), descriptor.as_ptr());
+    pub unsafe fn require_method<E: ThrowableType>(
+        self,
+        class: &JClass,
+        method: &CStr,
+        descriptor: &CStr,
+    ) -> Result<JMethodID, Local<'env, E>> {
+        let res = ((**self.env).v1_2.GetMethodID)(self.env, class.as_raw(), method.as_ptr(), descriptor.as_ptr());
+        self.exception_check()?;
         if res.is_null() {
-            ((**self.env).v1_2.ExceptionClear)(self.env);
+            let class_name = self.get_class_name(class);
+            panic!("could not find method {method:?} {descriptor:?} on class {class_name:?}");
+        }
+        Ok(JMethodID::from_raw(res))
+    }
+
+    pub unsafe fn require_static_method<E: ThrowableType>(
+        self,
+        class: &JClass,
+        method: &CStr,
+        descriptor: &CStr,
+    ) -> Result<JMethodID, Local<'env, E>> {
+        let res = ((**self.env).v1_2.GetStaticMethodID)(self.env, class.as_raw(), method.as_ptr(), descriptor.as_ptr());
+        self.exception_check()?;
+        if res.is_null() {
             let class_name = self.get_class_name(class);
             panic!("could not find static method {method:?} {descriptor:?} on class {class_name:?}");
         }
-        JMethodID::from_raw(res)
+        Ok(JMethodID::from_raw(res))
     }
 
     pub unsafe fn require_field(self, class: &JClass, field: &CStr, descriptor: &CStr) -> JFieldID {

@@ -150,6 +150,7 @@ impl<'a> Method<'a> {
             quote!(    __jni_env.#call(self, __jni_method, __jni_args))
         };
 
+        // XXX: use `OnceLock::get_or_try_init` when it becomes stable.
         out.extend(quote!(
             #[doc = #docs]
             #attributes
@@ -160,10 +161,12 @@ impl<'a> Method<'a> {
                     let __jni_args = &[#params_array];
                     #env_let
                     let __jni_class = Self::jni_get_class(__jni_env).unwrap();
-                    let __jni_method = *__METHOD.get_or_init(||
-                        __jni_env.#require_method(__jni_class, #java_name, #descriptor)
-                    );
-
+                    let __jni_method = if let Some(&__jni_method) = __METHOD.get() {
+                        __jni_method
+                    } else {
+                        let __jni_method = __jni_env.#require_method(__jni_class, #java_name, #descriptor)?;
+                        *__METHOD.get_or_init(|| __jni_method)
+                    };
                     #call
                 }
             }

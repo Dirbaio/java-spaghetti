@@ -3,8 +3,10 @@
 //!
 //! Inspired by: <https://docs.rs/jni/0.21.1/jni/objects/struct.JMethodID.html>.
 
+use std::sync::OnceLock;
+
 use crate::sys::{jclass, jfieldID, jmethodID, jobject};
-use crate::{Env, VM};
+use crate::{Env, Ref, ReferenceType, VM};
 
 /// New type for cached class objects as JNI global references.
 ///
@@ -19,6 +21,28 @@ unsafe impl Send for JClass {}
 unsafe impl Sync for JClass {}
 
 impl JClass {
+    /// Creates a `JClass` from a JNI reference of a class object. Returns `None` if it is not a class object.
+    pub fn from_ref<'env, T: ReferenceType>(class: &Ref<'env, T>) -> Option<Self> {
+        let env = class.env();
+
+        static METHOD_GET_CLASS: OnceLock<JMethodID> = OnceLock::new();
+        let method = METHOD_GET_CLASS.get_or_init(|| unsafe {
+            let obj_class = env.require_class_jni(c"java/lang/Object").unwrap();
+            env.require_method_forced(&obj_class, c"getClass", c"()Ljava/lang/Class;")
+        });
+
+        let jnienv = env.as_raw();
+        let class_class = unsafe { ((**jnienv).v1_2.CallObjectMethod)(jnienv, class.as_raw(), method.as_raw()) };
+        if env.exception_check_raw().is_err() || class_class.is_null() {
+            return None;
+        }
+        unsafe {
+            let class_class = Self::from_raw(env, class_class);
+            let name = env.get_class_name(&class_class);
+            (name.trim() == "java.lang.Class").then_some(Self::from_raw_global(env.vm(), class.as_global().into_raw()))
+        }
+    }
+
     /// Creates a `JClass` from an owned JNI local reference of a class object and *deletes* the
     /// local reference.
     ///
@@ -48,7 +72,6 @@ impl JClass {
             vm,
         }
     }
-
     /// Returns the raw JNI reference pointer.
     pub fn as_raw(&self) -> jclass {
         self.class
